@@ -241,6 +241,20 @@ To revert an entire commit (preserves history):
 git revert <commit>                  # Creates a new commit that undoes the target
 ```
 
+### Mandatory commit after every change
+
+**Every code modification MUST be followed by a git commit.** This is non-negotiable.
+
+- Commit immediately after completing a logical unit of work — do NOT batch multiple unrelated changes into one commit.
+- Before committing, verify the change compiles/builds (`cargo build --release` or `npm run build`).
+- If a change spans backend + frontend, commit each side separately with the appropriate scope prefix.
+- Commit messages follow the `type(scope): subject` format defined above.
+- After committing, verify `git status` shows a clean working tree.
+
+**Why**: Uncommitted changes accumulate and become impossible to review or rollback independently. A dirty working tree at the end of a session means lost context. Every commit is a save point.
+
+**How to apply**: After any `Edit`, `Write`, or `Bash` that changes source code, immediately stage and commit before moving to the next task. If the user asks you to do multiple things, commit after each one.
+
 ---
 ## Commands
 
