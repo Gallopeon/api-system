@@ -15,7 +15,7 @@ use crate::auth::*;
 // ── LLM Providers ──
 
 pub async fn create_llm_provider(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<CreateLlmProviderRequest>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
+    ensure_permission(&auth, Permission::LlmManage)?;
     let id = Uuid::new_v4().to_string();
     sqlx::query("INSERT INTO llm_providers (id, name, provider_type, endpoint_url, api_key_env, model_name, cost_per_1k_input, cost_per_1k_output, max_tokens, status, priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         .bind(&id).bind(&payload.name).bind(&payload.provider_type).bind(&payload.endpoint_url).bind(&payload.api_key_env).bind(&payload.model_name).bind(payload.cost_per_1k_input).bind(payload.cost_per_1k_output).bind(payload.max_tokens).bind("active").bind(payload.priority)
@@ -65,7 +65,7 @@ pub async fn get_llm_provider(State(state): State<Arc<AppState>>, Extension(auth
 }
 
 pub async fn update_llm_provider(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
+    ensure_permission(&auth, Permission::LlmManage)?;
     let mut updates: Vec<String> = Vec::new();
     let mut params: Vec<String> = Vec::new();
     if let Some(v) = payload.get("name").and_then(|v| v.as_str()) { updates.push("name = ?".to_string()); params.push(v.to_string()); }
@@ -92,7 +92,7 @@ pub async fn update_llm_provider(State(state): State<Arc<AppState>>, Extension(a
 }
 
 pub async fn delete_llm_provider(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
+    ensure_permission(&auth, Permission::LlmManage)?;
     sqlx::query("DELETE FROM llm_providers WHERE id = ?").bind(&id).execute(&state.pool).await?;
     Ok(Json(json!({"deleted": true})))
 }
@@ -100,7 +100,7 @@ pub async fn delete_llm_provider(State(state): State<Arc<AppState>>, Extension(a
 // ── Prompt Templates ──
 
 pub async fn create_prompt_template(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<CreatePromptTemplateRequest>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
+    ensure_permission(&auth, Permission::LlmManage)?;
     let id = Uuid::new_v4().to_string();
     let variables = payload.variables.as_ref().map(|v| serde_json::to_value(v).unwrap_or_default());
     sqlx::query("INSERT INTO prompt_templates (id, name, template_text, variables) VALUES (?, ?, ?, ?)")
@@ -142,7 +142,7 @@ pub async fn get_prompt_template(State(state): State<Arc<AppState>>, Extension(a
 }
 
 pub async fn update_prompt_template(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
+    ensure_permission(&auth, Permission::LlmManage)?;
     let mut updates: Vec<String> = Vec::new();
     let mut params: Vec<String> = Vec::new();
     if let Some(v) = payload.get("name").and_then(|v| v.as_str()) { updates.push("name = ?".to_string()); params.push(v.to_string()); }
@@ -162,7 +162,7 @@ pub async fn update_prompt_template(State(state): State<Arc<AppState>>, Extensio
 }
 
 pub async fn delete_prompt_template(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
+    ensure_permission(&auth, Permission::LlmManage)?;
     sqlx::query("DELETE FROM prompt_templates WHERE id = ?").bind(&id).execute(&state.pool).await?;
     Ok(Json(json!({"deleted": true})))
 }

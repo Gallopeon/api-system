@@ -376,7 +376,7 @@ export default function APIControlCenter() {
           )}
 
           {activeMenu === "llmgateway" && (
-            <LlmGatewayPanel notifyError={notifyError} notifySucc={notifySucc} t={t} />
+            <LlmGatewayPanel isAdmin={(session as any)?.role === "admin"} notifyError={notifyError} notifySucc={notifySucc} t={t} />
           )}
 
           {activeMenu === "advanced" && (

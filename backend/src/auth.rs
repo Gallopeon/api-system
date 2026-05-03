@@ -71,6 +71,7 @@ pub enum Permission {
     MetricsRead,
     UserManage,
     UserSelf,
+    LlmManage,
 }
 
 impl Permission {
@@ -84,6 +85,7 @@ impl Permission {
             Self::MetricsRead => "metrics:read",
             Self::UserManage => "user:manage",
             Self::UserSelf => "user:self",
+            Self::LlmManage => "llm:manage",
         }
     }
 }

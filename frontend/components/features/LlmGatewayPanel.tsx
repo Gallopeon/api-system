@@ -8,19 +8,20 @@ import type { LlmProvider, PromptTemplate } from "@/lib/types";
 
 const TABS = [
   { id: "route", icon: Send, en: "LLM Route", zh: "LLM 路由" },
-  { id: "providers", icon: Network, en: "Providers", zh: "提供商" },
-  { id: "templates", icon: FileText, en: "Templates", zh: "模板" },
+  { id: "providers", icon: Network, en: "Providers", zh: "提供商", admin: true },
+  { id: "templates", icon: FileText, en: "Templates", zh: "模板", admin: true },
 ];
 
 const PROVIDER_TYPES = ["openai", "anthropic", "azure", "google", "custom"];
 
 interface PanelProps {
+  isAdmin: boolean;
   notifyError: (msg: string) => void;
   notifySucc: (msg: string) => void;
   t: <T>(en: T, zh: T) => T;
 }
 
-export default function LlmGatewayPanel({ notifyError, notifySucc, t }: PanelProps) {
+export default function LlmGatewayPanel({ isAdmin, notifyError, notifySucc, t }: PanelProps) {
   const [activeTab, setActiveTab] = useState("route");
   const hook = useLlmGateway(notifyError, notifySucc);
 
@@ -30,7 +31,7 @@ export default function LlmGatewayPanel({ notifyError, notifySucc, t }: PanelPro
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const st = activeTab;
+  const st = !isAdmin && activeTab !== "route" ? "route" : activeTab;
 
   // ── Shared helpers ──
   const statusBadge = (status: string) => (
@@ -251,7 +252,7 @@ export default function LlmGatewayPanel({ notifyError, notifySucc, t }: PanelPro
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 p-1 rounded-xl">
-        {TABS.map(tab => (
+        {TABS.filter(tab => !tab.admin || isAdmin).map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition flex-1 justify-center ${activeTab === tab.id ? "bg-white dark:bg-gray-800 shadow text-gray-900 dark:text-white" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"}`}>
             <tab.icon className="w-4 h-4" />{t(tab.en, tab.zh)}
           </button>
