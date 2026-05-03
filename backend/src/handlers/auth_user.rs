@@ -31,9 +31,9 @@ pub async fn login(State(state): State<Arc<AppState>>, Json(payload): Json<Login
     let role = parse_role(&role_str);
 
     let secret = state.auth.jwt_secret.as_deref().unwrap_or("dev-secret");
-    let token = create_jwt(&user_id, role, None, secret, 86400)?;
+    let token = create_jwt(&payload.username, role, None, secret, 86400)?;
 
-    sqlx::query("UPDATE users SET last_login_at = NOW() WHERE username = ?").bind(&user_id).execute(&state.pool).await?;
+    sqlx::query("UPDATE users SET last_login_at = NOW() WHERE id = ?").bind(&user_id).execute(&state.pool).await?;
 
     Ok(Json(LoginResponse { token, user: row_to_user(&row) }))
 }
