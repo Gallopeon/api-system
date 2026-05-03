@@ -34,16 +34,26 @@ pub async fn list_products(State(state): State<Arc<AppState>>, Extension(auth): 
     Ok(Json(json!({"items": items})))
 }
 
-pub async fn get_product(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
+pub async fn get_product(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::RuleRead)?;
-    Ok(Json(json!({"id": id})))
+    let row = sqlx::query("SELECT id, name, description, rule_ids, status FROM api_products WHERE id = ?")
+        .bind(&id).fetch_optional(&state.pool).await?
+        .ok_or_else(|| AppError::NotFound(format!("product {} not found", id)))?;
+    Ok(Json(json!({
+        "id": row.try_get::<String,_>("id").unwrap_or_default(),
+        "name": row.try_get::<String,_>("name").unwrap_or_default(),
+        "description": row.try_get::<String,_>("description").unwrap_or_default(),
+        "rule_ids": row.try_get::<String,_>("rule_ids").unwrap_or_default(),
+        "status": row.try_get::<String,_>("status").unwrap_or_default(),
+    })))
 }
 pub async fn update_product(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(_payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::RuleWrite)?;
-    Ok(Json(json!({"id": id, "updated": true})))
+    Err::<Json<Value>, _>(AppError::BadRequest(format!("not implemented: update_product {}", id)))
 }
-pub async fn delete_product(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(_id): Path<String>) -> Result<impl IntoResponse, AppError> {
+pub async fn delete_product(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::RuleWrite)?;
+    sqlx::query("DELETE FROM api_products WHERE id = ?").bind(&id).execute(&state.pool).await?;
     Ok(Json(json!({"deleted": true})))
 }
 
@@ -70,15 +80,29 @@ pub async fn list_subscriptions(State(state): State<Arc<AppState>>, Extension(au
     Ok(Json(json!({"items": items})))
 }
 
-pub async fn get_subscription(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
+pub async fn get_subscription(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::RuleRead)?;
-    Ok(Json(json!({"id": id})))
+    let row = sqlx::query("SELECT id, api_key_id, product_id, plan, rate_limit_rps, quota_daily, status, expires_at, created_at FROM subscriptions WHERE id = ?")
+        .bind(&id).fetch_optional(&state.pool).await?
+        .ok_or_else(|| AppError::NotFound(format!("subscription {} not found", id)))?;
+    Ok(Json(json!({
+        "id": row.try_get::<String,_>("id").unwrap_or_default(),
+        "api_key_id": row.try_get::<String,_>("api_key_id").unwrap_or_default(),
+        "product_id": row.try_get::<String,_>("product_id").unwrap_or_default(),
+        "plan": row.try_get::<String,_>("plan").unwrap_or_default(),
+        "rate_limit_rps": row.try_get::<Option<i32>,_>("rate_limit_rps").ok().flatten(),
+        "quota_daily": row.try_get::<Option<i32>,_>("quota_daily").ok().flatten(),
+        "status": row.try_get::<String,_>("status").unwrap_or_default(),
+        "expires_at": row.try_get::<Option<String>,_>("expires_at").ok().flatten(),
+        "created_at": row.try_get::<String,_>("created_at").unwrap_or_default(),
+    })))
 }
 pub async fn update_subscription(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(_payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::RuleWrite)?;
-    Ok(Json(json!({"id": id, "updated": true})))
+    Err::<Json<Value>, _>(AppError::BadRequest(format!("not implemented: update_subscription {}", id)))
 }
-pub async fn delete_subscription(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(_id): Path<String>) -> Result<impl IntoResponse, AppError> {
+pub async fn delete_subscription(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::RuleWrite)?;
+    sqlx::query("DELETE FROM subscriptions WHERE id = ?").bind(&id).execute(&state.pool).await?;
     Ok(Json(json!({"deleted": true})))
 }
