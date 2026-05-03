@@ -33,14 +33,14 @@ pub async fn login(State(state): State<Arc<AppState>>, Json(payload): Json<Login
     let secret = state.auth.jwt_secret.as_deref().unwrap_or("dev-secret");
     let token = create_jwt(&user_id, role, None, secret, 86400)?;
 
-    sqlx::query("UPDATE users SET last_login_at = NOW() WHERE id = ?").bind(&user_id).execute(&state.pool).await?;
+    sqlx::query("UPDATE users SET last_login_at = NOW() WHERE username = ?").bind(&user_id).execute(&state.pool).await?;
 
     Ok(Json(LoginResponse { token, user: row_to_user(&row) }))
 }
 
 pub async fn get_my_profile(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
     let row = sqlx::query(
-        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, last_login_at, created_at, updated_at FROM users WHERE id = ?"
+        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, last_login_at, created_at, updated_at FROM users WHERE username = ?"
     ).bind(&auth.subject).fetch_optional(&state.pool).await?
     .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
     Ok(Json(row_to_user(&row)))
@@ -48,19 +48,19 @@ pub async fn get_my_profile(State(state): State<Arc<AppState>>, Extension(auth):
 
 pub async fn update_my_profile(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     if let Some(display_name) = payload.get("display_name").and_then(|v| v.as_str()) {
-        sqlx::query("UPDATE users SET display_name = ? WHERE id = ?").bind(display_name).bind(&auth.subject).execute(&state.pool).await?;
+        sqlx::query("UPDATE users SET display_name = ? WHERE username = ?").bind(display_name).bind(&auth.subject).execute(&state.pool).await?;
     }
     if let Some(email) = payload.get("email").and_then(|v| v.as_str()) {
-        sqlx::query("UPDATE users SET email = ? WHERE id = ?").bind(email).bind(&auth.subject).execute(&state.pool).await?;
+        sqlx::query("UPDATE users SET email = ? WHERE username = ?").bind(email).bind(&auth.subject).execute(&state.pool).await?;
     }
     if let Some(avatar_url) = payload.get("avatar_url").and_then(|v| v.as_str()) {
-        sqlx::query("UPDATE users SET avatar_url = ? WHERE id = ?").bind(avatar_url).bind(&auth.subject).execute(&state.pool).await?;
+        sqlx::query("UPDATE users SET avatar_url = ? WHERE username = ?").bind(avatar_url).bind(&auth.subject).execute(&state.pool).await?;
     }
     Ok(Json(json!({"updated": true})))
 }
 
 pub async fn change_my_password(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<ChangePasswordRequest>) -> Result<impl IntoResponse, AppError> {
-    let current_hash: String = sqlx::query_scalar("SELECT password_hash FROM users WHERE id = ?")
+    let current_hash: String = sqlx::query_scalar("SELECT password_hash FROM users WHERE username = ?")
         .bind(&auth.subject).fetch_optional(&state.pool).await?
         .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
     let ok = bcrypt::verify(&payload.current_password, &current_hash).unwrap_or(false);
@@ -68,7 +68,7 @@ pub async fn change_my_password(State(state): State<Arc<AppState>>, Extension(au
         return Err(AppError::Unauthorized("current password is incorrect".to_string()));
     }
     let new_hash = bcrypt::hash(&payload.new_password, 12).map_err(|e| AppError::BadRequest(format!("bcrypt: {}", e)))?;
-    sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?").bind(&new_hash).bind(&auth.subject).execute(&state.pool).await?;
+    sqlx::query("UPDATE users SET password_hash = ? WHERE username = ?").bind(&new_hash).bind(&auth.subject).execute(&state.pool).await?;
     Ok(Json(json!({"changed": true})))
 }
 
@@ -110,7 +110,7 @@ pub async fn create_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
 pub async fn get_user(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserManage)?;
     let row = sqlx::query(
-        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, last_login_at, created_at, updated_at FROM users WHERE id = ?"
+        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, last_login_at, created_at, updated_at FROM users WHERE username = ?"
     ).bind(&id).fetch_optional(&state.pool).await?
     .ok_or_else(|| AppError::NotFound(format!("user {} not found", id)))?;
     Ok(Json(row_to_user(&row)))
@@ -119,29 +119,29 @@ pub async fn get_user(State(state): State<Arc<AppState>>, Extension(auth): Exten
 pub async fn update_user(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(payload): Json<UpdateUserRequest>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserManage)?;
     if let Some(ref role) = payload.role {
-        sqlx::query("UPDATE users SET role = ? WHERE id = ?").bind(role).bind(&id).execute(&state.pool).await?;
+        sqlx::query("UPDATE users SET role = ? WHERE username = ?").bind(role).bind(&id).execute(&state.pool).await?;
     }
     if let Some(ref status) = payload.status {
-        sqlx::query("UPDATE users SET status = ? WHERE id = ?").bind(status).bind(&id).execute(&state.pool).await?;
+        sqlx::query("UPDATE users SET status = ? WHERE username = ?").bind(status).bind(&id).execute(&state.pool).await?;
     }
     if let Some(ref display_name) = payload.display_name {
-        sqlx::query("UPDATE users SET display_name = ? WHERE id = ?").bind(display_name).bind(&id).execute(&state.pool).await?;
+        sqlx::query("UPDATE users SET display_name = ? WHERE username = ?").bind(display_name).bind(&id).execute(&state.pool).await?;
     }
     if let Some(ref email) = payload.email {
-        sqlx::query("UPDATE users SET email = ? WHERE id = ?").bind(email).bind(&id).execute(&state.pool).await?;
+        sqlx::query("UPDATE users SET email = ? WHERE username = ?").bind(email).bind(&id).execute(&state.pool).await?;
     }
     Ok(Json(json!({"id": id, "updated": true})))
 }
 
 pub async fn delete_user(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserManage)?;
-    let username: String = sqlx::query_scalar("SELECT username FROM users WHERE id = ?")
+    let username: String = sqlx::query_scalar("SELECT username FROM users WHERE username = ?")
         .bind(&id).fetch_optional(&state.pool).await?
         .ok_or_else(|| AppError::NotFound(format!("user {} not found", id)))?;
     if username == "admin" {
         return Err(AppError::Forbidden("cannot delete the built-in admin user".to_string()));
     }
-    sqlx::query("DELETE FROM users WHERE id = ?").bind(&id).execute(&state.pool).await?;
+    sqlx::query("DELETE FROM users WHERE username = ?").bind(&id).execute(&state.pool).await?;
     Ok(Json(json!({"deleted": true})))
 }
 
@@ -158,7 +158,7 @@ pub async fn disable_totp(State(_state): State<Arc<AppState>>, Extension(_auth):
 }
 
 pub async fn get_my_preferences(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
-    let prefs: Option<String> = sqlx::query_scalar("SELECT preferences FROM users WHERE id = ?")
+    let prefs: Option<String> = sqlx::query_scalar("SELECT preferences FROM users WHERE username = ?")
         .bind(&auth.subject).fetch_optional(&state.pool).await?
         .and_then(|v: Option<String>| v);
     Ok(Json(PreferencesResponse {
@@ -171,7 +171,7 @@ pub async fn get_my_preferences(State(state): State<Arc<AppState>>, Extension(au
 
 pub async fn update_my_preferences(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<UpdatePreferencesRequest>) -> Result<impl IntoResponse, AppError> {
     let prefs_json = serde_json::to_string(&payload).unwrap_or_default();
-    sqlx::query("UPDATE users SET preferences = ? WHERE id = ?").bind(&prefs_json).bind(&auth.subject).execute(&state.pool).await?;
+    sqlx::query("UPDATE users SET preferences = ? WHERE username = ?").bind(&prefs_json).bind(&auth.subject).execute(&state.pool).await?;
     Ok(Json(json!({"updated": true})))
 }
 

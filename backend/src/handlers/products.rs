@@ -14,7 +14,8 @@ pub async fn create_product(State(state): State<Arc<AppState>>, Extension(auth):
     let id = Uuid::new_v4().to_string();
     let name = payload.get("name").and_then(|v| v.as_str()).unwrap_or("unnamed");
     let desc = payload.get("description").and_then(|v| v.as_str()).unwrap_or("");
-    let rule_ids = payload.get("rule_ids").map(|v| v.to_string()).unwrap_or_default();
+    let rule_ids: Option<String> = payload.get("rule_ids")
+        .and_then(|v| if v.is_null() || v.as_array().map_or(false, |a| a.is_empty()) { None } else { Some(v.to_string()) });
     sqlx::query("INSERT INTO api_products (id, name, description, rule_ids, status) VALUES (?, ?, ?, ?, 'active')")
         .bind(&id).bind(name).bind(desc).bind(&rule_ids).execute(&state.pool).await?;
     Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
