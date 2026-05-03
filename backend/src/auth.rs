@@ -281,6 +281,8 @@ pub enum AppError {
     Unauthorized(String),
     #[error("forbidden: {0}")]
     Forbidden(String),
+    #[error("internal error: {0}")]
+    Internal(String),
 }
 
 impl IntoResponse for AppError {
@@ -290,7 +292,7 @@ impl IntoResponse for AppError {
             AppError::NotFound(_) => (StatusCode::NOT_FOUND, "not_found"),
             AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "unauthorized"),
             AppError::Forbidden(_) => (StatusCode::FORBIDDEN, "forbidden"),
-            AppError::Db(_) | AppError::Redis(_) | AppError::Json(_) => {
+            AppError::Internal(_) | AppError::Db(_) | AppError::Redis(_) | AppError::Json(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal_error")
             }
         };
