@@ -14,11 +14,17 @@ function toLocalDate(d: Date): string {
 
 function clamp(v: number, lo: number, hi: number) { return Math.min(Math.max(v, lo), hi); }
 
-function dateAtHour(dateStr: string, hour: number): Date {
+function dateAtTime(dateStr: string, h: number, m: number, s: number): Date {
   const d = new Date(dateStr + "T00:00:00");
-  d.setHours(hour, 0, 0, 0);
+  d.setHours(h, m, s, 0);
   return d;
 }
+
+function fmtHHMMSS(h: number, m: number, s: number): string {
+  return [h, m, s].map(v => String(v).padStart(2, "0")).join(":");
+}
+
+function fmtNum(v: number) { return String(v).padStart(2, "0"); }
 
 // ---- component ----
 interface ApiKeysPanelProps {
@@ -45,51 +51,88 @@ export default function ApiKeysPanel({
   const now = new Date();
   const todayStr = toLocalDate(now);
 
-  // initialise: tomorrow, a sensible default hour
-  const initDate = toLocalDate(new Date(now.getTime() + 86400000));
-  const initHour = clamp(now.getHours() + 1, 0, 23);
+  // initialise: tomorrow, current time
+  const tomorrow = new Date(now.getTime() + 86400000);
+  const initDate = toLocalDate(tomorrow);
+  const initHour = now.getHours();
+  const initMin  = now.getMinutes();
+  const initSec  = now.getSeconds();
 
-  const [expiryDate, setExpiryDate] = useState(initDate);
-  const [expiryHour, setExpiryHour] = useState(initHour);
+  const [expiryDate,   setExpiryDate]   = useState(initDate);
+  const [expiryHour,   setExpiryHour]   = useState(initHour);
+  const [expiryMinute, setExpiryMinute] = useState(initMin);
+  const [expirySecond, setExpirySecond] = useState(initSec);
 
   const isToday = expiryDate === todayStr;
 
-  // Prevent picking a past hour when today is selected
+  // ---- bounds for today ----
   const hourMin = isToday ? now.getHours() : 0;
   const hourMax = 24;
 
-  const commit = useCallback((date: string, hour: number) => {
-    const safeHour = clamp(hour, hourMin, hourMax);
-    const d = dateAtHour(date, safeHour);
-    setAkExpires(d.toISOString().slice(0, 16));
-    return safeHour;
+  // ---- commit to parent ----
+  const commit = useCallback((date: string, h: number, m: number, s: number) => {
+    const safeH = clamp(h, hourMin, hourMax);
+    const safeM = clamp(m, 0, 59);
+    const safeS = clamp(s, 0, 59);
+    const d = dateAtTime(date, safeH, safeM, safeS);
+    setAkExpires(d.toISOString().slice(0, 19));
   }, [setAkExpires, hourMin]);
 
+  // ---- handlers ----
   const onDateChange = (d: string) => {
     setExpiryDate(d);
-    // when date changes the effective min might change → re-clamp
     const newIsToday = d === todayStr;
     const lo = newIsToday ? now.getHours() : 0;
-    const safe = clamp(expiryHour, lo, hourMax);
-    setExpiryHour(safe);
-    const dt = dateAtHour(d, safe);
-    setAkExpires(dt.toISOString().slice(0, 16));
+    const safeH = clamp(expiryHour, lo, hourMax);
+    const safeM = clamp(expiryMinute, 0, 59);
+    const safeS = clamp(expirySecond, 0, 59);
+    setExpiryHour(safeH);
+    setExpiryMinute(safeM);
+    setExpirySecond(safeS);
+    commit(d, safeH, safeM, safeS);
   };
 
   const onHourChange = (h: number) => {
-    // Disallow sliding below hourMin (0→24 only, never backward past threshold)
     if (h < hourMin || h > hourMax) return;
     setExpiryHour(h);
-    commit(expiryDate, h);
+    commit(expiryDate, h, expiryMinute, expirySecond);
   };
 
-  const preview = useMemo(() => {
-    if (expiryHour === 24) return expiryDate + " 24:00";
-    const d = dateAtHour(expiryDate, expiryHour);
-    return d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false });
-  }, [expiryDate, expiryHour]);
+  const onMinuteChange = (m: number) => {
+    if (m < 0 || m > 59) return;
+    setExpiryMinute(m);
+    commit(expiryDate, expiryHour, m, expirySecond);
+  };
 
-  const sliderPct = ((expiryHour - 0) / (hourMax - 0)) * 100;
+  const onSecondChange = (s: number) => {
+    if (s < 0 || s > 59) return;
+    setExpirySecond(s);
+    commit(expiryDate, expiryHour, expiryMinute, s);
+  };
+
+  // ---- preview ----
+  const preview = useMemo(() => {
+    const timePart = fmtHHMMSS(expiryHour, expiryMinute, expirySecond);
+    return expiryDate + " " + timePart;
+  }, [expiryDate, expiryHour, expiryMinute, expirySecond]);
+
+  const isPast = isToday && (expiryHour < now.getHours() ||
+    (expiryHour === now.getHours() && expiryMinute < now.getMinutes()) ||
+    (expiryHour === now.getHours() && expiryMinute === now.getMinutes() && expirySecond <= now.getSeconds()));
+
+  // ---- slider helpers ----
+  const hPct = ((expiryHour - 0) / (hourMax - 0)) * 100;
+  const mPct = (expiryMinute / 59) * 100;
+  const sPct = (expirySecond / 59) * 100;
+
+  const sliderClass =
+    "w-full h-1.5 rounded-full appearance-none cursor-pointer accent-blue-600 " +
+    "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 " +
+    "[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-600 " +
+    "[&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer " +
+    "[&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110 " +
+    "[&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full " +
+    "[&::-moz-range-thumb]:bg-blue-600 [&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:cursor-pointer";
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
@@ -155,65 +198,59 @@ export default function ApiKeysPanel({
             </div>
           </div>
 
-          {/* Expiry: date + hour slider */}
+          {/* ── Expiry: date + H:M:S sliders ── */}
           <div className="space-y-3">
             <label className={labelClass}>{t("Expires At", "过期时间")}</label>
             {/* date */}
             <div className="relative">
               <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input
-                className={`${inputClass} pl-9`}
-                type="date"
-                min={todayStr}
-                value={expiryDate}
-                onChange={e => onDateChange(e.target.value)}
-              />
+              <input className={`${inputClass} pl-9`} type="date" min={todayStr} value={expiryDate} onChange={e => onDateChange(e.target.value)} />
             </div>
-            {/* hour slider */}
-            <div>
-              <input
-                type="range"
-                min={0}
-                max={hourMax}
-                step={1}
-                value={expiryHour}
-                onChange={e => onHourChange(Number(e.target.value))}
-                className="w-full h-2 rounded-full appearance-none cursor-pointer accent-blue-600
-                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5
-                  [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-600
-                  [&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer
-                  [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110
-                  [&::-moz-range-thumb]:w-5 [&::-moz-range-thumb]:h-5 [&::-moz-range-thumb]:rounded-full
-                  [&::-moz-range-thumb]:bg-blue-600 [&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:cursor-pointer"
-                style={{ background: `linear-gradient(to right, #2563eb 0%, #2563eb ${sliderPct}%, #e5e7eb ${sliderPct}%, #e5e7eb 100%)` }}
-              />
-              <div className="flex justify-between mt-1">
-                {[0, 2, 4, 6, 8, 10, 12, 14, 16, 18, 20, 22, 24].map(h => (
-                  <button
-                    key={h}
-                    type="button"
-                    disabled={h < hourMin}
-                    onClick={() => onHourChange(h)}
-                    className={`text-[10px] font-medium transition-colors disabled:text-gray-300 dark:disabled:text-gray-700 ${
-                      h < hourMin
-                        ? "text-gray-300 dark:text-gray-700"
-                        : expiryHour === h
-                        ? "text-blue-600 dark:text-blue-400"
-                        : "text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
-                    }`}
-                  >
-                    {h}h
-                  </button>
-                ))}
+
+            {/* H:M:S row */}
+            <div className="grid grid-cols-3 gap-3">
+              {/* Hour */}
+              <div>
+                <div className="flex items-center justify-between text-[10px] text-gray-400 mb-0.5">
+                  <span>{t("Hour", "时")}</span>
+                  <span className="tabular-nums font-mono">{fmtNum(expiryHour)}</span>
+                </div>
+                <input type="range" min={0} max={hourMax} step={1} value={expiryHour} onChange={e => onHourChange(Number(e.target.value))}
+                  className={sliderClass}
+                  style={{ background: `linear-gradient(to right, #2563eb 0%, #2563eb ${hPct}%, #e5e7eb ${hPct}%, #e5e7eb 100%)` }}
+                />
+              </div>
+              {/* Minute */}
+              <div>
+                <div className="flex items-center justify-between text-[10px] text-gray-400 mb-0.5">
+                  <span>{t("Min", "分")}</span>
+                  <span className="tabular-nums font-mono">{fmtNum(expiryMinute)}</span>
+                </div>
+                <input type="range" min={0} max={59} step={1} value={expiryMinute} onChange={e => onMinuteChange(Number(e.target.value))}
+                  className={sliderClass}
+                  style={{ background: `linear-gradient(to right, #2563eb 0%, #2563eb ${mPct}%, #e5e7eb ${mPct}%, #e5e7eb 100%)` }}
+                />
+              </div>
+              {/* Second */}
+              <div>
+                <div className="flex items-center justify-between text-[10px] text-gray-400 mb-0.5">
+                  <span>{t("Sec", "秒")}</span>
+                  <span className="tabular-nums font-mono">{fmtNum(expirySecond)}</span>
+                </div>
+                <input type="range" min={0} max={59} step={1} value={expirySecond} onChange={e => onSecondChange(Number(e.target.value))}
+                  className={sliderClass}
+                  style={{ background: `linear-gradient(to right, #2563eb 0%, #2563eb ${sPct}%, #e5e7eb ${sPct}%, #e5e7eb 100%)` }}
+                />
               </div>
             </div>
+
             {/* preview */}
             <div className="flex items-center gap-2 text-sm bg-gray-50 dark:bg-gray-900/50 rounded-lg px-3 py-2">
               <Clock className="w-4 h-4 text-gray-400 shrink-0" />
               <span className="text-gray-500 dark:text-gray-400">{t("Will expire at", "将于此时过期")}:</span>
-              <span className="font-semibold text-gray-900 dark:text-gray-100 tabular-nums">{preview}</span>
-              {isToday && expiryHour <= now.getHours() && (
-                <span className="text-red-500 text-xs font-medium">{t("(past time)", "(已过期)")}</span>
+              <span className="font-semibold text-gray-900 dark:text-gray-100 font-mono tabular-nums">{preview}</span>
+              {isPast && (
+                <span className="text-red-500 text-xs font-medium ml-1">{t("(past time)", "(已过期)")}</span>
               )}
             </div>
           </div>
