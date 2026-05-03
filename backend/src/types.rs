@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct TransformRule {
     #[serde(default)]
     pub whitelist_fields: Vec<String>,
@@ -150,9 +150,13 @@ pub struct CreateRuleRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct UpdateRuleRequest {
-    pub config: TransformRule,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub api_path: Option<String>,
     #[serde(default)]
     pub status: Option<String>,
+    pub config: TransformRule,
     #[serde(default)]
     pub note: Option<String>,
     #[serde(default)]
@@ -187,6 +191,7 @@ pub struct PreviewRequest {
 
 #[derive(Debug, Deserialize)]
 pub struct ExecuteTransformRequest {
+    pub rule_id: String,
     pub api_path: String,
     pub input: Value,
     #[serde(default)]
@@ -510,6 +515,78 @@ pub struct DiffEntry {
     pub to: Value,
 }
 
+#[derive(Debug, Serialize)]
+pub struct RuleListResponse {
+    pub items: Vec<RuleSummary>,
+    pub limit: u32,
+    pub offset: u32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RuleVersionsResponse {
+    pub rule_id: String,
+    pub items: Vec<RuleVersionDetail>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RuleDiffResponse {
+    pub rule_id: String,
+    pub from: i32,
+    pub to: i32,
+    pub changes_count: usize,
+    pub changes: Vec<DiffEntry>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExprEvalResponse {
+    pub expression: String,
+    pub matched: bool,
+}
+
+#[derive(Debug, Serialize)]
+pub struct RateLimitListResponse {
+    pub items: Vec<RateLimitResponse>,
+    pub limit: u32,
+    pub offset: u32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct TopApisResponse {
+    pub items: Vec<TopApiItem>,
+    pub hours: u32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct MetricsOverview {
+    pub uptime_seconds: u64,
+    pub total_rules: i64,
+    pub total_versions: i64,
+    pub total_audit_events: i64,
+    pub audit_events_24h: i64,
+    pub preview_success_24h: i64,
+    pub top_actions_24h: Vec<Value>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ApprovalListResponse {
+    pub items: Vec<ApprovalResponse>,
+    pub limit: u32,
+    pub offset: u32,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ExecuteResponse {
+    pub rule_id: String,
+    pub selected_variant: Option<String>,
+    pub output: Value,
+}
+
+#[derive(Debug, Serialize)]
+pub struct PreviewResponse {
+    pub output: Value,
+    pub selected_variant: Option<String>,
+}
+
 // Metrics/Analytics types
 #[derive(Debug, Deserialize)]
 pub struct IngestMetricsRequest {
@@ -569,12 +646,18 @@ pub struct StatusBucket {
 }
 
 #[derive(Debug, Serialize)]
-pub struct ApiKeyStatsResponse {
+pub struct ApiKeyStatsItem {
     pub key_id: String,
     pub key_name: String,
     pub total_calls: i64,
     pub avg_latency: f64,
     pub error_count: i64,
+}
+
+#[derive(Debug, Serialize)]
+pub struct ApiKeyStatsResponse {
+    pub items: Vec<ApiKeyStatsItem>,
+    pub hours: u32,
 }
 
 // Approval types
@@ -806,7 +889,7 @@ pub struct LoginHistoryItem {
 #[derive(Debug, Serialize)]
 pub struct TotpSetupResponse {
     pub secret: String,
-    pub qr_code_url: String,
+    pub qr_code_url: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]

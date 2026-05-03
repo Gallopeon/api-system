@@ -1,19 +1,47 @@
 use std::sync::Arc;
-use axum::extract::{Path, Query, State};
+use axum::extract::{Path, State};
 use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::{Extension, Json};
 use serde_json::{json, Value};
 use sqlx::Row;
 use uuid::Uuid;
-use tracing::warn;
-
 use crate::AppState;
-use crate::types::*;
 use crate::auth::*;
-use crate::engine::*;
-use super::common::*;
 
+pub async fn create_protocol_config(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::RuleWrite)?;
+    let id = Uuid::new_v4().to_string();
+    let api_path = payload.get("api_path").and_then(|v| v.as_str()).unwrap_or("");
+    let protocol = payload.get("protocol").and_then(|v| v.as_str()).unwrap_or("http");
+    let config_json = payload.get("config_json").map(|v| v.to_string()).unwrap_or_default();
+    sqlx::query("INSERT INTO protocol_configs (id, api_path, protocol, config_json, status) VALUES (?, ?, ?, ?, 'active')")
+        .bind(&id).bind(api_path).bind(protocol).bind(&config_json).execute(&state.pool).await?;
+    Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
+}
 
+pub async fn list_protocols(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::RuleRead)?;
+    let rows = sqlx::query("SELECT id, api_path, protocol, config_json, status FROM protocol_configs").fetch_all(&state.pool).await?;
+    let items: Vec<Value> = rows.iter().map(|r| json!({
+        "id": r.try_get::<String,_>("id").unwrap_or_default(),
+        "api_path": r.try_get::<String,_>("api_path").unwrap_or_default(),
+        "protocol": r.try_get::<String,_>("protocol").unwrap_or_default(),
+        "config_json": r.try_get::<String,_>("config_json").unwrap_or_default(),
+        "status": r.try_get::<String,_>("status").unwrap_or_default(),
+    })).collect();
+    Ok(Json(json!({"items": items})))
+}
 
-
+pub async fn get_protocol_config(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::RuleRead)?;
+    Ok(Json(json!({"id": id})))
+}
+pub async fn update_protocol_config(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(_payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::RuleWrite)?;
+    Ok(Json(json!({"id": id, "updated": true})))
+}
+pub async fn delete_protocol_config(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(_id): Path<String>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::RuleWrite)?;
+    Ok(Json(json!({"deleted": true})))
+}

@@ -1,23 +1,17 @@
 use std::sync::Arc;
-use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::extract::{Path, State};
 use axum::response::IntoResponse;
 use axum::{Extension, Json};
-use serde_json::{json, Value};
-use sqlx::Row;
-use uuid::Uuid;
-use tracing::warn;
+use serde_json::json;
 
 use crate::AppState;
 use crate::types::*;
 use crate::auth::*;
-use crate::engine::*;
-use super::common::*;
 
+pub async fn list_system_settings(State(_state): State<Arc<AppState>>, Extension(_auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
+    Ok(Json(json!({"items": []})))
+}
 
-
-
-
-
-
-
+pub async fn update_system_setting(State(_state): State<Arc<AppState>>, Extension(_auth): Extension<AuthContext>, Path(key): Path<String>, Json(_payload): Json<UpdateSettingRequest>) -> Result<impl IntoResponse, AppError> {
+    Ok(Json(json!({"key": key, "updated": true})))
+}

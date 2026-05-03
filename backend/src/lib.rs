@@ -129,6 +129,7 @@ pub async fn run() -> anyhow::Result<()> {
         .route("/api/v1/rate-limits/check", post(check_rate_limit))
         .route("/api/v1/validate/request", post(validate_request))
         .route("/api/v1/validate/response", post(validate_response))
+        .route("/api/v1/validate/rule/:rule_id", post(validate_against_rule))
         .route("/api/v1/metrics/ingest", post(ingest_metrics))
         .route("/api/v1/metrics/analytics", get(get_analytics))
         .route("/api/v1/metrics/top-apis", get(get_top_apis))
@@ -231,7 +232,7 @@ async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
     sqlx::query(r#"CREATE TABLE IF NOT EXISTS audit_logs (
         id BIGINT PRIMARY KEY AUTO_INCREMENT, rule_id VARCHAR(36) NULL, action VARCHAR(64) NOT NULL,
         actor VARCHAR(64) NOT NULL DEFAULT 'system', success TINYINT(1) NOT NULL DEFAULT 1,
-        message VARCHAR(255) NULL, detail_json LONGTEXT NULL,
+        message VARCHAR(255) NULL, detail LONGTEXT NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         KEY idx_audit_created (created_at), KEY idx_audit_rule_action (rule_id, action), KEY idx_audit_actor (actor)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
@@ -256,12 +257,12 @@ async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
         UNIQUE KEY uq_rl_api_path (api_path), KEY idx_rl_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
 
-    sqlx::query(r#"CREATE TABLE IF NOT EXISTS request_metrics (
+    sqlx::query(r#"CREATE TABLE IF NOT EXISTS metrics_ingest (
         id BIGINT PRIMARY KEY AUTO_INCREMENT, api_path VARCHAR(255) NOT NULL, method VARCHAR(10) NOT NULL DEFAULT 'GET',
         status_code INT NOT NULL DEFAULT 200, latency_ms INT NOT NULL DEFAULT 0,
         api_key_id VARCHAR(36) NULL, client_ip VARCHAR(45) NULL,
-        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        KEY idx_metrics_api_time (api_path, created_at), KEY idx_metrics_key (api_key_id), KEY idx_metrics_created (created_at)
+        timestamp TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_metrics_api_time (api_path, timestamp), KEY idx_metrics_key (api_key_id), KEY idx_metrics_created (timestamp)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
 
     sqlx::query(r#"CREATE TABLE IF NOT EXISTS approvals (
