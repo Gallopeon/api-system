@@ -899,7 +899,7 @@ pub struct TotpVerifyRequest {
 
 // ---- Preferences types ----
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UpdatePreferencesRequest {
     #[serde(default)]
     pub theme: Option<String>,
