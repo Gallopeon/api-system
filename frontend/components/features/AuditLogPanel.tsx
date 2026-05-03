@@ -15,7 +15,7 @@ export default function AuditLogPanel({ auditItems, onRefresh, t }: AuditLogPane
     <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
       <h1 className="text-3xl font-bold">{t("Comprehensive Audit Log", "全面审计日志")}</h1>
       <div className={`${cardClass} flex space-x-4`}>
-        <button onClick={onRefresh} className={btnSecondary}>
+        <button onClick={onRefresh} className={`${btnSecondary} whitespace-nowrap shrink-0`}>
           <RotateCcw className="w-4 h-4 mr-2" /> {t("Pull Latest Logs", "拉取最新日志")}
         </button>
       </div>

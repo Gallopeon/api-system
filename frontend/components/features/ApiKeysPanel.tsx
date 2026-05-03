@@ -146,7 +146,7 @@ export default function ApiKeysPanel({
             {t("Create and manage API keys for external service access.", "创建和管理用于外部服务访问的 API 密钥。")}
           </p>
         </div>
-        <button onClick={onRefresh} className={btnSecondary}>
+        <button onClick={onRefresh} className={`${btnSecondary} whitespace-nowrap shrink-0`}>
           <RotateCcw className="w-4 h-4 mr-2" />
           {t("Refresh", "刷新")}
         </button>

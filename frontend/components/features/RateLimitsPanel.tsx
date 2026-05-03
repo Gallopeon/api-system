@@ -43,7 +43,7 @@ export default function RateLimitsPanel({
     <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
       <div className="flex items-center justify-between">
         <div><h1 className="text-3xl font-bold">{t("Rate Limit Management", "限流管理")}</h1><p className="text-gray-500 mt-1">{t("Configure per-API rate limits, burst control, and usage quotas.", "配置每个 API 的速率限制、突发控制和用量配额。")}</p></div>
-        <button onClick={onRefresh} className={btnSecondary}><RotateCcw className="w-4 h-4 mr-2" /> {t("Refresh", "刷新")}</button>
+        <button onClick={onRefresh} className={`${btnSecondary} whitespace-nowrap shrink-0`}><RotateCcw className="w-4 h-4 mr-2" /> {t("Refresh", "刷新")}</button>
       </div>
 
       <div className={`${cardClass} border-l-4 border-l-purple-500`}>

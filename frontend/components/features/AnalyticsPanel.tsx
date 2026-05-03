@@ -26,14 +26,14 @@ export default function AnalyticsPanel({
           <h1 className="text-3xl font-bold">{t("Analytics Dashboard", "分析仪表板")}</h1>
           <p className="text-gray-500 mt-1">{t("Real-time API usage metrics and performance trends.", "实时 API 使用指标和性能趋势。")}</p>
         </div>
-        <div className="flex items-center gap-3">
-          <select className={`${inputClass} w-32`} value={analyticsHours} onChange={(e) => onSetAnalyticsHours(e.target.value)}>
+        <div className="flex items-center gap-3 shrink-0">
+          <select className={`${inputClass} w-28`} value={analyticsHours} onChange={(e) => onSetAnalyticsHours(e.target.value)}>
             {[1, 6, 12, 24, 48, 168].map((h) => (
               <option key={h} value={h}>{h}h</option>
             ))}
           </select>
-          <button onClick={onRefresh} disabled={analyticsBusy} className={btnSecondary}>
-            <RotateCcw className="w-4 h-4 mr-2" />{analyticsBusy ? t("Loading...", "加载中...") : t("Refresh", "刷新")}
+          <button onClick={onRefresh} disabled={analyticsBusy} className={`${btnSecondary} whitespace-nowrap`}>
+            <RotateCcw className={`w-4 h-4 mr-2 ${analyticsBusy ? "animate-spin" : ""}`} />{analyticsBusy ? t("Loading...", "加载中...") : t("Refresh", "刷新")}
           </button>
         </div>
       </div>
