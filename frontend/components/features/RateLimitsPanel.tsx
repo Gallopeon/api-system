@@ -50,7 +50,7 @@ export default function RateLimitsPanel({
         <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Activity className="w-5 h-5 text-purple-500" /> {t("Create Rate Limit", "创建限流规则")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
           <div><label className={labelClass}>{t("Name", "名称")} *</label><input className={inputClass} value={rlName} onChange={(e) => setRlName(e.target.value)} /></div>
-          <div><label className={labelClass}>{t("API Path", "API 路径")} *</label><input className={inputClass} value={rlApiPath} onChange={(e) => setRlApiPath(e.target.value)} placeholder="/api/v1/users" /></div>
+          <div><label className={labelClass}>{t("API Path", "API 路径")} *</label><input className={inputClass} value={rlApiPath} onChange={(e) => setRlApiPath(e.target.value)} placeholder="/admin/v1/users" /></div>
           <div><label className={labelClass}>{t("Window (seconds)", "时间窗口（秒）")}</label><input className={inputClass} type="number" value={rlWindow} onChange={(e) => setRlWindow(e.target.value)} /></div>
           <div><label className={labelClass}>{t("Max Requests", "最大请求数")}</label><input className={inputClass} type="number" value={rlMaxReq} onChange={(e) => setRlMaxReq(e.target.value)} /></div>
           <div><label className={labelClass}>{t("Burst Size", "突发大小")}</label><input className={inputClass} type="number" value={rlBurst} onChange={(e) => setRlBurst(e.target.value)} /></div>

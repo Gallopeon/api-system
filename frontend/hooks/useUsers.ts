@@ -34,7 +34,7 @@ export function useUsers(
       if (filterStatus) params.set("status", filterStatus);
       if (search) params.set("search", search);
       params.set("limit", "50");
-      const r = await apiFetch(`/api/v1/users?${params.toString()}`, undefined, accessToken);
+      const r = await apiFetch(`/admin/v1/users?${params.toString()}`, undefined, accessToken);
       if (r.ok) {
         const d = (await r.json()) as UserListResponse;
         setUsers(d.items || []);
@@ -53,7 +53,7 @@ export function useUsers(
     }
     setBusy(true);
     try {
-      const r = await apiFetch("/api/v1/users", {
+      const r = await apiFetch("/admin/v1/users", {
         method: "POST",
         body: JSON.stringify({
           username: newUsername,
@@ -86,7 +86,7 @@ export function useUsers(
         if (editRole) body.role = editRole;
         if (editStatus) body.status = editStatus;
         if (editDisplayName) body.display_name = editDisplayName;
-        const r = await apiFetch(`/api/v1/users/${userId}`, {
+        const r = await apiFetch(`/admin/v1/users/${userId}`, {
           method: "PUT",
           body: JSON.stringify(body),
         }, accessToken);
@@ -111,7 +111,7 @@ export function useUsers(
       if (!confirm("Delete this user permanently?")) return;
       setBusy(true);
       try {
-        const r = await apiFetch(`/api/v1/users/${userId}`, {
+        const r = await apiFetch(`/admin/v1/users/${userId}`, {
           method: "DELETE",
         }, accessToken);
         if (!r.ok) throw new Error((await r.json())?.message || "Delete failed");

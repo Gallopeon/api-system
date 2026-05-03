@@ -47,7 +47,7 @@ export default function PlaygroundPanel({
         rule_id: selectedRuleId || undefined,
         force_variant: forceVar.trim() || undefined,
       };
-      const r = await apiFetch("/api/v1/transform/preview", { method: "POST", body: JSON.stringify(body) });
+      const r = await apiFetch("/admin/v1/transform/preview", { method: "POST", body: JSON.stringify(body) });
       if (!r.ok) throw new Error("Transform failed");
       const d = (await r.json()) as PreviewResponse;
       setPgEntries((prev) => prev.map((en) => en.id === entry.id ? { ...en, output: JSON.stringify(d, null, 2), busy: false } : en));

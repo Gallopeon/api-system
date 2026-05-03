@@ -12,7 +12,7 @@ export function useUserProfile(
 
   const loadProfile = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/users/me", undefined, accessToken);
+      const r = await apiFetch("/admin/v1/users/me", undefined, accessToken);
       if (r.ok) {
         setProfile(await r.json());
       }
@@ -25,7 +25,7 @@ export function useUserProfile(
     async (data: { email?: string; display_name?: string; avatar_url?: string }) => {
       setProfileBusy(true);
       try {
-        const r = await apiFetch("/api/v1/users/me", {
+        const r = await apiFetch("/admin/v1/users/me", {
           method: "PUT",
           body: JSON.stringify(data),
         }, accessToken);
@@ -46,7 +46,7 @@ export function useUserProfile(
     async (currentPassword: string, newPassword: string) => {
       setProfileBusy(true);
       try {
-        const r = await apiFetch("/api/v1/users/me/password", {
+        const r = await apiFetch("/admin/v1/users/me/password", {
           method: "PUT",
           body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
         }, accessToken);
@@ -75,7 +75,7 @@ export function useSessions(
 
   const loadSessions = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/users/me/sessions", undefined, accessToken);
+      const r = await apiFetch("/admin/v1/users/me/sessions", undefined, accessToken);
       if (r.ok) {
         const d = await r.json();
         setSessions(d.items || []);
@@ -88,7 +88,7 @@ export function useSessions(
   const revokeSession = useCallback(
     async (sessionId: string) => {
       try {
-        const r = await apiFetch(`/api/v1/users/me/sessions/${sessionId}`, {
+        const r = await apiFetch(`/admin/v1/users/me/sessions/${sessionId}`, {
           method: "DELETE",
         }, accessToken);
         if (!r.ok) throw new Error("Revoke failed");
@@ -109,7 +109,7 @@ export function useLoginHistory(accessToken?: string) {
 
   const loadLoginHistory = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/users/me/login-history", undefined, accessToken);
+      const r = await apiFetch("/admin/v1/users/me/login-history", undefined, accessToken);
       if (r.ok) {
         const d = await r.json();
         setLoginHistory(d.items || []);
@@ -136,7 +136,7 @@ export function useTotp(
     try {
       // Try to get preferences or profile to check 2FA status
       // For now, try setup which will tell us if already enabled
-      const r = await apiFetch("/api/v1/users/me/totp/setup", {
+      const r = await apiFetch("/admin/v1/users/me/totp/setup", {
         method: "POST",
       }, accessToken);
       if (r.ok) {
@@ -158,7 +158,7 @@ export function useTotp(
   const setupTotp = useCallback(async () => {
     setTotpBusy(true);
     try {
-      const r = await apiFetch("/api/v1/users/me/totp/setup", {
+      const r = await apiFetch("/admin/v1/users/me/totp/setup", {
         method: "POST",
       }, accessToken);
       if (!r.ok) throw new Error((await r.json())?.message || "Setup failed");
@@ -176,7 +176,7 @@ export function useTotp(
     async (code: string) => {
       setTotpBusy(true);
       try {
-        const r = await apiFetch("/api/v1/users/me/totp/verify", {
+        const r = await apiFetch("/admin/v1/users/me/totp/verify", {
           method: "POST",
           body: JSON.stringify({ code }),
         }, accessToken);
@@ -198,7 +198,7 @@ export function useTotp(
     if (!confirm("Disable two-factor authentication?")) return;
     setTotpBusy(true);
     try {
-      const r = await apiFetch("/api/v1/users/me/totp", {
+      const r = await apiFetch("/admin/v1/users/me/totp", {
         method: "DELETE",
       }, accessToken);
       if (!r.ok) throw new Error((await r.json())?.message || "Disable failed");
@@ -224,7 +224,7 @@ export function usePreferences(
 
   const loadPreferences = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/users/me/preferences", undefined, accessToken);
+      const r = await apiFetch("/admin/v1/users/me/preferences", undefined, accessToken);
       if (r.ok) {
         const d = await r.json();
         setPrefs(d.preferences || {});
@@ -237,7 +237,7 @@ export function usePreferences(
   const savePreferences = useCallback(
     async (updates: Record<string, any>) => {
       try {
-        const r = await apiFetch("/api/v1/users/me/preferences", {
+        const r = await apiFetch("/admin/v1/users/me/preferences", {
           method: "PUT",
           body: JSON.stringify(updates),
         }, accessToken);

@@ -40,7 +40,7 @@ export default function OpenApiPanel({ ruleForImport, notifyError, notifySucc, t
       if (openApiFilter) params.set("api_path", openApiFilter);
       if (openApiOverlay) params.set("overlay", openApiOverlay);
       const qs = params.toString();
-      const r = await apiFetch(`/api/v1/openapi.json${qs ? "?" + qs : ""}`);
+      const r = await apiFetch(`/admin/v1/openapi.json${qs ? "?" + qs : ""}`);
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       const text = await r.text();
       setOpenApiSpec(text);
@@ -121,7 +121,7 @@ export default function OpenApiPanel({ ruleForImport, notifyError, notifySucc, t
         <div className="flex flex-wrap items-end gap-4">
           <div className="flex-1 min-w-[200px]">
             <label className={labelClass}>{t("Filter by API Path (optional)", "按 API 路径过滤（可选）")}</label>
-            <input className={inputClass} value={openApiFilter} onChange={(e) => setOpenApiFilter(e.target.value)} placeholder={t("/api/v1/users", "/api/v1/users")} />
+            <input className={inputClass} value={openApiFilter} onChange={(e) => setOpenApiFilter(e.target.value)} placeholder={t("/admin/v1/users", "/admin/v1/users")} />
           </div>
           <div className="flex-1 min-w-[200px]">
             <label className={labelClass}>{t("Overlay Base URL (optional)", "Overlay 基础 URL（可选）")}</label>
@@ -153,7 +153,7 @@ export default function OpenApiPanel({ ruleForImport, notifyError, notifySucc, t
         <div className="space-y-4">
           <div>
             <label className={labelClass}>{t("OpenAPI JSON Spec", "OpenAPI JSON 规范")}</label>
-            <textarea className={`${inputClass} font-mono text-xs`} rows={12} value={importSpec} onChange={(e) => setImportSpec(e.target.value)} placeholder={'{"openapi":"3.1.0","paths":{"/api/v1/users":{"get":{"responses":{"200":{"content":{"application/json":{"schema":{"properties":{"id":{"type":"string"},"name":{"type":"string"}}}}}}}}}}}'} />
+            <textarea className={`${inputClass} font-mono text-xs`} rows={12} value={importSpec} onChange={(e) => setImportSpec(e.target.value)} placeholder={'{"openapi":"3.1.0","paths":{"/admin/v1/users":{"get":{"responses":{"200":{"content":{"application/json":{"schema":{"properties":{"id":{"type":"string"},"name":{"type":"string"}}}}}}}}}}}'} />
           </div>
           <button className={btnPrimary} disabled={importBusy || !importSpec.trim()} onClick={handleImport}>
             {importBusy ? t("Importing...", "导入中...") : t("Import & Fill Rule Form", "导入并填充规则表单")}

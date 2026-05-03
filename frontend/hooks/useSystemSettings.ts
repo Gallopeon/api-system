@@ -20,7 +20,7 @@ export function useSystemSettings(
   const loadSettings = useCallback(async () => {
     setBusy(true);
     try {
-      const r = await apiFetch("/api/v1/system/settings", undefined, accessToken);
+      const r = await apiFetch("/admin/v1/system/settings", undefined, accessToken);
       if (r.ok) {
         const d = await r.json();
         setSettings(d.items || []);
@@ -36,7 +36,7 @@ export function useSystemSettings(
     async (key: string, value: string) => {
       setBusy(true);
       try {
-        const r = await apiFetch(`/api/v1/system/settings/${key}`, {
+        const r = await apiFetch(`/admin/v1/system/settings/${key}`, {
           method: "PUT",
           body: JSON.stringify({ value }),
         }, accessToken);

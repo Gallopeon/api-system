@@ -90,7 +90,7 @@ export default function PortalPanel({
           </div>
           <div className="space-y-1.5">
             <label className={labelClass}>{t("Scopes (API paths)", "访问范围（API 路径）")}</label>
-            <input className={`${inputClass} pl-9`} value={akScopes} onChange={(e) => setAkScopes(e.target.value)} placeholder="/api/v1/users, /api/v1/orders" />
+            <input className={`${inputClass} pl-9`} value={akScopes} onChange={(e) => setAkScopes(e.target.value)} placeholder="/admin/v1/users, /api/v1/orders" />
           </div>
           <div className="space-y-1.5">
             <label className={labelClass}>{t("Expires", "过期时间")}</label>

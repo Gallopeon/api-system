@@ -32,7 +32,7 @@ export function useDashboard() {
 
   const loadMetrics = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/metrics/overview");
+      const r = await apiFetch("/admin/v1/metrics/overview");
       if (r.ok) setMetrics(await r.json());
     } catch {
       /* ignore */
@@ -47,7 +47,7 @@ export function useAuditLog() {
 
   const loadAuditLogs = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/audit/logs?limit=40&offset=0");
+      const r = await apiFetch("/admin/v1/audit/logs?limit=40&offset=0");
       if (r.ok) {
         const d = (await r.json()) as AuditLogResponse;
         setAuditItems(d.items || []);
@@ -78,7 +78,7 @@ export function useApprovals(
   const loadApprovals = useCallback(async () => {
     try {
       const qs = approvalFilter ? `?status=${approvalFilter}` : "?limit=30&offset=0";
-      const r = await apiFetch(`/api/v1/approvals${qs}`, undefined, accessToken);
+      const r = await apiFetch(`/admin/v1/approvals${qs}`, undefined, accessToken);
       if (r.ok) {
         const d = (await r.json()) as ApprovalListResponse;
         setApprovals(d.items || []);
@@ -90,7 +90,7 @@ export function useApprovals(
 
   const loadMyRequests = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/approvals/my-requests", undefined, accessToken);
+      const r = await apiFetch("/admin/v1/approvals/my-requests", undefined, accessToken);
       if (r.ok) {
         const d = (await r.json()) as ApprovalListResponse;
         setMyApprovals(d.items || []);
@@ -100,7 +100,7 @@ export function useApprovals(
 
   const loadMyPending = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/approvals/my-pending", undefined, accessToken);
+      const r = await apiFetch("/admin/v1/approvals/my-pending", undefined, accessToken);
       if (r.ok) {
         const d = (await r.json()) as ApprovalListResponse;
         setMyPending(d.items || []);
@@ -124,7 +124,7 @@ export function useApprovals(
           comment: approvalComment.trim() || "Requesting publish approval",
         };
         if (approvalReviewer.trim()) body.reviewer = approvalReviewer.trim();
-        const r = await apiFetch("/api/v1/approvals", {
+        const r = await apiFetch("/admin/v1/approvals", {
           method: "POST",
           body: JSON.stringify(body),
         }, accessToken);
@@ -147,7 +147,7 @@ export function useApprovals(
     async (id: string, action: string) => {
       setApprBusy(true);
       try {
-        const r = await apiFetch(`/api/v1/approvals/${id}/review`, {
+        const r = await apiFetch(`/admin/v1/approvals/${id}/review`, {
           method: "POST",
           body: JSON.stringify({ action }),
         }, accessToken);
@@ -187,9 +187,9 @@ export function useAnalytics() {
     setAnalyticsBusy(true);
     try {
       const [aRes, tRes, kRes] = await Promise.all([
-        apiFetch(`/api/v1/metrics/analytics?hours=${analyticsHours}`),
-        apiFetch(`/api/v1/metrics/top-apis?hours=${analyticsHours}`),
-        apiFetch(`/api/v1/metrics/api-key-stats?hours=${analyticsHours}`),
+        apiFetch(`/admin/v1/metrics/analytics?hours=${analyticsHours}`),
+        apiFetch(`/admin/v1/metrics/top-apis?hours=${analyticsHours}`),
+        apiFetch(`/admin/v1/metrics/api-key-stats?hours=${analyticsHours}`),
       ]);
       if (aRes.ok) setAnalytics((await aRes.json()) as AnalyticsData);
       if (tRes.ok) setTopApis((await tRes.json()) as TopApisResponse);

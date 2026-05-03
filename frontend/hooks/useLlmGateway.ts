@@ -49,14 +49,14 @@ export function useLlmGateway(
 
   const loadProviders = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/llm/providers");
+      const r = await apiFetch("/admin/v1/llm/providers");
       if (r.ok) { const d = await r.json(); setProviders(d.items || []); }
     } catch { /* ignore */ }
   }, []);
 
   const loadTemplates = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/llm/prompt-templates");
+      const r = await apiFetch("/admin/v1/llm/prompt-templates");
       if (r.ok) { const d = await r.json(); setTemplates(d.items || []); }
     } catch { /* ignore */ }
   }, []);
@@ -74,7 +74,7 @@ export function useLlmGateway(
     };
     try {
       const method = editProvId ? "PUT" : "POST";
-      const url = editProvId ? `/api/v1/llm/providers/${editProvId}` : "/api/v1/llm/providers";
+      const url = editProvId ? `/admin/v1/llm/providers/${editProvId}` : "/admin/v1/llm/providers";
       const r = await apiFetch(url, { method, body: JSON.stringify(body) });
       if (r.ok) {
         notifySucc(editProvId ? "Provider updated" : "Provider created");
@@ -96,7 +96,7 @@ export function useLlmGateway(
 
   const toggleProvider = useCallback(async (id: string, status: string) => {
     try {
-      const r = await apiFetch(`/api/v1/llm/providers/${id}`, { method: "PUT", body: JSON.stringify({ status: status === "active" ? "inactive" : "active" }) });
+      const r = await apiFetch(`/admin/v1/llm/providers/${id}`, { method: "PUT", body: JSON.stringify({ status: status === "active" ? "inactive" : "active" }) });
       if (r.ok) { notifySucc("Provider toggled"); await loadProviders(); }
       else notifyError("Failed to toggle provider");
     } catch { notifyError("Network error"); }
@@ -104,7 +104,7 @@ export function useLlmGateway(
 
   const deleteProvider = useCallback(async (id: string) => {
     try {
-      const r = await apiFetch(`/api/v1/llm/providers/${id}`, { method: "DELETE" });
+      const r = await apiFetch(`/admin/v1/llm/providers/${id}`, { method: "DELETE" });
       if (r.ok) { notifySucc("Provider deleted"); await loadProviders(); }
       else notifyError("Failed to delete provider");
     } catch { notifyError("Network error"); }
@@ -117,7 +117,7 @@ export function useLlmGateway(
     const body: Record<string, unknown> = { name: tName.trim(), template_text: tText.trim(), variables: vars, actor: "panel" };
     try {
       const method = editTmplId ? "PUT" : "POST";
-      const url = editTmplId ? `/api/v1/llm/prompt-templates/${editTmplId}` : "/api/v1/llm/prompt-templates";
+      const url = editTmplId ? `/admin/v1/llm/prompt-templates/${editTmplId}` : "/admin/v1/llm/prompt-templates";
       const r = await apiFetch(url, { method, body: JSON.stringify(body) });
       if (r.ok) {
         notifySucc(editTmplId ? "Template updated" : "Template created");
@@ -137,7 +137,7 @@ export function useLlmGateway(
 
   const deleteTemplate = useCallback(async (id: string) => {
     try {
-      const r = await apiFetch(`/api/v1/llm/prompt-templates/${id}`, { method: "DELETE" });
+      const r = await apiFetch(`/admin/v1/llm/prompt-templates/${id}`, { method: "DELETE" });
       if (r.ok) { notifySucc("Template deleted"); await loadTemplates(); }
       else notifyError("Failed to delete template");
     } catch { notifyError("Network error"); }
@@ -150,7 +150,7 @@ export function useLlmGateway(
     if (rtModel.trim()) body.model = rtModel.trim();
     if (rtTemplateId) body.prompt_template_id = rtTemplateId;
     try {
-      const r = await apiFetch("/api/v1/llm/route", { method: "POST", body: JSON.stringify(body) });
+      const r = await apiFetch("/admin/v1/llm/route", { method: "POST", body: JSON.stringify(body) });
       if (r.ok) {
         const d = (await r.json()) as LlmRouteResponse;
         setRouteResult(d); notifySucc("LLM responded");

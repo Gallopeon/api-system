@@ -21,7 +21,7 @@ export function useProducts(
 
   const loadProducts = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/products?limit=50", {}, accessToken);
+      const r = await apiFetch("/admin/v1/products?limit=50", {}, accessToken);
       if (r.ok) {
         const d = await r.json();
         setProducts((d as { items?: ApiProduct[] }).items || []);
@@ -45,7 +45,7 @@ export function useProducts(
         };
         if (rule_ids) body.rule_ids = rule_ids;
         const r = await apiFetch(
-          "/api/v1/products",
+          "/admin/v1/products",
           { method: "POST", body: JSON.stringify(body) },
           accessToken,
         );
@@ -69,7 +69,7 @@ export function useProducts(
       setBusy(true);
       try {
         const r = await apiFetch(
-          `/api/v1/products/${id}`,
+          `/admin/v1/products/${id}`,
           { method: "PUT", body: JSON.stringify(data) },
           accessToken,
         );
@@ -94,7 +94,7 @@ export function useProducts(
       setBusy(true);
       try {
         const r = await apiFetch(
-          `/api/v1/products/${id}`,
+          `/admin/v1/products/${id}`,
           { method: "DELETE" },
           accessToken,
         );
@@ -125,7 +125,7 @@ export function useSubscriptions(
 
   const loadSubscriptions = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/subscriptions?limit=50", {}, accessToken);
+      const r = await apiFetch("/admin/v1/subscriptions?limit=50", {}, accessToken);
       if (r.ok) {
         const d = await r.json();
         setSubscriptions((d as { items?: Subscription[] }).items || []);
@@ -149,7 +149,7 @@ export function useSubscriptions(
           plan: plan.trim(),
         };
         const r = await apiFetch(
-          "/api/v1/subscriptions",
+          "/admin/v1/subscriptions",
           { method: "POST", body: JSON.stringify(body) },
           accessToken,
         );
@@ -173,7 +173,7 @@ export function useSubscriptions(
       setBusy(true);
       try {
         const r = await apiFetch(
-          `/api/v1/subscriptions/${id}`,
+          `/admin/v1/subscriptions/${id}`,
           { method: "PUT", body: JSON.stringify(data) },
           accessToken,
         );
@@ -198,7 +198,7 @@ export function useSubscriptions(
       setBusy(true);
       try {
         const r = await apiFetch(
-          `/api/v1/subscriptions/${id}`,
+          `/admin/v1/subscriptions/${id}`,
           { method: "DELETE" },
           accessToken,
         );
@@ -237,7 +237,7 @@ export function useCircuitBreakers(
   const loadCBs = useCallback(async () => {
     try {
       const r = await apiFetch(
-        "/api/v1/circuit-breakers?limit=50",
+        "/admin/v1/circuit-breakers?limit=50",
         {},
         accessToken,
       );
@@ -255,7 +255,7 @@ export function useCircuitBreakers(
       setBusy(true);
       try {
         const r = await apiFetch(
-          "/api/v1/circuit-breakers",
+          "/admin/v1/circuit-breakers",
           { method: "POST", body: JSON.stringify(data) },
           accessToken,
         );
@@ -279,7 +279,7 @@ export function useCircuitBreakers(
       setBusy(true);
       try {
         const r = await apiFetch(
-          `/api/v1/circuit-breakers/${id}`,
+          `/admin/v1/circuit-breakers/${id}`,
           { method: "PUT", body: JSON.stringify(data) },
           accessToken,
         );
@@ -304,7 +304,7 @@ export function useCircuitBreakers(
       setBusy(true);
       try {
         const r = await apiFetch(
-          `/api/v1/circuit-breakers/${id}`,
+          `/admin/v1/circuit-breakers/${id}`,
           { method: "DELETE" },
           accessToken,
         );
@@ -335,7 +335,7 @@ export function useProtocols(
 
   const loadProtocols = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/protocols?limit=50", {}, accessToken);
+      const r = await apiFetch("/admin/v1/protocols?limit=50", {}, accessToken);
       if (r.ok) {
         const d = await r.json();
         setProtocols((d as { items?: ProtocolConfig[] }).items || []);
@@ -350,7 +350,7 @@ export function useProtocols(
       setBusy(true);
       try {
         const r = await apiFetch(
-          "/api/v1/protocols",
+          "/admin/v1/protocols",
           { method: "POST", body: JSON.stringify(data) },
           accessToken,
         );
@@ -374,7 +374,7 @@ export function useProtocols(
       setBusy(true);
       try {
         const r = await apiFetch(
-          `/api/v1/protocols/${id}`,
+          `/admin/v1/protocols/${id}`,
           { method: "PUT", body: JSON.stringify(data) },
           accessToken,
         );
@@ -399,7 +399,7 @@ export function useProtocols(
       setBusy(true);
       try {
         const r = await apiFetch(
-          `/api/v1/protocols/${id}`,
+          `/admin/v1/protocols/${id}`,
           { method: "DELETE" },
           accessToken,
         );
@@ -431,7 +431,7 @@ export function useClassifications(
   const loadClassifications = useCallback(async () => {
     try {
       const r = await apiFetch(
-        "/api/v1/data-classifications?limit=50",
+        "/admin/v1/data-classifications?limit=50",
         {},
         accessToken,
       );
@@ -451,7 +451,7 @@ export function useClassifications(
       setBusy(true);
       try {
         const r = await apiFetch(
-          "/api/v1/data-classifications",
+          "/admin/v1/data-classifications",
           { method: "POST", body: JSON.stringify(data) },
           accessToken,
         );
@@ -475,7 +475,7 @@ export function useClassifications(
       setBusy(true);
       try {
         const r = await apiFetch(
-          `/api/v1/data-classifications/${id}`,
+          `/admin/v1/data-classifications/${id}`,
           { method: "PUT", body: JSON.stringify(data) },
           accessToken,
         );
@@ -500,7 +500,7 @@ export function useClassifications(
       setBusy(true);
       try {
         const r = await apiFetch(
-          `/api/v1/data-classifications/${id}`,
+          `/admin/v1/data-classifications/${id}`,
           { method: "DELETE" },
           accessToken,
         );
@@ -538,7 +538,7 @@ export function usePlugins(
 
   const loadPlugins = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/plugins?limit=50", {}, accessToken);
+      const r = await apiFetch("/admin/v1/plugins?limit=50", {}, accessToken);
       if (r.ok) {
         const d = await r.json();
         setPlugins((d as { items?: PluginConfig[] }).items || []);
@@ -553,7 +553,7 @@ export function usePlugins(
       setBusy(true);
       try {
         const r = await apiFetch(
-          "/api/v1/plugins",
+          "/admin/v1/plugins",
           { method: "POST", body: JSON.stringify(data) },
           accessToken,
         );
@@ -577,7 +577,7 @@ export function usePlugins(
       setBusy(true);
       try {
         const r = await apiFetch(
-          `/api/v1/plugins/${id}`,
+          `/admin/v1/plugins/${id}`,
           { method: "PUT", body: JSON.stringify(data) },
           accessToken,
         );
@@ -602,7 +602,7 @@ export function usePlugins(
       setBusy(true);
       try {
         const r = await apiFetch(
-          `/api/v1/plugins/${id}`,
+          `/admin/v1/plugins/${id}`,
           { method: "DELETE" },
           accessToken,
         );

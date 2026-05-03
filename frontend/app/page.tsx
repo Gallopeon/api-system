@@ -252,7 +252,7 @@ export default function APIControlCenter() {
               onTestExpr={async () => {
                 try {
                   const body = { expression: expr, input: parseJson(exprIn, {}), actor: "panel" };
-                  const r = await apiFetch("/api/v1/transform/expr-eval", { method: "POST", body: JSON.stringify(body) });
+                  const r = await apiFetch("/admin/v1/transform/expr-eval", { method: "POST", body: JSON.stringify(body) });
                   if (!r.ok) throw new Error("Eval failed");
                   const d = (await r.json()) as ExprEvalResponse;
                   setExprOut(d.matched ? "TRUE" : "FALSE");

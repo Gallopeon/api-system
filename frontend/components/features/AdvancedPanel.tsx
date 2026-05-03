@@ -644,7 +644,7 @@ export default function AdvancedPanel({ accessToken, notifyError, notifySucc, t 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
               <label className={labelClass}>{t("API Path", "API 路径")}</label>
-              <input className={inputClass} value={cbPath} onChange={(e) => setCbPath(e.target.value)} placeholder="/api/v1/users" />
+              <input className={inputClass} value={cbPath} onChange={(e) => setCbPath(e.target.value)} placeholder="/admin/v1/users" />
             </div>
             <div>
               <label className={labelClass}>{t("Failure Threshold", "故障阈值")}</label>
@@ -752,7 +752,7 @@ export default function AdvancedPanel({ accessToken, notifyError, notifySucc, t 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <div>
               <label className={labelClass}>{t("API Path", "API 路径")}</label>
-              <input className={inputClass} value={protoPath} onChange={(e) => setProtoPath(e.target.value)} placeholder="/api/v1/graphql" />
+              <input className={inputClass} value={protoPath} onChange={(e) => setProtoPath(e.target.value)} placeholder="/admin/v1/graphql" />
             </div>
             <div>
               <label className={labelClass}>{t("Protocol", "协议")}</label>
@@ -860,7 +860,7 @@ export default function AdvancedPanel({ accessToken, notifyError, notifySucc, t 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
               <label className={labelClass}>{t("API Path", "API 路径")}</label>
-              <input className={inputClass} value={clsPath} onChange={(e) => setClsPath(e.target.value)} placeholder="/api/v1/users" />
+              <input className={inputClass} value={clsPath} onChange={(e) => setClsPath(e.target.value)} placeholder="/admin/v1/users" />
             </div>
             <div>
               <label className={labelClass}>{t("Data Category", "数据类别")}</label>

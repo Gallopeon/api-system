@@ -23,7 +23,7 @@ export function useRateLimits(
 
   const loadRateLimits = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/rate-limits?limit=50&offset=0");
+      const r = await apiFetch("/admin/v1/rate-limits?limit=50&offset=0");
       if (r.ok) {
         const d = (await r.json()) as RateLimitListResponse;
         setRateLimits(d.items || []);
@@ -52,7 +52,7 @@ export function useRateLimits(
       };
       if (rlQuotaDaily.trim()) body.quota_daily = parseInt(rlQuotaDaily);
       if (rlQuotaMonthly.trim()) body.quota_monthly = parseInt(rlQuotaMonthly);
-      const r = await apiFetch("/api/v1/rate-limits", {
+      const r = await apiFetch("/admin/v1/rate-limits", {
         method: "POST",
         body: JSON.stringify(body),
       });
@@ -83,7 +83,7 @@ export function useRateLimits(
     async (id: string, currentStatus: string) => {
       const newStatus = currentStatus === "active" ? "disabled" : "active";
       try {
-        const r = await apiFetch(`/api/v1/rate-limits/${id}`, {
+        const r = await apiFetch(`/admin/v1/rate-limits/${id}`, {
           method: "PUT",
           body: JSON.stringify({ status: newStatus, actor: "panel" }),
         });
@@ -101,7 +101,7 @@ export function useRateLimits(
     async (id: string) => {
       if (!confirm("Delete this rate limit?")) return;
       try {
-        const r = await apiFetch(`/api/v1/rate-limits/${id}`, {
+        const r = await apiFetch(`/admin/v1/rate-limits/${id}`, {
           method: "DELETE",
         });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);

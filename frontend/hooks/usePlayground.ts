@@ -55,7 +55,7 @@ export function usePlayground(
           rule_id: selectedRuleId || undefined,
           force_variant: forceVar.trim() || undefined,
         };
-        const r = await apiFetch("/api/v1/transform/preview", {
+        const r = await apiFetch("/admin/v1/transform/preview", {
           method: "POST",
           body: JSON.stringify(body),
         });
@@ -97,7 +97,7 @@ export function usePlayground(
           rule_id: selectedRuleId || undefined,
           force_variant: forceVar.trim() || undefined,
         };
-        const r = await apiFetch("/api/v1/transform/preview", {
+        const r = await apiFetch("/admin/v1/transform/preview", {
           method: "POST",
           body: JSON.stringify(body),
         });

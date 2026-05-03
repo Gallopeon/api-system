@@ -17,7 +17,7 @@ export function useApiKeys(
 
   const loadApiKeys = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/api-keys?limit=50&offset=0");
+      const r = await apiFetch("/admin/v1/api-keys?limit=50&offset=0");
       if (r.ok) {
         const d = (await r.json()) as ApiKeyListResponse;
         setApiKeys(d.items || []);
@@ -40,7 +40,7 @@ export function useApiKeys(
       }
       if (akExpires.trim()) body.expires_at = akExpires;
       if (akMaxCalls.trim()) body.max_calls = parseInt(akMaxCalls);
-      const r = await apiFetch("/api/v1/api-keys", {
+      const r = await apiFetch("/admin/v1/api-keys", {
         method: "POST",
         body: JSON.stringify(body),
       });
@@ -64,7 +64,7 @@ export function useApiKeys(
     async (id: string, currentStatus: string) => {
       const newStatus = currentStatus === "active" ? "disabled" : "active";
       try {
-        const r = await apiFetch(`/api/v1/api-keys/${id}`, {
+        const r = await apiFetch(`/admin/v1/api-keys/${id}`, {
           method: "PUT",
           body: JSON.stringify({ status: newStatus, actor: "panel" }),
         });
@@ -82,7 +82,7 @@ export function useApiKeys(
     async (id: string) => {
       if (!confirm("Delete this API key?")) return;
       try {
-        const r = await apiFetch(`/api/v1/api-keys/${id}`, {
+        const r = await apiFetch(`/admin/v1/api-keys/${id}`, {
           method: "DELETE",
         });
         if (!r.ok) throw new Error(`HTTP ${r.status}`);

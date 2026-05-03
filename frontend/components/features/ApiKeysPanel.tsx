@@ -194,7 +194,7 @@ export default function ApiKeysPanel({
             <label className={labelClass}>{t("Scopes (API paths, comma separated)", "范围（API 路径，逗号分隔）")}</label>
             <div className="relative">
               <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input className={`${inputClass} pl-9`} value={akScopes} onChange={e => setAkScopes(e.target.value)} placeholder="/api/v1/users, /api/v1/orders" />
+              <input className={`${inputClass} pl-9`} value={akScopes} onChange={e => setAkScopes(e.target.value)} placeholder="/admin/v1/users, /api/v1/orders" />
             </div>
           </div>
 

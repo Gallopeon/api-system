@@ -40,7 +40,7 @@ export function useRules(
 
   const loadRules = useCallback(async () => {
     try {
-      const r = await apiFetch("/api/v1/rules?limit=50&offset=0");
+      const r = await apiFetch("/admin/v1/rules?limit=50&offset=0");
       if (r.ok) {
         const d = (await r.json()) as RuleListResponse;
         setRules(d.items || []);
@@ -56,7 +56,7 @@ export function useRules(
     setSelectedRuleId(id);
     if (!id) return;
     try {
-      const res = await apiFetch(`/api/v1/rules/${id}`);
+      const res = await apiFetch(`/admin/v1/rules/${id}`);
       if (res.ok) {
         const d = (await res.json()) as RuleDetail;
         setRuleName(d.name);
@@ -75,7 +75,7 @@ export function useRules(
         );
         setRemoveNulls(!!c.remove_nulls);
       }
-      const vRes = await apiFetch(`/api/v1/rules/${id}/versions`);
+      const vRes = await apiFetch(`/admin/v1/rules/${id}/versions`);
       if (vRes.ok) {
         const v = (await vRes.json()) as RuleVersionsResponse;
         setVersions(v.items || []);
@@ -120,7 +120,7 @@ export function useRules(
           config: buildConfig(),
         };
         const r = await apiFetch(
-          isCreate ? "/api/v1/rules" : `/api/v1/rules/${selectedRuleId}`,
+          isCreate ? "/admin/v1/rules" : `/admin/v1/rules/${selectedRuleId}`,
           { method: isCreate ? "POST" : "PUT", body: JSON.stringify(payload) },
         );
         if (!r.ok) {
@@ -155,7 +155,7 @@ export function useRules(
     if (!confirm("Are you sure you want to delete this rule?")) return;
     setBusy(true);
     try {
-      const r = await apiFetch(`/api/v1/rules/${selectedRuleId}`, {
+      const r = await apiFetch(`/admin/v1/rules/${selectedRuleId}`, {
         method: "DELETE",
       });
       if (!r.ok) throw new Error("Delete failed");
@@ -185,7 +185,7 @@ export function useRules(
     }
     try {
       const r = await apiFetch(
-        `/api/v1/rules/${selectedRuleId}/diff?from=${fromVer}&to=${toVer}`,
+        `/admin/v1/rules/${selectedRuleId}/diff?from=${fromVer}&to=${toVer}`,
       );
       if (!r.ok) throw new Error("Diff failed");
       const d = await r.json();
@@ -202,7 +202,7 @@ export function useRules(
     if (!selectedRuleId || !rollbackVer) return;
     try {
       const r = await apiFetch(
-        `/api/v1/rules/${selectedRuleId}/rollback`,
+        `/admin/v1/rules/${selectedRuleId}/rollback`,
         {
           method: "POST",
           body: JSON.stringify({

@@ -89,7 +89,7 @@ export function useApiBuilder(
     setAbRuleId(ruleId);
     if (!ruleId) { setAbRuleFields([]); resetAbCrud(); return; }
     try {
-      const res = await apiFetch(`/api/v1/rules/${ruleId}`);
+      const res = await apiFetch(`/admin/v1/rules/${ruleId}`);
       if (!res.ok) throw new Error(`Fetch rule failed (${res.status})`);
       const d = (await res.json()) as RuleDetail;
       const c = d.config || {};
@@ -137,7 +137,7 @@ export function useApiBuilder(
         actor: "panel", note: `${isCreate ? "Created" : "Updated"} via API Builder`, change_kind: abChangeKind,
         config,
       };
-      const r = await apiFetch(isCreate ? "/api/v1/rules" : `/api/v1/rules/${abRuleId}`, {
+      const r = await apiFetch(isCreate ? "/admin/v1/rules" : `/admin/v1/rules/${abRuleId}`, {
         method: isCreate ? "POST" : "PUT", body: JSON.stringify(payload),
       });
       if (!r.ok) throw new Error((await r.json())?.message || t(`Failed (${r.status})`, `失败 (${r.status})`));
@@ -156,7 +156,7 @@ export function useApiBuilder(
     if (!abRuleId) return;
     if (!confirm(t("Delete this rule?", "确定删除此规则？"))) return;
     try {
-      const r = await apiFetch(`/api/v1/rules/${abRuleId}`, { method: "DELETE" });
+      const r = await apiFetch(`/admin/v1/rules/${abRuleId}`, { method: "DELETE" });
       if (!r.ok) throw new Error(t("Delete failed", "删除失败"));
       notifySucc(t("Rule deleted!", "规则已删除！"));
       setAbRuleId(""); setAbRuleFields([]); resetAbCrud();
@@ -174,7 +174,7 @@ export function useApiBuilder(
     setAbEntries((prev) => prev.map((en) => (en.id === entry.id ? { ...en, busy: true } : en)));
     try {
       const body = { input: parseJson(abEntryToJson(entry), {}), traffic_context: null, actor: "panel", rule_id: abRuleId || undefined };
-      const r = await apiFetch("/api/v1/transform/preview", { method: "POST", body: JSON.stringify(body) });
+      const r = await apiFetch("/admin/v1/transform/preview", { method: "POST", body: JSON.stringify(body) });
       if (!r.ok) throw new Error(t("Transform failed", "转换失败"));
       const d = (await r.json()) as PreviewResponse;
       setAbEntries((prev) => prev.map((en) => en.id === entry.id ? { ...en, output: JSON.stringify(d, null, 2), busy: false } : en));
@@ -192,7 +192,7 @@ export function useApiBuilder(
       if (entry.fields.length === 0) { fail++; continue; }
       try {
         const body = { input: parseJson(abEntryToJson(entry), {}), traffic_context: null, actor: "panel", rule_id: abRuleId || undefined };
-        const r = await apiFetch("/api/v1/transform/preview", { method: "POST", body: JSON.stringify(body) });
+        const r = await apiFetch("/admin/v1/transform/preview", { method: "POST", body: JSON.stringify(body) });
         if (r.ok) {
           const d = (await r.json()) as PreviewResponse;
           setAbEntries((prev) => prev.map((en) => en.id === entry.id ? { ...en, output: JSON.stringify(d, null, 2), busy: false } : en));
