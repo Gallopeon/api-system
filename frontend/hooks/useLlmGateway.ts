@@ -6,6 +6,7 @@ import type { LlmProvider, PromptTemplate, LlmRouteResponse } from "@/lib/types"
 export function useLlmGateway(
   notifyError: (msg: string) => void,
   notifySucc: (msg: string) => void,
+  accessToken?: string,
 ) {
   const [providers, setProviders] = useState<LlmProvider[]>([]);
   const [templates, setTemplates] = useState<PromptTemplate[]>([]);
@@ -49,17 +50,17 @@ export function useLlmGateway(
 
   const loadProviders = useCallback(async () => {
     try {
-      const r = await apiFetch("/admin/v1/llm/providers");
+      const r = await apiFetch("/admin/v1/llm/providers", {}, accessToken);
       if (r.ok) { const d = await r.json(); setProviders(d.items || []); }
     } catch { /* ignore */ }
-  }, []);
+  }, [accessToken]);
 
   const loadTemplates = useCallback(async () => {
     try {
-      const r = await apiFetch("/admin/v1/llm/prompt-templates");
+      const r = await apiFetch("/admin/v1/llm/prompt-templates", {}, accessToken);
       if (r.ok) { const d = await r.json(); setTemplates(d.items || []); }
     } catch { /* ignore */ }
-  }, []);
+  }, [accessToken]);
 
   const saveProvider = useCallback(async () => {
     if (!pName.trim() || !pEndpoint.trim() || !pModel.trim()) {
@@ -75,7 +76,7 @@ export function useLlmGateway(
     try {
       const method = editProvId ? "PUT" : "POST";
       const url = editProvId ? `/admin/v1/llm/providers/${editProvId}` : "/admin/v1/llm/providers";
-      const r = await apiFetch(url, { method, body: JSON.stringify(body) });
+      const r = await apiFetch(url, { method, body: JSON.stringify(body) }, accessToken);
       if (r.ok) {
         notifySucc(editProvId ? "Provider updated" : "Provider created");
         resetProviderForm(); await loadProviders();
@@ -85,7 +86,7 @@ export function useLlmGateway(
       }
     } catch { notifyError("Network error"); }
     finally { setBusy(false); }
-  }, [pName, pType, pEndpoint, pModel, pKeyEnv, pCostIn, pCostOut, pMaxTokens, pPriority, editProvId, notifyError, notifySucc, loadProviders, resetProviderForm]);
+  }, [pName, pType, pEndpoint, pModel, pKeyEnv, pCostIn, pCostOut, pMaxTokens, pPriority, editProvId, notifyError, notifySucc, loadProviders, resetProviderForm, accessToken]);
 
   const editProvider = useCallback((p: LlmProvider) => {
     setEditProvId(p.id); setPName(p.name); setPType(p.provider_type);
@@ -96,19 +97,19 @@ export function useLlmGateway(
 
   const toggleProvider = useCallback(async (id: string, status: string) => {
     try {
-      const r = await apiFetch(`/admin/v1/llm/providers/${id}`, { method: "PUT", body: JSON.stringify({ status: status === "active" ? "inactive" : "active" }) });
+      const r = await apiFetch(`/admin/v1/llm/providers/${id}`, { method: "PUT", body: JSON.stringify({ status: status === "active" ? "inactive" : "active" }) }, accessToken);
       if (r.ok) { notifySucc("Provider toggled"); await loadProviders(); }
       else notifyError("Failed to toggle provider");
     } catch { notifyError("Network error"); }
-  }, [loadProviders, notifyError, notifySucc]);
+  }, [loadProviders, notifyError, notifySucc, accessToken]);
 
   const deleteProvider = useCallback(async (id: string) => {
     try {
-      const r = await apiFetch(`/admin/v1/llm/providers/${id}`, { method: "DELETE" });
+      const r = await apiFetch(`/admin/v1/llm/providers/${id}`, { method: "DELETE" }, accessToken);
       if (r.ok) { notifySucc("Provider deleted"); await loadProviders(); }
       else notifyError("Failed to delete provider");
     } catch { notifyError("Network error"); }
-  }, [loadProviders, notifyError, notifySucc]);
+  }, [loadProviders, notifyError, notifySucc, accessToken]);
 
   const saveTemplate = useCallback(async () => {
     if (!tName.trim() || !tText.trim()) { notifyError("Name and template text are required"); return; }
@@ -118,7 +119,7 @@ export function useLlmGateway(
     try {
       const method = editTmplId ? "PUT" : "POST";
       const url = editTmplId ? `/admin/v1/llm/prompt-templates/${editTmplId}` : "/admin/v1/llm/prompt-templates";
-      const r = await apiFetch(url, { method, body: JSON.stringify(body) });
+      const r = await apiFetch(url, { method, body: JSON.stringify(body) }, accessToken);
       if (r.ok) {
         notifySucc(editTmplId ? "Template updated" : "Template created");
         resetTemplateForm(); await loadTemplates();
@@ -128,7 +129,7 @@ export function useLlmGateway(
       }
     } catch { notifyError("Network error"); }
     finally { setBusy(false); }
-  }, [tName, tText, tVars, editTmplId, notifyError, notifySucc, loadTemplates, resetTemplateForm]);
+  }, [tName, tText, tVars, editTmplId, notifyError, notifySucc, loadTemplates, resetTemplateForm, accessToken]);
 
   const editTemplate = useCallback((t: PromptTemplate) => {
     setEditTmplId(t.id); setTName(t.name); setTText(t.template_text);
@@ -137,11 +138,11 @@ export function useLlmGateway(
 
   const deleteTemplate = useCallback(async (id: string) => {
     try {
-      const r = await apiFetch(`/admin/v1/llm/prompt-templates/${id}`, { method: "DELETE" });
+      const r = await apiFetch(`/admin/v1/llm/prompt-templates/${id}`, { method: "DELETE" }, accessToken);
       if (r.ok) { notifySucc("Template deleted"); await loadTemplates(); }
       else notifyError("Failed to delete template");
     } catch { notifyError("Network error"); }
-  }, [loadTemplates, notifyError, notifySucc]);
+  }, [loadTemplates, notifyError, notifySucc, accessToken]);
 
   const sendRoute = useCallback(async () => {
     if (!rtPrompt.trim()) { notifyError("Prompt is required"); return; }
@@ -150,7 +151,7 @@ export function useLlmGateway(
     if (rtModel.trim()) body.model = rtModel.trim();
     if (rtTemplateId) body.prompt_template_id = rtTemplateId;
     try {
-      const r = await apiFetch("/admin/v1/llm/route", { method: "POST", body: JSON.stringify(body) });
+      const r = await apiFetch("/admin/v1/llm/route", { method: "POST", body: JSON.stringify(body) }, accessToken);
       if (r.ok) {
         const d = (await r.json()) as LlmRouteResponse;
         setRouteResult(d); notifySucc("LLM responded");
@@ -160,7 +161,7 @@ export function useLlmGateway(
       }
     } catch { notifyError("Network error"); }
     finally { setBusy(false); }
-  }, [rtPrompt, rtModel, rtMaxTokens, rtTemp, rtTemplateId, notifyError, notifySucc]);
+  }, [rtPrompt, rtModel, rtMaxTokens, rtTemp, rtTemplateId, notifyError, notifySucc, accessToken]);
 
   return {
     providers, loadProviders, toggleProvider, deleteProvider,

@@ -19,11 +19,12 @@ interface PanelProps {
   notifyError: (msg: string) => void;
   notifySucc: (msg: string) => void;
   t: <T>(en: T, zh: T) => T;
+  accessToken?: string;
 }
 
-export default function LlmGatewayPanel({ isAdmin, notifyError, notifySucc, t }: PanelProps) {
+export default function LlmGatewayPanel({ isAdmin, notifyError, notifySucc, t, accessToken }: PanelProps) {
   const [activeTab, setActiveTab] = useState("route");
-  const hook = useLlmGateway(notifyError, notifySucc);
+  const hook = useLlmGateway(notifyError, notifySucc, accessToken);
 
   useEffect(() => {
     hook.loadProviders();
