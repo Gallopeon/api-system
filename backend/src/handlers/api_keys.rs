@@ -22,10 +22,13 @@ pub async fn create_api_key(
     let id = Uuid::new_v4().to_string();
     let actor = resolve_actor(&auth, payload.actor.as_deref());
     let (key, key_hash) = generate_api_key();
+    let scopes_json: Option<String> = payload.scopes
+        .filter(|v| !v.is_empty())
+        .map(|v| v.join(","));
     sqlx::query(
         "INSERT INTO api_keys (id, key_hash, key_prefix, name, status, scopes, expires_at, max_calls, call_count, tenant_id, created_by) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, 0, ?, ?)"
     ).bind(&id).bind(&key_hash).bind(&key[..8].to_string()).bind(&payload.name)
-     .bind(&payload.scopes.map(|v| v.join(",")).unwrap_or_default())
+     .bind(&scopes_json)
      .bind(&payload.expires_at).bind(payload.max_calls.unwrap_or(-1))
      .bind(&payload.tenant_id).bind(&actor)
      .execute(&state.pool).await?;
@@ -113,7 +116,9 @@ pub async fn update_api_key(
         sqlx::query("UPDATE api_keys SET status = ? WHERE id = ?").bind(status).bind(&id).execute(&state.pool).await?;
     }
     if let Some(ref scopes) = payload.scopes {
-        sqlx::query("UPDATE api_keys SET scopes = ? WHERE id = ?").bind(scopes.join(",")).bind(&id).execute(&state.pool).await?;
+        if !scopes.is_empty() {
+            sqlx::query("UPDATE api_keys SET scopes = ? WHERE id = ?").bind(scopes.join(",")).bind(&id).execute(&state.pool).await?;
+        }
     }
     Ok(Json(json!({"id": id, "updated": true})))
 }
