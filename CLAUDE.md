@@ -115,6 +115,133 @@ Every feature addition or structural change MUST update the relevant documentati
 
 ---
 
+## Git Workflow (Production Grade)
+
+This project follows a **trunk-based development with short-lived feature branches** model, optimized for a single-developer or small-team CI/CD pipeline.
+
+### Branch strategy
+
+```
+main          ← Production-ready. Always deployable. Protected.
+  └── dev     ← Integration branch. All feature work merges here first.
+       └── feature/<slug>  ← One feature per branch. Short-lived (hours, not days).
+       └── fix/<slug>      ← Bug fixes not urgent enough for hotfix.
+       └── hotfix/<slug>   ← Critical production fixes. Branch off main, merge to both.
+```
+
+**Rules**:
+- `main` is always green. Before merging to main, the full test suite + build must pass.
+- `dev` is the default working branch. Start all feature work from `dev`.
+- Feature branches are **short-lived** — merge back within the same coding session if possible.
+- Never commit directly to `main`. Only merge from `dev` or `hotfix/*`.
+- Branch naming: `feature/`, `fix/`, `hotfix/` prefix, lowercase, hyphens for spaces. Example: `feature/advanced-crud-panels`.
+
+### Commit conventions
+
+**Format**: `<type>(<scope>): <subject>`
+
+| Type | Usage |
+|------|-------|
+| `feat` | New feature or panel |
+| `fix` | Bug fix |
+| `refactor` | Code restructuring, no behavior change |
+| `perf` | Performance improvement |
+| `docs` | Documentation or CLAUDE.md updates |
+| `style` | Formatting, linting |
+| `chore` | Build, CI, dependencies, config |
+
+**Scope** examples: `backend`, `frontend`, `auth`, `gateway`, `docker`, `k8s`
+
+**Subject rules**:
+- English, imperative mood ("add" not "added")
+- ≤ 72 characters
+- No trailing period
+
+**Examples**:
+```
+feat(backend): add user CRUD handlers with bcrypt auth
+feat(frontend): create UserCenterPanel with profile and security tabs
+fix(auth): resolve missing bearer token on dev-mode bypass
+refactor(backend): split handlers.rs into per-domain modules
+chore(docker): add ADMIN_DEFAULT_PASSWORD env variable
+```
+
+### Commit granularity
+
+**One commit = one logical change.** A reviewer should understand the change from the commit message alone.
+
+| Good (single concern) | Bad (mixed concerns) |
+|-----------------------|----------------------|
+| "add login handler and JWT creation" | "add login, user CRUD, refactor types, fix warnings" |
+| "create AdvancedPanel with tabbed layout" | "advanced panel + sidebar fix + css tweaks + todo" |
+| "fix circuit breaker macro type mismatch" | "fix bugs" |
+
+**When to commit**:
+- **After each completed step** in a multi-step feature. If the plan has 5 steps, that's at least 5 commits.
+- **Before switching context** (e.g., moving from backend to frontend).
+- **After fixing a bug discovered during testing.**
+- **NOT mid-debugging** or with known-broken code. Every commit must build.
+
+### What NOT to commit
+
+Enforced via `.gitignore`. These must NEVER be staged:
+
+| Category | Examples | Why |
+|----------|----------|-----|
+| Secrets/Credentials | `.env`, `*.local`, `credentials.json` | Security |
+| Build artifacts | `target/`, `.next/`, `node_modules/`, `*.tsbuildinfo` | Reproducible from source |
+| IDE files | `.idea/`, `.vscode/`, `*.swp` | Personal preference |
+| OS files | `.DS_Store`, `Thumbs.db` | Noise |
+| Temp scripts | `*.py` one-off migration scripts, `*.tmp` | Not source code |
+| Claude runtime | `.claude/plans/`, `.claude/cache/`, `.claude/plugins/` | Auto-generated |
+| Settings | `.claude/settings.local.json` | Per-developer |
+
+### Pre-commit checklist
+
+Before every commit, run:
+
+```bash
+# Backend changes
+cd backend && cargo build --release    # MUST pass with zero errors
+cargo test                             # MUST pass
+
+# Frontend changes
+cd frontend && npm run build           # MUST pass
+npm run lint                           # MUST pass (warnings OK, errors NOT)
+```
+
+**Do NOT commit code that fails to build.** If you discover a build error, fix it before committing.
+
+### Release tags
+
+Production releases are tagged on `main`:
+
+```bash
+git tag -a v0.2.0 -m "Release v0.2.0: user center, TOTP, advanced CRUD"
+```
+
+**Semantic versioning**: `MAJOR.MINOR.PATCH`
+- **MAJOR**: Breaking API changes, database schema renames
+- **MINOR**: New features, new endpoints, new panels
+- **PATCH**: Bug fixes, performance, docs
+
+### Rollback
+
+To roll back a file to its state at a previous commit:
+
+```bash
+git log --oneline -- <file>          # Find the target commit
+git checkout <commit> -- <file>      # Restore single file
+git checkout <commit> -- .           # Restore entire working tree (DANGER — confirm first)
+```
+
+To revert an entire commit (preserves history):
+
+```bash
+git revert <commit>                  # Creates a new commit that undoes the target
+```
+
+---
 ## Commands
 
 ### Full stack (Docker)
@@ -231,8 +358,7 @@ backend/src/
 ├── main.rs              ← 4 lines. #[tokio::main] entry point.
 ├── lib.rs               ← ~420 lines. AppState, Settings, run(), bootstrap_schema(), router assembly.
 ├── auth.rs              ← 308 lines. AuthContext, middleware, JWT, RBAC, permissions. Also defines AppError.
-├── types.rs             ← ~880 lines. All request/response structs, enums, FromRow impls. ⚠️ Candidate for types/ split.
-├── handlers.rs          ← ~4600 lines. ALL ~70 HTTP handlers + DB helpers + shared utilities. ⚠️ NEXT TO SPLIT.
+├── types.rs             ← ~950 lines. All request/response structs, enums. ⚠️ Candidate for types/ split.
 ├── engine/              ← Pure business logic. Zero HTTP/DB dependencies. Unit-testable.
 │   ├── mod.rs
 │   ├── transform.rs     ← apply_transform, transform_payload, transform_object, apply_conditional_rules, mask_value
@@ -242,8 +368,28 @@ backend/src/
 │   ├── validation.rs    ← validate_json, validate_rule_request, validate_transform_rule
 │   ├── openapi.rs       ← build_openapi_spec, build_overlay_spec, derive_schemas_from_rule
 │   └── crypto.rs        ← generate_api_key, key_hash
-├── handlers/            ← Directory ready for handler split (empty, handlers.rs still in root)
-└── types/               ← Directory ready for type split (empty, types.rs still in root)
+└── handlers/             ← HTTP handlers, one file per domain entity
+    ├── mod.rs
+    ├── common.rs         ← Shared: write_audit_log, load_rule_detail, cache_rule, row_to_json, crud_handlers! macro
+    ├── rules.rs          ← create_rule, update_rule, get_rule, delete_rule, list_rules
+    ├── versions.rs       ← list_rule_versions, get_rule_diff, rollback_rule_version
+    ├── transform_handlers.rs ← preview_transform, execute_transform, eval_expression_handler
+    ├── api_keys.rs       ← create/list/get/update/delete/validate_api_key
+    ├── rate_limits.rs    ← create/list/update/delete/check_rate_limit
+    ├── approvals.rs      ← create/list/get/review_approval
+    ├── metrics.rs        ← ingest_metrics, get_analytics, get_top_apis, get_api_key_stats, get_metrics_overview
+    ├── audit.rs          ← list_audit_logs
+    ├── auth_user.rs      ← login, get_my_profile, update_my_profile, change_my_password, list_users, create_user, get_user, update_user, delete_user, session/login_history handlers, TOTP handlers, preferences handlers
+    ├── products.rs       ← create/list/get/update/delete_product, create/list/get/update/delete_subscription
+    ├── circuit_breakers.rs ← create/list/get/update/delete_circuit_breaker
+    ├── protocols.rs      ← create/list/get/update/delete_protocol_config
+    ├── classifications.rs ← create/list/get/update/delete_data_classification
+    ├── plugins.rs        ← create/list/get/update/delete_plugin_config
+    ├── llm.rs            ← create/list_llm_provider, create/list_prompt_template, llm_route
+    ├── openapi.rs        ← get_openapi_spec
+    ├── validation_handlers.rs ← validate_request, validate_response
+    ├── system.rs         ← list_system_settings, update_system_setting
+    └── all_remaining.rs  ← Unclassified/legacy handlers pending categorization
 ```
 
 ### Engine module
@@ -264,25 +410,31 @@ When adding new transform/validation/expression logic, add it to the appropriate
 - **Error handling**: `AppError` enum in `types.rs` implements `IntoResponse`, mapped to appropriate HTTP status codes.
 - **Audit**: All mutating operations write to `audit_logs` table via `write_audit_log()`.
 
-### Handlers.rs sections (for reference when splitting)
+### Handler reference by domain
 
-| Lines (approx) | Section | Functions |
-|----------------|---------|-----------|
-| 21-274 | Rule CRUD | `create_rule`, `update_rule`, `get_rule`, `delete_rule`, `list_rules` |
-| 275-380 | Versions | `list_rule_versions`, `get_rule_diff`, `rollback_rule_version` |
-| 382-446 | Expression eval | `eval_expression_handler` |
-| 447-773 | Audit logs | `list_audit_logs` |
-| 774-899 | API Keys | `create_api_key`, `list_api_keys`, `get_api_key`, `update_api_key`, `delete_api_key`, `validate_api_key` |
-| 900-1248 | Rate Limits | `create_rate_limit`, `list_rate_limits`, `update_rate_limit`, `delete_rate_limit`, `check_rate_limit` |
-| 1249-1357 | Validation | `validate_request`, `validate_response`, `validate_against_rule`, `validate_json` |
-| 1358-1560 | Metrics | `ingest_metrics`, `get_analytics`, `get_top_apis`, `get_api_key_stats`, `get_metrics_overview` |
-| 1561-1736 | Approvals | `create_approval`, `get_approval`, `list_approvals`, `review_approval` |
-| 1737-1977 | LLM Gateway | `create_llm_provider`, `list_llm_providers`, `create_prompt_template`, `list_prompt_templates`, `llm_route` |
-| 1978-2049 | Products | `create_product`, `list_products`, `create_subscription`, `list_subscriptions` |
-| 2050-2124 | Circuit Breakers | `create_circuit_breaker`, `list_circuit_breakers` |
-| 2125-2205 | Protocols/Plugins | `create_protocol_config`, `list_protocols`, `create_data_classification`, `list_classifications`, `create_plugin_config`, `list_plugins` |
-| 2206-2442 | Transform | `execute_transform`, `preview_transform`, transform engine internals |
-| 2443+ | Helpers/private | `load_rule_detail`, `cache_rule`, `write_audit_log`, `validate_rule_request`, `validate_transform_rule`, etc. |
+The old `handlers.rs` monolith (~4600 lines) has been split into per-domain files under `handlers/`. When adding a new endpoint, add it to the existing handler file for that domain. If no handler file exists, create one and add `pub mod` to `handlers/mod.rs`.
+
+| Domain | File | Key handlers |
+|--------|------|-------------|
+| Rules | `handlers/rules.rs` | create_rule, update_rule, get_rule, delete_rule, list_rules |
+| Versions | `handlers/versions.rs` | list_rule_versions, get_rule_diff, rollback_rule_version |
+| Transform | `handlers/transform_handlers.rs` | preview_transform, execute_transform, eval_expression_handler |
+| API Keys | `handlers/api_keys.rs` | create/list/get/update/delete/validate_api_key |
+| Rate Limits | `handlers/rate_limits.rs` | create/list/update/delete/check_rate_limit |
+| Approvals | `handlers/approvals.rs` | create/list/get/review_approval |
+| Metrics | `handlers/metrics.rs` | ingest_metrics, get_analytics, get_top_apis, get_api_key_stats, get_metrics_overview |
+| Audit | `handlers/audit.rs` | list_audit_logs |
+| Auth & Users | `handlers/auth_user.rs` | login, CRUD users, profile, password, sessions, login history, TOTP, preferences |
+| Products | `handlers/products.rs` | products CRUD, subscriptions CRUD |
+| Circuit Breakers | `handlers/circuit_breakers.rs` | circuit breaker CRUD |
+| Protocols | `handlers/protocols.rs` | protocol config CRUD |
+| Classifications | `handlers/classifications.rs` | data classification CRUD |
+| Plugins | `handlers/plugins.rs` | plugin config CRUD |
+| LLM | `handlers/llm.rs` | llm_route, providers CRUD, prompt templates CRUD |
+| OpenAPI | `handlers/openapi.rs` | get_openapi_spec |
+| Validation | `handlers/validation_handlers.rs` | validate_request, validate_response |
+| System | `handlers/system.rs` | list_system_settings, update_system_setting |
+| Common | `handlers/common.rs` | write_audit_log, load_rule_detail, cache_rule, row_to_json, crud_handlers! macro |
 
 ### Transform rule configuration model
 

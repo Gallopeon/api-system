@@ -8,7 +8,6 @@ import { Check, Network, ShieldAlert } from "lucide-react";
 // ---- Foundation ----
 import { endpoint, apiFetch, getApiToken } from "@/lib/api";
 import { parseJson, getDefaultExpiry } from "@/lib/utils";
-import { btnSecondary } from "@/lib/constants";
 import type { ExprEvalResponse } from "@/lib/types";
 
 // ---- Hooks ----
@@ -207,7 +206,7 @@ export default function APIControlCenter() {
           <Toast msg={notif.msg} type={notif.type} onClose={clearNotif} />
 
           {activeMenu === "dashboard" && (
-            <DashboardPanel metrics={metrics} onRefresh={loadMetrics} btnSecondary={btnSecondary} t={t} />
+            <DashboardPanel metrics={metrics} onRefresh={loadMetrics} t={t} />
           )}
 
           {activeMenu === "rules" && (
@@ -375,7 +374,14 @@ export default function APIControlCenter() {
             <LlmGatewayPanel notifySucc={notifySucc} t={t} />
           )}
 
-          {activeMenu === "advanced" && <AdvancedPanel t={t} />}
+          {activeMenu === "advanced" && (
+            <AdvancedPanel
+              accessToken={getApiToken(session)}
+              notifyError={notifyError}
+              notifySucc={notifySucc}
+              t={t}
+            />
+          )}
 
           {activeMenu === "portal" && (
             <PortalPanel

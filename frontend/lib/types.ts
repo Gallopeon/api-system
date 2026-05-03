@@ -240,6 +240,79 @@ export type ApiBuilderEntry = {
   busy: boolean;
 };
 
+export type ApiProduct = {
+  id: string;
+  name: string;
+  description: string | null;
+  rule_ids: string[] | null;
+  status: string;
+  created_at: string;
+};
+
+export type Subscription = {
+  id: string;
+  api_key_id: string;
+  product_id: string;
+  plan: string;
+  rate_limit_rps: number | null;
+  quota_daily: number | null;
+  status: string;
+  expires_at: string | null;
+  created_at: string;
+};
+
+export type CircuitBreaker = {
+  id: string;
+  api_path: string;
+  failure_threshold: number;
+  recovery_timeout_sec: number;
+  half_open_max: number;
+  retry_count: number;
+  retry_delay_ms: number;
+  timeout_ms: number;
+  status: string;
+  created_at: string;
+};
+
+export type ProtocolConfig = {
+  id: string;
+  api_path: string;
+  protocol: string;
+  config_json: string | null;
+  status: string;
+  created_at: string;
+};
+
+export type DataClassification = {
+  id: string;
+  api_path: string;
+  data_category: string;
+  contains_pii: boolean;
+  gdpr_relevant: boolean;
+  retention_days: number;
+  notes: string | null;
+  classified_by: string | null;
+  created_at: string;
+};
+
+export type PluginConfig = {
+  id: string;
+  name: string;
+  plugin_type: string;
+  hook_point: string;
+  config_json: string | null;
+  priority: number;
+  status: string;
+  created_at: string;
+};
+
+export type ApiProductListResponse = { items: ApiProduct[]; limit: number; offset: number };
+export type SubscriptionListResponse = { items: Subscription[]; limit: number; offset: number };
+export type CircuitBreakerListResponse = { items: CircuitBreaker[]; limit: number; offset: number };
+export type ProtocolConfigListResponse = { items: ProtocolConfig[]; limit: number; offset: number };
+export type DataClassificationListResponse = { items: DataClassification[]; limit: number; offset: number };
+export type PluginConfigListResponse = { items: PluginConfig[]; limit: number; offset: number };
+
 // ---- User & Auth types ----
 
 export type UserResponse = {
