@@ -323,7 +323,7 @@ frontend/
 │   ├── ui/
 │   │   └── Toast.tsx               ← Notification toast with auto-dismiss (52 lines)
 │   └── features/
-│       ├── DashboardPanel.tsx      ← KPI cards (51 lines)
+│       ├── DashboardPanel.tsx      ← KPI cards (89 lines)
 │       ├── RulesPanel.tsx          ← Rule library + editor form (181 lines)
 │       ├── VersionsPanel.tsx       ← Rollback + diff visualizer (106 lines)
 │       ├── PlaygroundPanel.tsx     ← Data entries + batch transform + expr eval (176 lines)
