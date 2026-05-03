@@ -8,6 +8,7 @@ use serde_json::json;
 use sqlx::Row;
 use uuid::Uuid;
 
+use tracing::warn;
 use crate::AppState;
 use crate::types::*;
 use crate::auth::*;
@@ -20,12 +21,68 @@ pub async fn create_approval(
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::RuleWrite)?;
     let id = Uuid::new_v4().to_string();
-    let actor = resolve_actor(&auth, None);
+    let actor = resolve_actor(&auth, payload.actor.as_deref());
+    let reviewer = payload.reviewer.as_deref().filter(|v| !v.is_empty());
     sqlx::query(
-        "INSERT INTO approvals (id, rule_id, version, requestor, status, comment) VALUES (?, ?, ?, ?, 'pending', ?)"
-    ).bind(&id).bind(&payload.rule_id).bind(payload.version as i32).bind(&actor).bind(&payload.comment)
+        "INSERT INTO approvals (id, rule_id, version, requestor, reviewer, status, comment) VALUES (?, ?, ?, ?, ?, 'pending', ?)"
+    ).bind(&id).bind(&payload.rule_id).bind(payload.version as i32).bind(&actor).bind(reviewer).bind(&payload.comment)
      .execute(&state.pool).await?;
+    write_audit_log(&state.pool, AuditEntry {
+        rule_id: Some(payload.rule_id.clone()), action: "approval_create".to_string(), actor,
+        success: true, message: Some("Approval request created".to_string()), detail: None,
+    }).await.unwrap_or_else(|e| warn!(error = %e, "audit write failed"));
     Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
+}
+
+pub async fn my_pending_approvals(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthContext>,
+) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
+    let rows = if auth.role == Role::Admin || auth.role == Role::Reviewer {
+        sqlx::query(
+            "SELECT id, rule_id, version, requestor, reviewer, status, comment, created_at, reviewed_at \
+             FROM approvals WHERE status = 'pending' AND (reviewer = ? OR reviewer IS NULL) \
+             ORDER BY created_at DESC LIMIT 30"
+        ).bind(&auth.subject).fetch_all(&state.pool).await?
+    } else {
+        sqlx::query(
+            "SELECT id, rule_id, version, requestor, reviewer, status, comment, created_at, reviewed_at \
+             FROM approvals WHERE status = 'pending' AND reviewer = ? \
+             ORDER BY created_at DESC LIMIT 30"
+        ).bind(&auth.subject).fetch_all(&state.pool).await?
+    };
+    let items = rows.iter().map(approval_row_to_response).collect::<Vec<_>>();
+    Ok(Json(json!({"items": items})))
+}
+
+pub async fn my_approval_requests(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthContext>,
+) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
+    let rows = sqlx::query(
+        "SELECT id, rule_id, version, requestor, reviewer, status, comment, created_at, reviewed_at \
+         FROM approvals WHERE requestor = ? ORDER BY created_at DESC LIMIT 30"
+    ).bind(&auth.subject).fetch_all(&state.pool).await?;
+    let items = rows.iter().map(approval_row_to_response).collect::<Vec<_>>();
+    Ok(Json(json!({"items": items})))
+}
+
+fn approval_row_to_response(r: &sqlx::mysql::MySqlRow) -> ApprovalResponse {
+    let created_at: DateTime<Utc> = r.try_get("created_at").unwrap_or(DateTime::UNIX_EPOCH);
+    let reviewed_at: Option<DateTime<Utc>> = r.try_get("reviewed_at").ok();
+    ApprovalResponse {
+        id: r.try_get("id").unwrap_or_default(),
+        rule_id: r.try_get("rule_id").unwrap_or_default(),
+        version: r.try_get("version").unwrap_or(0),
+        requestor: r.try_get("requestor").unwrap_or_default(),
+        reviewer: r.try_get("reviewer").unwrap_or_default(),
+        status: r.try_get("status").unwrap_or_default(),
+        comment: r.try_get("comment").unwrap_or_default(),
+        created_at: created_at.to_rfc3339(),
+        reviewed_at: reviewed_at.map(|d| d.to_rfc3339()),
+    }
 }
 
 pub async fn get_approval(
@@ -47,26 +104,12 @@ pub async fn list_approvals(
     let offset = query.offset.unwrap_or(0);
     let rows = if let Some(ref status) = query.status {
         sqlx::query("SELECT id, rule_id, version, requestor, reviewer, status, comment, created_at, reviewed_at FROM approvals WHERE status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?")
-            .bind(status).bind(limit).bind(offset).fetch_all(&state.pool).await?
+            .bind(status).bind(limit as i64).bind(offset as i64).fetch_all(&state.pool).await?
     } else {
         sqlx::query("SELECT id, rule_id, version, requestor, reviewer, status, comment, created_at, reviewed_at FROM approvals ORDER BY created_at DESC LIMIT ? OFFSET ?")
-            .bind(limit).bind(offset).fetch_all(&state.pool).await?
+            .bind(limit as i64).bind(offset as i64).fetch_all(&state.pool).await?
     };
-    let items: Vec<ApprovalResponse> = rows.iter().map(|r| {
-        let created_at: DateTime<Utc> = r.try_get("created_at").unwrap_or(DateTime::UNIX_EPOCH);
-        let reviewed_at: Option<DateTime<Utc>> = r.try_get("reviewed_at").ok();
-        ApprovalResponse {
-            id: r.try_get("id").unwrap_or_default(),
-            rule_id: r.try_get("rule_id").unwrap_or_default(),
-            version: r.try_get("version").unwrap_or(0),
-            requestor: r.try_get("requestor").unwrap_or_default(),
-            reviewer: r.try_get("reviewer").unwrap_or_default(),
-            status: r.try_get("status").unwrap_or_default(),
-            comment: r.try_get("comment").unwrap_or_default(),
-            created_at: created_at.to_rfc3339(),
-            reviewed_at: reviewed_at.map(|d| d.to_rfc3339()),
-        }
-    }).collect();
+    let items = rows.iter().map(approval_row_to_response).collect::<Vec<_>>();
     Ok(Json(ApprovalListResponse { items, limit, offset }))
 }
 
@@ -76,10 +119,19 @@ pub async fn review_approval(
     Path(id): Path<String>,
     Json(payload): Json<ReviewApprovalRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
-    let actor = resolve_actor(&auth, None);
+    // Only Admin or Reviewer can review; Editors can submit but not review
+    if auth.role != Role::Admin && auth.role != Role::Reviewer {
+        return Err(AppError::Forbidden(
+            "only admin and reviewer can review approvals".to_string(),
+        ));
+    }
+    let actor = resolve_actor(&auth, payload.actor.as_deref());
     let new_status = if payload.action == "approve" { "approved" } else { "rejected" };
-    sqlx::query("UPDATE approvals SET status = ?, reviewer = ?, reviewed_at = NOW() WHERE id = ?")
+    sqlx::query("UPDATE approvals SET status = ?, reviewer = COALESCE(NULLIF(?, ''), reviewer), reviewed_at = NOW() WHERE id = ?")
         .bind(new_status).bind(&actor).bind(&id).execute(&state.pool).await?;
+    write_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: format!("approval_{}", new_status), actor,
+        success: true, message: Some(format!("Approval {} {}", id, new_status)), detail: None,
+    }).await.unwrap_or_else(|e| warn!(error = %e, "audit write failed"));
     Ok(Json(json!({"id": id, "status": new_status})))
 }

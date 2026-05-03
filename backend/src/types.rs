@@ -668,7 +668,17 @@ pub struct CreateApprovalRequest {
     #[serde(default)]
     pub comment: Option<String>,
     #[serde(default)]
+    pub reviewer: Option<String>,
+    #[serde(default)]
     pub actor: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ApprovalsMyQuery {
+    #[serde(default)]
+    pub limit: Option<i64>,
+    #[serde(default)]
+    pub offset: Option<i64>,
 }
 
 #[derive(Debug, Deserialize)]

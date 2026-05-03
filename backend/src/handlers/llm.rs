@@ -172,7 +172,7 @@ pub async fn delete_prompt_template(State(state): State<Arc<AppState>>, Extensio
 async fn call_llm_provider(provider: &Value, prompt: &str, max_tokens: i32, temperature: f64, api_key: Option<&str>) -> Result<(String, i32, i32, i32), String> {
     let endpoint = provider.get("endpoint_url").and_then(|v| v.as_str()).unwrap_or("");
     let model = provider.get("model_name").and_then(|v| v.as_str()).unwrap_or("default");
-    let provider_type = provider.get("provider_type").and_then(|v| v.as_str()).unwrap_or("openai");
+    let _provider_type = provider.get("provider_type").and_then(|v| v.as_str()).unwrap_or("openai");
 
     let chat_url = format!("{}/v1/chat/completions", endpoint.trim_end_matches('/'));
     let body = json!({

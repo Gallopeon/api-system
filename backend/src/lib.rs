@@ -135,6 +135,8 @@ pub async fn run() -> anyhow::Result<()> {
         .route("/api/v1/metrics/top-apis", get(get_top_apis))
         .route("/api/v1/metrics/api-key-stats", get(get_api_key_stats))
         .route("/api/v1/approvals", post(create_approval).get(list_approvals))
+        .route("/api/v1/approvals/my-pending", get(my_pending_approvals))
+        .route("/api/v1/approvals/my-requests", get(my_approval_requests))
         .route("/api/v1/approvals/:id", get(get_approval))
         .route("/api/v1/approvals/:id/review", post(review_approval))
         .route("/api/v1/llm/route", post(llm_route))

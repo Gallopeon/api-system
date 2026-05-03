@@ -357,3 +357,42 @@ export type LoginHistoryItem = {
   failure_reason: string | null;
   created_at: string;
 };
+
+// LLM Gateway types
+export type LlmProvider = {
+  id: string;
+  name: string;
+  provider_type: string;
+  endpoint_url: string;
+  api_key_env: string | null;
+  model_name: string;
+  cost_per_1k_input: number;
+  cost_per_1k_output: number;
+  max_tokens: number;
+  priority: number;
+  status: string;
+};
+
+export type LlmProviderListResponse = { items: LlmProvider[] };
+
+export type PromptTemplate = {
+  id: string;
+  name: string;
+  template_text: string;
+  variables: string[] | null;
+  version: number;
+  status: string;
+  created_at: string;
+};
+
+export type PromptTemplateListResponse = { items: PromptTemplate[] };
+
+export type LlmRouteResponse = {
+  provider: string;
+  model: string;
+  response: string;
+  input_tokens: number;
+  output_tokens: number;
+  cost: number;
+  latency_ms: number;
+};

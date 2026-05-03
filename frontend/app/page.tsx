@@ -63,10 +63,11 @@ export default function APIControlCenter() {
   const { notif, notifyError, notifySucc, clearNotif } = useNotification();
   const { metrics, liveState, readyState, loadHealthStatus, loadMetrics } = useDashboard();
   const { auditItems, loadAuditLogs } = useAuditLog();
-  const { approvals, approvalFilter, apprBusy, approvalRuleId, approvalComment,
-    setApprovalFilter, setApprovalRuleId, setApprovalComment,
-    loadApprovals, createApproval, reviewApproval } =
-    useApprovals(notifyError, notifySucc);
+  const { approvals, myApprovals, myPending, approvalFilter, approvalTab, apprBusy,
+    approvalRuleId, approvalComment, approvalReviewer,
+    setApprovalFilter, setApprovalTab, setApprovalRuleId, setApprovalComment, setApprovalReviewer,
+    loadApprovals, loadMyRequests, loadMyPending, createApproval, reviewApproval } =
+    useApprovals(notifyError, notifySucc, getApiToken(session));
   const { analytics, analyticsHours, analyticsBusy, topApis, keyStats,
     setAnalyticsHours, loadAnalytics } = useAnalytics();
 
@@ -346,13 +347,17 @@ export default function APIControlCenter() {
 
           {activeMenu === "approvals" && (
             <ApprovalsPanel
-              approvals={approvals} approvalFilter={approvalFilter} apprBusy={apprBusy}
+              approvals={approvals} myApprovals={myApprovals} myPending={myPending}
+              approvalFilter={approvalFilter} approvalTab={approvalTab} apprBusy={apprBusy}
               approvalRuleId={approvalRuleId} approvalComment={approvalComment}
+              approvalReviewer={approvalReviewer}
               rules={rulesHook.rules}
-              onSetApprovalFilter={setApprovalFilter} onSetApprovalRuleId={setApprovalRuleId}
-              onSetApprovalComment={setApprovalComment}
+              onSetApprovalFilter={setApprovalFilter} onSetApprovalTab={setApprovalTab}
+              onSetApprovalRuleId={setApprovalRuleId} onSetApprovalComment={setApprovalComment}
+              onSetApprovalReviewer={setApprovalReviewer}
               onCreateApproval={handleCreateApproval}
-              onReviewApproval={handleReviewApproval} onRefresh={loadApprovals}
+              onReviewApproval={handleReviewApproval}
+              onRefresh={loadApprovals} onLoadMyRequests={loadMyRequests} onLoadMyPending={loadMyPending}
               t={t}
             />
           )}
@@ -371,7 +376,7 @@ export default function APIControlCenter() {
           )}
 
           {activeMenu === "llmgateway" && (
-            <LlmGatewayPanel notifySucc={notifySucc} t={t} />
+            <LlmGatewayPanel notifyError={notifyError} notifySucc={notifySucc} t={t} />
           )}
 
           {activeMenu === "advanced" && (

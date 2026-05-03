@@ -314,6 +314,7 @@ frontend/
 │   ├── useRateLimits.ts            ← Rate Limits CRUD (143 lines)
 │   ├── useApiBuilder.ts            ← API Builder: rule CRUD + data entries + presets (216 lines)
 │   ├── useDashboard.ts             ← Metrics, AuditLog, Approvals, Analytics hooks (188 lines)
+│   ├── useLlmGateway.ts            ← LLM Gateway: providers, templates, routing (177 lines)
 │   ├── useUserProfile.ts           ← User profile hook (257 lines)
 │   └── useUsers.ts                 ← User management CRUD hook (138 lines)
 ├── components/
@@ -334,7 +335,7 @@ frontend/
 │       ├── AnalyticsPanel.tsx      ← KPI + bar chart + top APIs + status dist (159 lines)
 │       ├── AuditLogPanel.tsx       ← Audit log table (71 lines)
 │       ├── OpenApiPanel.tsx        ← Generate + import OpenAPI specs (165 lines)
-│       ├── LlmGatewayPanel.tsx     ← LLM route + prompt templates (64 lines)
+│       ├── LlmGatewayPanel.tsx     ← LLM route + providers + templates (267 lines)
 │       ├── AdvancedPanel.tsx       ← Products/circuit breakers/plugins (64 lines)
 │       ├── PortalPanel.tsx         ← API catalog + self-service key request (136 lines)
 │       ├── ManualPanel.tsx         ← Full user manual (404 lines)
@@ -385,7 +386,7 @@ backend/src/
     ├── protocols.rs      ← create/list/get/update/delete_protocol_config
     ├── classifications.rs ← create/list/get/update/delete_data_classification
     ├── plugins.rs        ← create/list/get/update/delete_plugin_config
-    ├── llm.rs            ← create/list_llm_provider, create/list_prompt_template, llm_route
+    ├── llm.rs            ← llm_route (real API call+failover), providers full CRUD, templates full CRUD (316 lines)
     ├── openapi.rs        ← get_openapi_spec
     ├── validation_handlers.rs ← validate_request, validate_response
     ├── system.rs         ← list_system_settings, update_system_setting
@@ -430,7 +431,7 @@ The old `handlers.rs` monolith (~4600 lines) has been split into per-domain file
 | Protocols | `handlers/protocols.rs` | protocol config CRUD |
 | Classifications | `handlers/classifications.rs` | data classification CRUD |
 | Plugins | `handlers/plugins.rs` | plugin config CRUD |
-| LLM | `handlers/llm.rs` | llm_route, providers CRUD, prompt templates CRUD |
+| LLM | `handlers/llm.rs` | llm_route (real API call with failover), providers full CRUD, prompt templates full CRUD |
 | OpenAPI | `handlers/openapi.rs` | get_openapi_spec |
 | Validation | `handlers/validation_handlers.rs` | validate_request, validate_response |
 | System | `handlers/system.rs` | list_system_settings, update_system_setting |

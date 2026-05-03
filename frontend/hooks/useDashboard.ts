@@ -63,17 +63,22 @@ export function useAuditLog() {
 export function useApprovals(
   notifyError: (msg: string) => void,
   notifySucc: (msg: string) => void,
+  accessToken?: string,
 ) {
   const [approvals, setApprovals] = useState<ApprovalItem[]>([]);
+  const [myApprovals, setMyApprovals] = useState<ApprovalItem[]>([]);
+  const [myPending, setMyPending] = useState<ApprovalItem[]>([]);
   const [approvalFilter, setApprovalFilter] = useState("");
+  const [approvalTab, setApprovalTab] = useState("all");
   const [apprBusy, setApprBusy] = useState(false);
   const [approvalRuleId, setApprovalRuleId] = useState("");
   const [approvalComment, setApprovalComment] = useState("");
+  const [approvalReviewer, setApprovalReviewer] = useState("");
 
   const loadApprovals = useCallback(async () => {
     try {
       const qs = approvalFilter ? `?status=${approvalFilter}` : "?limit=30&offset=0";
-      const r = await apiFetch(`/api/v1/approvals${qs}`);
+      const r = await apiFetch(`/api/v1/approvals${qs}`, undefined, accessToken);
       if (r.ok) {
         const d = (await r.json()) as ApprovalListResponse;
         setApprovals(d.items || []);
@@ -81,7 +86,27 @@ export function useApprovals(
     } catch {
       /* ignore */
     }
-  }, [approvalFilter]);
+  }, [approvalFilter, accessToken]);
+
+  const loadMyRequests = useCallback(async () => {
+    try {
+      const r = await apiFetch("/api/v1/approvals/my-requests", undefined, accessToken);
+      if (r.ok) {
+        const d = (await r.json()) as ApprovalListResponse;
+        setMyApprovals(d.items || []);
+      }
+    } catch { /* ignore */ }
+  }, [accessToken]);
+
+  const loadMyPending = useCallback(async () => {
+    try {
+      const r = await apiFetch("/api/v1/approvals/my-pending", undefined, accessToken);
+      if (r.ok) {
+        const d = (await r.json()) as ApprovalListResponse;
+        setMyPending(d.items || []);
+      }
+    } catch { /* ignore */ }
+  }, [accessToken]);
 
   const createApproval = useCallback(
     async (selectedRuleId: string, rules: Array<{ id: string; current_version: number }>) => {
@@ -93,19 +118,21 @@ export function useApprovals(
       const rule = rules.find((r) => r.id === targetRuleId);
       setApprBusy(true);
       try {
+        const body: Record<string, unknown> = {
+          rule_id: targetRuleId,
+          version: rule?.current_version || 1,
+          comment: approvalComment.trim() || "Requesting publish approval",
+        };
+        if (approvalReviewer.trim()) body.reviewer = approvalReviewer.trim();
         const r = await apiFetch("/api/v1/approvals", {
           method: "POST",
-          body: JSON.stringify({
-            rule_id: targetRuleId,
-            version: rule?.current_version || 1,
-            actor: "panel",
-            comment: approvalComment.trim() || "Requesting publish approval",
-          }),
-        });
+          body: JSON.stringify(body),
+        }, accessToken);
         if (!r.ok) throw new Error((await r.json())?.message || `HTTP ${r.status}`);
         notifySucc("Approval request submitted!");
         setApprovalRuleId("");
         setApprovalComment("");
+        setApprovalReviewer("");
         await loadApprovals();
       } catch (e) {
         notifyError((e as Error).message);
@@ -113,7 +140,7 @@ export function useApprovals(
         setApprBusy(false);
       }
     },
-    [approvalRuleId, approvalComment, loadApprovals, notifyError, notifySucc],
+    [approvalRuleId, approvalComment, approvalReviewer, loadApprovals, notifyError, notifySucc, accessToken],
   );
 
   const reviewApproval = useCallback(
@@ -122,32 +149,30 @@ export function useApprovals(
       try {
         const r = await apiFetch(`/api/v1/approvals/${id}/review`, {
           method: "POST",
-          body: JSON.stringify({ action, actor: "panel" }),
-        });
+          body: JSON.stringify({ action }),
+        }, accessToken);
         if (!r.ok) throw new Error((await r.json())?.message || `HTTP ${r.status}`);
         notifySucc(`Approval ${action}d!`);
         await loadApprovals();
+        await loadMyPending();
       } catch (e) {
         notifyError((e as Error).message);
       } finally {
         setApprBusy(false);
       }
     },
-    [loadApprovals, notifyError, notifySucc],
+    [loadApprovals, loadMyPending, notifyError, notifySucc, accessToken],
   );
 
   return {
-    approvals,
-    approvalFilter,
+    approvals, myApprovals, myPending,
+    approvalFilter, approvalTab,
     apprBusy,
-    approvalRuleId,
-    approvalComment,
-    setApprovalFilter,
-    setApprovalRuleId,
-    setApprovalComment,
-    loadApprovals,
-    createApproval,
-    reviewApproval,
+    approvalRuleId, approvalComment, approvalReviewer,
+    setApprovalFilter, setApprovalTab,
+    setApprovalRuleId, setApprovalComment, setApprovalReviewer,
+    loadApprovals, loadMyRequests, loadMyPending,
+    createApproval, reviewApproval,
   };
 }
 
