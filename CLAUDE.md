@@ -329,7 +329,7 @@ frontend/
 │       ├── VersionsPanel.tsx       ← Rollback + diff visualizer (106 lines)
 │       ├── PlaygroundPanel.tsx     ← Data entries + batch transform + expr eval (176 lines)
 │       ├── ApiBuilderPanel.tsx     ← No-code rule CRUD + data entries (354 lines)
-│       ├── ApiKeysPanel.tsx        ← API key create/list/toggle/delete (159 lines)
+│       ├── ApiKeysPanel.tsx        ← API key create/list/toggle/delete (289 lines)
 │       ├── RateLimitsPanel.tsx     ← Rate limit create/list/toggle/delete (103 lines)
 │       ├── ApprovalsPanel.tsx      ← Approval workflow (172 lines)
 │       ├── AnalyticsPanel.tsx      ← KPI + bar chart + top APIs + status dist (159 lines)
