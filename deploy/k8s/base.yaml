@@ -15,6 +15,7 @@ metadata:
 type: Opaque
 stringData:
   jwt-secret: dev-change-this-secret
+  admin-default-password: admin
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -23,7 +24,7 @@ metadata:
   namespace: api-control-plane
 data:
   MYSQL_DATABASE: apictrl
-  MYSQL_MAX_CONNECTIONS: "20"
+  MYSQL_MAX_CONNECTIONS: "15"
   CACHE_TTL_SECONDS: "300"
   CORS_ALLOWED_ORIGINS: http://localhost
   RUST_LOG: info
@@ -182,6 +183,11 @@ spec:
                 secretKeyRef:
                   name: backend-auth-secret
                   key: jwt-secret
+            - name: ADMIN_DEFAULT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backend-auth-secret
+                  key: admin-default-password
           ports:
             - containerPort: 8080
           readinessProbe:
@@ -236,6 +242,14 @@ spec:
         - name: frontend
           image: api-control-plane-frontend:latest
           imagePullPolicy: IfNotPresent
+          env:
+            - name: NEXTAUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backend-auth-secret
+                  key: jwt-secret
+            - name: BACKEND_URL
+              value: "http://backend:8080"
           ports:
             - containerPort: 3000
           readinessProbe:
@@ -310,6 +324,12 @@ data:
           listen 80;
           server_name _;
 
+          # Security headers
+          add_header X-Content-Type-Options "nosniff" always;
+          add_header X-Frame-Options "DENY" always;
+          add_header X-XSS-Protection "0" always;
+          add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+
           location = /health/live {
               proxy_set_header Host $host;
               proxy_pass http://backend_upstream/health/live;
@@ -318,6 +338,37 @@ data:
           location = /health/ready {
               proxy_set_header Host $host;
               proxy_pass http://backend_upstream/health/ready;
+          }
+
+          # NOTE: Lua-based API key validation is not included in this K8s config.
+          # The Docker nginx.conf (infra/openresty/nginx.conf) has full
+          # access_by_lua_block with API key caching, rate-limit counters,
+          # and metrics ingestion via internal subrequests. For production K8s
+          # deployments, replicate that Lua logic or use a dedicated API gateway.
+
+          # Admin plane: management API (JWT auth, no API key check)
+          location /admin/ {
+              limit_req zone=api_limit burst=10 nodelay;
+              proxy_http_version 1.1;
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+              proxy_set_header Connection "";
+              proxy_connect_timeout 2s;
+              proxy_send_timeout 15s;
+              proxy_read_timeout 15s;
+              proxy_pass http://backend_upstream;
+          }
+
+          # Auth routes: forwarded to frontend NextAuth
+          location /api/auth {
+              proxy_http_version 1.1;
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+              proxy_pass http://frontend_upstream;
           }
 
           location /api/ {

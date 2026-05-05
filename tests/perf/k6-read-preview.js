@@ -75,11 +75,19 @@ const payload = JSON.stringify({
   }
 });
 
+// Set via: k6 run -e API_KEY=your-key tests/perf/k6-read-preview.js
+const API_KEY = __ENV.API_KEY || "";
+
 export default function () {
+  const headers = {
+    "Content-Type": "application/json"
+  };
+  if (API_KEY) {
+    headers["X-API-Key"] = API_KEY;
+  }
+
   const response = http.post(`${BASE_URL}/api/v1/transform/preview`, payload, {
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: headers,
     timeout: "3s"
   });
 
@@ -87,6 +95,7 @@ export default function () {
 
   const ok = check(response, {
     "status is 200": (r) => r.status === 200,
+    "not 401 (API key valid)": (r) => r.status !== 401,
     "has output": (r) => {
       try {
         const body = JSON.parse(r.body);

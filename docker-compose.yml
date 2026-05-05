@@ -16,7 +16,7 @@ services:
       - mysql_data:/var/lib/mysql
       - ./infra/mysql/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -proot --silent"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -p\"$${MYSQL_ROOT_PASSWORD:-root}\" --silent"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -64,7 +64,7 @@ services:
       BACKEND_URL: ${BACKEND_URL:-http://backend:8080}
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
     expose:
       - "3000"
     restart: unless-stopped
