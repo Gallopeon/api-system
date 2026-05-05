@@ -62,6 +62,9 @@ pub async fn login(State(state): State<Arc<AppState>>, Json(payload): Json<Login
         return Err(AppError::Unauthorized("invalid credentials".to_string()));
     }
 
+    // TOTP check: if user has TOTP enabled, require and validate the code
+    verify_login_totp(&state.pool, &user_id, payload.totp_code.as_deref()).await?;
+
     let role_str: String = row.try_get("role").unwrap_or_else(|_| "viewer".to_string());
     let role = parse_role(&role_str);
 
@@ -77,6 +80,38 @@ pub async fn login(State(state): State<Arc<AppState>>, Json(payload): Json<Login
     ).bind(&user_id).bind(&payload.username).execute(&state.pool).await;
 
     Ok(Json(LoginResponse { token, user: row_to_user(&row) }))
+}
+
+fn build_totp_from_db(encoded_secret: &str, account_name: &str) -> Result<totp_rs::TOTP, AppError> {
+    let raw_secret = base32_decode(encoded_secret)
+        .ok_or_else(|| AppError::Internal("invalid TOTP secret encoding".to_string()))?;
+    totp_rs::TOTP::new(
+        totp_rs::Algorithm::SHA1, 6, 1, 30, raw_secret,
+        Some("API Control Plane".to_string()),
+        account_name.to_string(),
+    ).map_err(|e| AppError::Internal(format!("TOTP init error: {}", e)))
+}
+
+async fn verify_login_totp(pool: &sqlx::MySqlPool, user_id: &str, totp_code: Option<&str>) -> Result<(), AppError> {
+    let totp_row = sqlx::query("SELECT secret, enabled FROM user_totp WHERE user_id = ?")
+        .bind(user_id).fetch_optional(pool).await?;
+    let Some(totp_row) = totp_row else { return Ok(()); };
+    let enabled: i8 = totp_row.try_get("enabled").unwrap_or(0);
+    if enabled == 0 { return Ok(()); }
+
+    let code = totp_code.ok_or_else(||
+        AppError::Unauthorized("TOTP is enabled for this account; provide totp_code".to_string())
+    )?;
+
+    let encoded: String = totp_row.try_get("secret").unwrap_or_default();
+    let totp = build_totp_from_db(&encoded, user_id)?;
+    let verified = totp.check_current(code)
+        .map_err(|e| AppError::Internal(format!("TOTP check error: {}", e)))?;
+
+    if !verified {
+        return Err(AppError::Unauthorized("invalid TOTP code".to_string()));
+    }
+    Ok(())
 }
 
 pub async fn get_my_profile(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
@@ -235,15 +270,12 @@ pub async fn setup_totp(State(state): State<Arc<AppState>>, Extension(auth): Ext
 
 pub async fn verify_totp(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<TotpVerifyRequest>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserSelf)?;
-    let raw_secret: Vec<u8> = {
-        let encoded: String = sqlx::query_scalar("SELECT secret FROM user_totp WHERE user_id = (SELECT id FROM users WHERE username = ?)")
-            .bind(&auth.subject).fetch_optional(&state.pool).await?
-            .ok_or_else(|| AppError::NotFound("TOTP not set up".to_string()))?;
-        base32_decode(&encoded)
-            .ok_or_else(|| AppError::BadRequest("invalid TOTP secret encoding".to_string()))?
-    };
-    let totp = totp_rs::TOTP::new(totp_rs::Algorithm::SHA1, 6, 1, 30, raw_secret, Some("API Control Plane".to_string()), auth.subject.clone())
-        .map_err(|e| AppError::BadRequest(format!("TOTP error: {}", e)))?;
+    let encoded: String = sqlx::query_scalar(
+        "SELECT secret FROM user_totp WHERE user_id = (SELECT id FROM users WHERE username = ?)"
+    ).bind(&auth.subject).fetch_optional(&state.pool).await?
+    .ok_or_else(|| AppError::NotFound("TOTP not set up".to_string()))?;
+
+    let totp = build_totp_from_db(&encoded, &auth.subject)?;
     let verified = totp.check_current(&payload.code)
         .map_err(|e| AppError::BadRequest(format!("TOTP check error: {}", e)))?;
     if verified {
