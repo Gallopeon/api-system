@@ -340,11 +340,12 @@ pub async fn get_my_preferences(State(state): State<Arc<AppState>>, Extension(au
     let prefs: Option<String> = sqlx::query_scalar("SELECT preferences FROM users WHERE username = ?")
         .bind(&auth.subject).fetch_optional(&state.pool).await?
         .and_then(|v: Option<String>| v);
+    let stored: Option<serde_json::Value> = prefs.and_then(|p| serde_json::from_str(&p).ok());
     Ok(Json(PreferencesResponse {
         user_id: auth.subject.clone(),
-        theme: "auto".to_string(),
-        lang: "zh".to_string(),
-        notifications: prefs.and_then(|p| serde_json::from_str(&p).ok()),
+        theme: stored.as_ref().and_then(|v| v.get("theme").and_then(|t| t.as_str())).unwrap_or("auto").to_string(),
+        lang: stored.as_ref().and_then(|v| v.get("lang").and_then(|l| l.as_str())).unwrap_or("zh").to_string(),
+        notifications: stored.as_ref().and_then(|v| v.get("notifications").cloned()),
     }))
 }
 

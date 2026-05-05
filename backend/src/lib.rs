@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use axum::extract::{Request, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderName, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post, put};
@@ -11,6 +11,9 @@ use serde_json::json;
 use sqlx::mysql::MySqlPoolOptions;
 use tower_http::trace::TraceLayer;
 use tracing::info;
+use uuid::Uuid;
+
+static X_REQUEST_ID: HeaderName = HeaderName::from_static("x-request-id");
 
 pub mod config;
 pub mod db;
@@ -122,6 +125,7 @@ pub async fn run() -> anyhow::Result<()> {
         .merge(public_router)
         .merge(admin_router)
         .merge(data_router)
+        .layer(middleware::from_fn(request_id_middleware))
         .layer(build_cors_layer(&settings)?)
         .layer(TraceLayer::new_for_http())
         .with_state(state);
@@ -135,6 +139,23 @@ pub async fn run() -> anyhow::Result<()> {
         })
         .await?;
     Ok(())
+}
+
+async fn request_id_middleware(
+    mut request: Request,
+    next: Next,
+) -> Response {
+    let req_id = request
+        .headers()
+        .get(&X_REQUEST_ID)
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_else(|| Uuid::new_v4().to_string());
+    request.extensions_mut().insert(req_id.clone());
+    let mut response = next.run(request).await;
+    response.headers_mut().insert(&X_REQUEST_ID, req_id.parse().unwrap());
+    response
 }
 
 async fn data_plane_middleware(

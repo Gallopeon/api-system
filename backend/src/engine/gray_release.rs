@@ -1,4 +1,4 @@
-use std::hash::{Hash, Hasher};
+use sha2::{Sha256, Digest};
 use serde_json::Value;
 use crate::AppError;
 use crate::types::*;
@@ -17,11 +17,12 @@ pub fn resolve_effective_rule(
         return Ok((base_rule.clone(), None));
     }
 
-    let selected_variant = if let Some(name) = force_variant {
+    // Pick the variant. Only clone base_rule after we know we need it.
+    let variant = if let Some(name) = force_variant {
         gray_release
             .variants
             .iter()
-            .find(|variant| variant.name == name)
+            .find(|v| v.name == name)
             .ok_or_else(|| AppError::BadRequest(format!("forced variant {} not found", name)))?
     } else {
         let bucket_key = extract_bucket_key(gray_release, traffic_context);
@@ -34,10 +35,11 @@ pub fn resolve_effective_rule(
         })?
     };
 
-    let mut effective = apply_gray_overrides(base_rule, &selected_variant.overrides);
+    let variant_name = variant.name.clone();
+    let mut effective = apply_gray_overrides(base_rule, &variant.overrides);
     effective.gray_release = None;
 
-    Ok((effective, Some(selected_variant.name.clone())))
+    Ok((effective, Some(variant_name)))
 }
 
 pub fn extract_bucket_key(config: &GrayReleaseConfig, traffic_context: Option<&Value>) -> Option<String> {
@@ -79,9 +81,10 @@ pub fn choose_variant<'a>(config: &'a GrayReleaseConfig, bucket_key: &str) -> Op
 }
 
 pub fn stable_bucket(bucket_key: &str) -> u32 {
-    let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    bucket_key.hash(&mut hasher);
-    (hasher.finish() % (u32::MAX as u64)) as u32
+    let mut hasher = Sha256::new();
+    hasher.update(bucket_key.as_bytes());
+    let hash = hasher.finalize();
+    u32::from_be_bytes([hash[0], hash[1], hash[2], hash[3]])
 }
 
 pub fn apply_gray_overrides(base_rule: &TransformRule, overrides: &GrayVariantOverrides) -> TransformRule {

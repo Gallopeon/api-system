@@ -277,10 +277,19 @@ pub async fn llm_route(State(state): State<Arc<AppState>>, Extension(auth): Exte
     // Try each provider in priority order
     let mut last_err = String::new();
     for provider in &providers {
-        let api_key: Option<String> = provider.get("api_key_env")
-            .and_then(|v| v.as_str())
-            .filter(|s| !s.is_empty())
-            .and_then(|env_name| std::env::var(env_name).ok());
+        // Only allow LLM API keys from a whitelist of known env vars.
+    // Storing arbitrary env var names in the DB would allow exfiltration.
+    let api_key: Option<String> = provider.get("api_key_env")
+        .and_then(|v| v.as_str())
+        .filter(|s| !s.is_empty())
+        .and_then(|env_name| {
+            if env_name.starts_with("LLM_API_KEY_") {
+                std::env::var(env_name).ok()
+            } else {
+                tracing::warn!(env_name, "blocked lookup of non-whitelisted api_key_env; only LLM_API_KEY_* vars are allowed");
+                None
+            }
+        });
 
         match call_llm_provider(provider, &prompt, max_tokens, temperature, api_key.as_deref()).await {
             Ok((response, input_tokens, output_tokens, latency_ms)) => {

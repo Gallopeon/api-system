@@ -127,8 +127,10 @@ pub async fn delete_rule(
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::RuleWrite)?;
-    sqlx::query("DELETE FROM rule_versions WHERE rule_id = ?").bind(&id).execute(&state.pool).await?;
-    sqlx::query("DELETE FROM rule_configs WHERE id = ?").bind(&id).execute(&state.pool).await?;
+    let mut tx = state.pool.begin().await?;
+    sqlx::query("DELETE FROM rule_versions WHERE rule_id = ?").bind(&id).execute(&mut *tx).await?;
+    sqlx::query("DELETE FROM rule_configs WHERE id = ?").bind(&id).execute(&mut *tx).await?;
+    tx.commit().await?;
     invalidate_cache(&state.redis, &id).await.unwrap_or_else(|e| warn!(error = %e, "cache invalidate failed"));
     let actor = resolve_actor(&auth, None);
     write_audit_log(&state.pool, AuditEntry {

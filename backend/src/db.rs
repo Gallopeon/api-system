@@ -75,7 +75,7 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
         id VARCHAR(36) PRIMARY KEY, rule_id VARCHAR(36) NOT NULL, version INT NOT NULL,
         requestor VARCHAR(64) NOT NULL, reviewer VARCHAR(64) NULL, status VARCHAR(32) NOT NULL DEFAULT 'pending',
         comment TEXT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_at TIMESTAMP NULL,
-        KEY idx_approval_rule (rule_id), KEY idx_approval_status (status),
+        KEY idx_approval_rule (rule_id), KEY idx_approval_status (status), KEY idx_approval_requestor (requestor),
         CONSTRAINT fk_approval_rule FOREIGN KEY (rule_id) REFERENCES rule_configs(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
 
@@ -172,7 +172,7 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
         username_attempt VARCHAR(64) NOT NULL, client_ip VARCHAR(45) NULL,
         user_agent VARCHAR(512) NULL, success TINYINT(1) NOT NULL DEFAULT 0,
         failure_reason VARCHAR(128) NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-        KEY idx_login_user (user_id), KEY idx_login_created (created_at)
+        KEY idx_login_user (user_id), KEY idx_login_created (created_at), KEY idx_login_attempt (username_attempt)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
 
     sqlx::query(r#"CREATE TABLE IF NOT EXISTS user_totp (
@@ -187,6 +187,31 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
     ).fetch_one(pool).await.unwrap_or(0);
     if has_prefs == 0 {
         sqlx::query("ALTER TABLE users ADD COLUMN preferences JSON NULL")
+            .execute(pool).await?;
+    }
+
+    // Add missing indexes for existing tables (idempotent via IF NOT EXISTS-style checks)
+    let has_approval_requestor_idx: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'approvals' AND INDEX_NAME = 'idx_approval_requestor'"
+    ).fetch_one(pool).await.unwrap_or(0);
+    if has_approval_requestor_idx == 0 {
+        sqlx::query("ALTER TABLE approvals ADD INDEX idx_approval_requestor (requestor)")
+            .execute(pool).await?;
+    }
+
+    let has_login_attempt_idx: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'login_history' AND INDEX_NAME = 'idx_login_attempt'"
+    ).fetch_one(pool).await.unwrap_or(0);
+    if has_login_attempt_idx == 0 {
+        sqlx::query("ALTER TABLE login_history ADD INDEX idx_login_attempt (username_attempt)")
+            .execute(pool).await?;
+    }
+
+    let has_llm_provider_idx: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'llm_usage_logs' AND INDEX_NAME = 'idx_llm_provider'"
+    ).fetch_one(pool).await.unwrap_or(0);
+    if has_llm_provider_idx == 0 {
+        sqlx::query("ALTER TABLE llm_usage_logs ADD INDEX idx_llm_provider (provider_id)")
             .execute(pool).await?;
     }
 
