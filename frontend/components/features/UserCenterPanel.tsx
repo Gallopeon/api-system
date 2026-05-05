@@ -88,6 +88,20 @@ export default function UserCenterPanel({
     });
   };
 
+  const handlePreferenceChange = (key: string, value: boolean) => {
+    // Update local state
+    switch (key) {
+      case "email.rule_changes": setPrefEmailRuleChanges(value); break;
+      case "email.security_alerts": setPrefEmailSecurity(value); break;
+      case "in_app.approvals": setPrefInAppApprovals(value); break;
+      case "in_app.audit": setPrefInAppAudit(value); break;
+    }
+    // Send partial update — backend merges
+    const parts = key.split(".");
+    const update: Record<string, unknown> = { notifications: { [parts[0]]: { [parts[1]]: value } } };
+    savePreferences(update);
+  };
+
   const handleChangePassword = async () => {
     if (newPassword !== confirmPassword) {
       notifyError(t("Passwords do not match", "两次密码不一致"));
@@ -390,34 +404,22 @@ export default function UserCenterPanel({
               <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-2">{t("Email Notifications", "邮件通知")}</h3>
                 <label className="flex items-center space-x-3 py-2 cursor-pointer">
-                  <input type="checkbox" className="rounded" checked={prefEmailRuleChanges} onChange={(e) => {
-                    setPrefEmailRuleChanges(e.target.checked);
-                    savePreferences({ notifications: { email: { rule_changes: e.target.checked, security_alerts: prefEmailSecurity }, in_app: { approvals: prefInAppApprovals, audit: prefInAppAudit } } });
-                  }} />
+                  <input type="checkbox" className="rounded" checked={prefEmailRuleChanges} onChange={(e) => handlePreferenceChange("email.rule_changes", e.target.checked)} />
                   <span className="text-sm">{t("Rule change alerts", "规则变更提醒")}</span>
                 </label>
                 <label className="flex items-center space-x-3 py-2 cursor-pointer">
-                  <input type="checkbox" className="rounded" checked={prefEmailSecurity} onChange={(e) => {
-                    setPrefEmailSecurity(e.target.checked);
-                    savePreferences({ notifications: { email: { rule_changes: prefEmailRuleChanges, security_alerts: e.target.checked }, in_app: { approvals: prefInAppApprovals, audit: prefInAppAudit } } });
-                  }} />
+                  <input type="checkbox" className="rounded" checked={prefEmailSecurity} onChange={(e) => handlePreferenceChange("email.security_alerts", e.target.checked)} />
                   <span className="text-sm">{t("Security alerts", "安全告警")}</span>
                 </label>
               </div>
               <div>
                 <h3 className="text-sm font-medium text-gray-500 mb-2">{t("In-App Notifications", "站内通知")}</h3>
                 <label className="flex items-center space-x-3 py-2 cursor-pointer">
-                  <input type="checkbox" className="rounded" checked={prefInAppApprovals} onChange={(e) => {
-                    setPrefInAppApprovals(e.target.checked);
-                    savePreferences({ notifications: { email: { rule_changes: prefEmailRuleChanges, security_alerts: prefEmailSecurity }, in_app: { approvals: e.target.checked, audit: prefInAppAudit } } });
-                  }} />
+                  <input type="checkbox" className="rounded" checked={prefInAppApprovals} onChange={(e) => handlePreferenceChange("in_app.approvals", e.target.checked)} />
                   <span className="text-sm">{t("Approval requests", "审批请求")}</span>
                 </label>
                 <label className="flex items-center space-x-3 py-2 cursor-pointer">
-                  <input type="checkbox" className="rounded" checked={prefInAppAudit} onChange={(e) => {
-                    setPrefInAppAudit(e.target.checked);
-                    savePreferences({ notifications: { email: { rule_changes: prefEmailRuleChanges, security_alerts: prefEmailSecurity }, in_app: { approvals: prefInAppApprovals, audit: e.target.checked } } });
-                  }} />
+                  <input type="checkbox" className="rounded" checked={prefInAppAudit} onChange={(e) => handlePreferenceChange("in_app.audit", e.target.checked)} />
                   <span className="text-sm">{t("Audit log activity", "审计日志动态")}</span>
                 </label>
               </div>

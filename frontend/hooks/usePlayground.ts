@@ -1,7 +1,7 @@
 import { useState, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
 import { parseJson } from "@/lib/utils";
-import type { PlaygroundEntry, PreviewResponse } from "@/lib/types";
+import type { PlaygroundEntry, PreviewResponse, ExprEvalResponse } from "@/lib/types";
 
 export function usePlayground(
   notifyError: (msg: string) => void,
@@ -83,6 +83,24 @@ export function usePlayground(
     [selectedRuleId, forceVar, notifyError, notifySucc],
   );
 
+  const evalExpression = useCallback(
+    async (expression: string, input: string): Promise<string> => {
+      try {
+        const body = { expression, input: parseJson(input, {}), actor: "panel" };
+        const r = await apiFetch("/admin/v1/transform/expr-eval", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+        if (!r.ok) throw new Error("Eval failed");
+        const d = (await r.json()) as ExprEvalResponse;
+        return d.matched ? "TRUE" : "FALSE";
+      } catch (e) {
+        return "ERROR: " + (e as Error).message;
+      }
+    },
+    [],
+  );
+
   const batchTransform = useCallback(async () => {
     setPgEntries((prev) => prev.map((en) => ({ ...en, busy: true })));
     setBusy(true);
@@ -145,5 +163,6 @@ export function usePlayground(
     removeEntry,
     transformEntry,
     batchTransform,
+    evalExpression,
   };
 }

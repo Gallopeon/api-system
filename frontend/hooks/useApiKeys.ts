@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
+import { PAGE_LIMIT, PAGE_OFFSET } from "@/lib/constants";
 import { getDefaultExpiry, fmtRelativeExpiry } from "@/lib/utils";
 import type { ApiKeyItem, ApiKeyListResponse } from "@/lib/types";
 
@@ -17,7 +18,7 @@ export function useApiKeys(
 
   const loadApiKeys = useCallback(async () => {
     try {
-      const r = await apiFetch("/admin/v1/api-keys?limit=50&offset=0");
+      const r = await apiFetch(`/admin/v1/api-keys?limit=${PAGE_LIMIT}&offset=${PAGE_OFFSET}`);
       if (r.ok) {
         const d = (await r.json()) as ApiKeyListResponse;
         setApiKeys(d.items || []);

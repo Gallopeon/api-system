@@ -2,9 +2,7 @@
 
 import { ListFilter, Play, RotateCcw, Database, Share2, Code2, TerminalSquare } from "lucide-react";
 import { cardClass, inputClass, labelClass, btnPrimary, btnSecondary } from "@/lib/constants";
-import { parseJson } from "@/lib/utils";
-import { apiFetch } from "@/lib/api";
-import type { PlaygroundEntry, PreviewResponse, RuleSummary } from "@/lib/types";
+import type { PlaygroundEntry, RuleSummary } from "@/lib/types";
 
 interface PlaygroundPanelProps {
   pgEntries: PlaygroundEntry[];
@@ -24,6 +22,7 @@ interface PlaygroundPanelProps {
   setExpr: (v: string) => void;
   setExprIn: (v: string) => void;
   onTestExpr: () => void;
+  onTransformEntry: (entry: PlaygroundEntry, idx: number) => Promise<void>;
   notifyError: (m: string) => void;
   notifySucc: (m: string) => void;
   t: <T>(en: T, zh: T) => T;
@@ -33,30 +32,10 @@ export default function PlaygroundPanel({
   pgEntries, forceVar, selectedRuleId, busy, rules,
   expr, exprIn, exprOut,
   setPgEntries, setForceVar, setSelectedRuleId,
-  addEntry, removeEntry, onBatchTransform,
+  addEntry, removeEntry, onBatchTransform, onTransformEntry,
   setExpr, setExprIn, onTestExpr,
   notifyError, notifySucc, t,
 }: PlaygroundPanelProps) {
-  const handleTransformEntry = async (entry: PlaygroundEntry, idx: number) => {
-    setPgEntries((prev) => prev.map((en) => (en.id === entry.id ? { ...en, busy: true } : en)));
-    try {
-      const body = {
-        input: parseJson(entry.body, {}),
-        traffic_context: parseJson(entry.traffic, null),
-        actor: "panel",
-        rule_id: selectedRuleId || undefined,
-        force_variant: forceVar.trim() || undefined,
-      };
-      const r = await apiFetch("/admin/v1/transform/preview", { method: "POST", body: JSON.stringify(body) });
-      if (!r.ok) throw new Error("Transform failed");
-      const d = (await r.json()) as PreviewResponse;
-      setPgEntries((prev) => prev.map((en) => en.id === entry.id ? { ...en, output: JSON.stringify(d, null, 2), busy: false } : en));
-      notifySucc(`Entry "${entry.name || `#${idx + 1}`}" OK`);
-    } catch (e) {
-      notifyError((e as Error).message);
-      setPgEntries((prev) => prev.map((en) => en.id === entry.id ? { ...en, busy: false } : en));
-    }
-  };
 
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
@@ -120,7 +99,7 @@ export default function PlaygroundPanel({
               <div>
                 <label className={labelClass}>{t("Force Variant", "强制变体")}</label>
                 <input className={inputClass} value={forceVar} onChange={(e) => setForceVar(e.target.value)} placeholder="e.g. expA" />
-                <button onClick={() => handleTransformEntry(entry, idx)} disabled={entry.busy}
+                <button onClick={() => onTransformEntry(entry, idx)} disabled={entry.busy}
                   className={`${btnPrimary} bg-emerald-600 hover:bg-emerald-700 w-full mt-2`}>
                   <Play className="w-4 h-4 mr-2" />
                   {entry.busy ? t("Running...", "执行中...") : t("Transform", "转换")}

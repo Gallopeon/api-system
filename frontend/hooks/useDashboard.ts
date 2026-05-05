@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
+import { PAGE_LIMIT, PAGE_OFFSET } from "@/lib/constants";
 import type {
   AuditLogItem,
   AuditLogResponse,
@@ -47,7 +48,7 @@ export function useAuditLog() {
 
   const loadAuditLogs = useCallback(async () => {
     try {
-      const r = await apiFetch("/admin/v1/audit/logs?limit=40&offset=0");
+      const r = await apiFetch(`/admin/v1/audit/logs?limit=${PAGE_LIMIT}&offset=${PAGE_OFFSET}`);
       if (r.ok) {
         const d = (await r.json()) as AuditLogResponse;
         setAuditItems(d.items || []);
@@ -77,7 +78,7 @@ export function useApprovals(
 
   const loadApprovals = useCallback(async () => {
     try {
-      const qs = approvalFilter ? `?status=${approvalFilter}` : "?limit=30&offset=0";
+      const qs = approvalFilter ? `?status=${approvalFilter}` : `?limit=${PAGE_LIMIT}&offset=${PAGE_OFFSET}`;
       const r = await apiFetch(`/admin/v1/approvals${qs}`, undefined, accessToken);
       if (r.ok) {
         const d = (await r.json()) as ApprovalListResponse;

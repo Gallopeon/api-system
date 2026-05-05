@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
+import { PAGE_LIMIT, PAGE_OFFSET } from "@/lib/constants";
 import type {
   RateLimitItem,
   RateLimitListResponse,
@@ -23,7 +24,7 @@ export function useRateLimits(
 
   const loadRateLimits = useCallback(async () => {
     try {
-      const r = await apiFetch("/admin/v1/rate-limits?limit=50&offset=0");
+      const r = await apiFetch(`/admin/v1/rate-limits?limit=${PAGE_LIMIT}&offset=${PAGE_OFFSET}`);
       if (r.ok) {
         const d = (await r.json()) as RateLimitListResponse;
         setRateLimits(d.items || []);

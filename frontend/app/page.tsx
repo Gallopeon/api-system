@@ -1,14 +1,12 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { useI18n } from "./i18n";
 import LoginPage from "@/components/features/LoginPage";
 
 // ---- Foundation ----
-import { endpoint, apiFetch } from "@/lib/api";
-import { parseJson, getDefaultExpiry } from "@/lib/utils";
-import type { ExprEvalResponse } from "@/lib/types";
+import { getDefaultExpiry } from "@/lib/utils";
 
 // ---- Hooks ----
 import { useNotification } from "@/hooks/useNotification";
@@ -23,6 +21,7 @@ import { useDashboard, useAuditLog, useApprovals, useAnalytics } from "@/hooks/u
 import Navbar from "@/components/layout/Navbar";
 import Sidebar from "@/components/layout/Sidebar";
 import Toast from "@/components/ui/Toast";
+import ErrorBoundary from "@/components/ui/ErrorBoundary";
 
 // ---- Feature Panels ----
 import DashboardPanel from "@/components/features/DashboardPanel";
@@ -47,7 +46,7 @@ import SystemSettingsPanel from "@/components/features/SystemSettingsPanel";
 // ================================================================
 export default function APIControlCenter() {
   const { lang, setLang } = useI18n();
-  const t = <T,>(en: T, zh: T): T => (lang === "zh" ? zh : en);
+  const t = useCallback(<T,>(en: T, zh: T): T => (lang === "zh" ? zh : en), [lang]);
   const { data: session, status } = useSession();
   const [activeMenu, setActiveMenu] = useState("dashboard");
 
@@ -130,6 +129,7 @@ export default function APIControlCenter() {
 
         <main className="flex-1 overflow-y-auto p-6 lg:p-10 relative">
           <Toast msg={notif.msg} type={notif.type} onClose={clearNotif} />
+          <ErrorBoundary>
 
           {activeMenu === "dashboard" && (
             <DashboardPanel metrics={metrics} onRefresh={loadMetrics} t={t} />
@@ -173,15 +173,11 @@ export default function APIControlCenter() {
               setSelectedRuleId={playgroundHook.setSelectedRuleId}
               addEntry={playgroundHook.addEntry} removeEntry={playgroundHook.removeEntry}
               onBatchTransform={playgroundHook.batchTransform}
+              onTransformEntry={playgroundHook.transformEntry}
               setExpr={setExpr} setExprIn={setExprIn}
               onTestExpr={async () => {
-                try {
-                  const body = { expression: expr, input: parseJson(exprIn, {}), actor: "panel" };
-                  const r = await apiFetch("/admin/v1/transform/expr-eval", { method: "POST", body: JSON.stringify(body) });
-                  if (!r.ok) throw new Error("Eval failed");
-                  const d = (await r.json()) as ExprEvalResponse;
-                  setExprOut(d.matched ? "TRUE" : "FALSE");
-                } catch (e) { setExprOut("ERROR: " + (e as Error).message); }
+                const result = await playgroundHook.evalExpression(expr, exprIn);
+                setExprOut(result);
               }}
               notifyError={notifyError} notifySucc={notifySucc} t={t}
             />
@@ -301,7 +297,7 @@ export default function APIControlCenter() {
           )}
 
           {activeMenu === "llmgateway" && (
-            <LlmGatewayPanel isAdmin={(session as any)?.role === "admin"} notifyError={notifyError} notifySucc={notifySucc} t={t} />
+            <LlmGatewayPanel isAdmin={session?.user?.role === "admin"} notifyError={notifyError} notifySucc={notifySucc} t={t} />
           )}
 
           {activeMenu === "advanced" && (
@@ -355,6 +351,7 @@ export default function APIControlCenter() {
               t={t}
             />
           )}
+          </ErrorBoundary>
         </main>
       </div>
     </div>

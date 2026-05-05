@@ -34,7 +34,7 @@ export default function Navbar({
           className="px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
           title={t("Current environment/region", "当前运行环境/可用区")}
         >
-          {t("prod-zone-1", "生产区-1")}
+          {t(process.env.NEXT_PUBLIC_ENV_LABEL || "prod-zone-1", process.env.NEXT_PUBLIC_ENV_LABEL || "生产区-1")}
         </span>
       </div>
       <div className="flex items-center space-x-6 text-sm font-medium">

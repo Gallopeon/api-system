@@ -12,3 +12,6 @@ export const btnPrimary =
 
 export const btnSecondary =
   "inline-flex items-center justify-center rounded-lg px-4 py-2 font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700 transition";
+
+export const PAGE_LIMIT = 50;
+export const PAGE_OFFSET = 0;
