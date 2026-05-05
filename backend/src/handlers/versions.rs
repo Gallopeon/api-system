@@ -54,15 +54,17 @@ pub async fn rollback_rule_version(
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::RuleWrite)?;
     let target_config = load_rule_version_config(&state.pool, &rule_id, payload.version).await?;
+    let mut txn = state.pool.begin().await?;
     let current_ver: i32 = sqlx::query_scalar("SELECT current_version FROM rule_configs WHERE id = ?")
-        .bind(&rule_id).fetch_one(&state.pool).await?;
+        .bind(&rule_id).fetch_one(&mut *txn).await?;
     let new_ver = current_ver + 1;
     sqlx::query("UPDATE rule_configs SET current_version = ?, updated_at = NOW() WHERE id = ?")
-        .bind(new_ver).bind(&rule_id).execute(&state.pool).await?;
+        .bind(new_ver).bind(&rule_id).execute(&mut *txn).await?;
     let config_text = serde_json::to_string(&target_config)?;
     let actor = resolve_actor(&auth, payload.actor.as_deref());
     sqlx::query("INSERT INTO rule_versions (rule_id, version, config_text, note, change_kind) VALUES (?, ?, ?, ?, 'rollback')")
-        .bind(&rule_id).bind(new_ver).bind(&config_text).bind(&payload.note).execute(&state.pool).await?;
+        .bind(&rule_id).bind(new_ver).bind(&config_text).bind(&payload.note).execute(&mut *txn).await?;
+    txn.commit().await?;
     invalidate_cache(&state.redis, &rule_id).await.unwrap_or_else(|e| warn!(error = %e, "cache invalidate failed"));
     write_audit_log(&state.pool, AuditEntry {
         rule_id: Some(rule_id.clone()), action: "rule_rollback".to_string(), actor,

@@ -12,7 +12,10 @@ pub async fn load_rule_detail(pool: &MySqlPool, id: &str) -> Result<RuleDetail, 
     ).bind(id).fetch_optional(pool).await?
     .ok_or_else(|| AppError::NotFound(format!("rule {} not found", id)))?;
     let config_text: String = row.try_get("config_text").unwrap_or_default();
-    let config: TransformRule = serde_json::from_str(&config_text).unwrap_or_default();
+    let config: TransformRule = serde_json::from_str(&config_text).unwrap_or_else(|e| {
+        tracing::warn!(error = %e, rule_id = %id, "corrupt rule config JSON, falling back to default");
+        Default::default()
+    });
     let updated_at: DateTime<Utc> = row.try_get("updated_at").unwrap_or(DateTime::UNIX_EPOCH);
     Ok(RuleDetail {
         id: row.try_get("id").unwrap_or_default(),
@@ -30,7 +33,10 @@ pub async fn load_rule_version_config(pool: &MySqlPool, rule_id: &str, version: 
         "SELECT config_text FROM rule_versions WHERE rule_id = ? AND version = ?"
     ).bind(rule_id).bind(version).fetch_optional(pool).await?
     .ok_or_else(|| AppError::NotFound(format!("version {} of rule {} not found", version, rule_id)))?;
-    Ok(serde_json::from_str(&config_text).unwrap_or(json!({})))
+    Ok(serde_json::from_str(&config_text).unwrap_or_else(|e| {
+        tracing::warn!(error = %e, rule_id = %rule_id, version = %version, "corrupt version config JSON, falling back to empty object");
+        json!({})
+    }))
 }
 
 pub async fn write_audit_log(pool: &MySqlPool, entry: AuditEntry) -> Result<(), AppError> {
@@ -74,7 +80,10 @@ pub async fn load_rule_config_by_id(pool: &MySqlPool, rule_id: &str) -> Result<T
     ).bind(rule_id).fetch_optional(pool).await?
     .ok_or_else(|| AppError::NotFound(format!("rule {} not found or not published", rule_id)))?;
     let config_text: String = row.try_get("config_text").unwrap_or_default();
-    Ok(serde_json::from_str(&config_text).unwrap_or_default())
+    Ok(serde_json::from_str(&config_text).unwrap_or_else(|e| {
+        tracing::warn!(error = %e, rule_id = %rule_id, "corrupt published rule config JSON, falling back to default");
+        Default::default()
+    }))
 }
 
 pub fn get_rate_limit_by_id<'a>(pool: &'a MySqlPool, id: &'a str) -> impl std::future::Future<Output = Result<RateLimitResponse, AppError>> + use<'a> {

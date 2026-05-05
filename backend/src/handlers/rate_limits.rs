@@ -139,10 +139,14 @@ pub async fn check_rate_limit(
         }
     };
 
-    let current: i32 = conn.get(&window_key).await.unwrap_or(0);
-    let limit = max_req + burst;
+    let new_val: i32 = conn.incr(&window_key, 1).await?;
+    if new_val == 1 {
+        let _: () = conn.expire(&window_key, window as i64).await?;
+    }
 
-    if current >= limit {
+    let limit = max_req + burst;
+    if new_val > limit {
+        let _: () = conn.decr(&window_key, 1).await?;
         return Ok(Json(RateLimitCheckResponse {
             allowed: false, limit, remaining: 0, reset_seconds,
             quota_daily_remaining: quota_daily, quota_monthly_remaining: quota_monthly,
@@ -150,13 +154,8 @@ pub async fn check_rate_limit(
         }));
     }
 
-    let _: () = conn.incr(&window_key, 1).await?;
-    if current == 0 {
-        let _: () = conn.expire(&window_key, window as i64).await?;
-    }
-
     Ok(Json(RateLimitCheckResponse {
-        allowed: true, limit, remaining: limit - current - 1, reset_seconds,
+        allowed: true, limit, remaining: limit - new_val, reset_seconds,
         quota_daily_remaining: quota_daily, quota_monthly_remaining: quota_monthly,
         reason: None,
     }))

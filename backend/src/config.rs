@@ -45,7 +45,16 @@ impl Settings {
                 let secret = std::env::var("JWT_SECRET")
                     .unwrap_or_else(|_| "dev-secret-change-me-in-production".to_string());
                 if secret == "dev-secret-change-me-in-production" {
-                    tracing::error!("!!! JWT_SECRET is using the hardcoded default — set JWT_SECRET in production !!!");
+                    let dev_mode = std::env::var("DEV_MODE")
+                        .map(|v| v.eq_ignore_ascii_case("true"))
+                        .unwrap_or(false);
+                    if !dev_mode {
+                        panic!(
+                            "JWT_SECRET is using the hardcoded default. \
+                             Set JWT_SECRET environment variable or enable DEV_MODE=true for development."
+                        );
+                    }
+                    tracing::warn!("JWT_SECRET is using the hardcoded default — set JWT_SECRET in production");
                 }
                 secret
             },

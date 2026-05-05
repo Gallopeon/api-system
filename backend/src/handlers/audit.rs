@@ -18,9 +18,26 @@ pub async fn list_audit_logs(
     ensure_permission(&auth, Permission::AuditRead)?;
     let limit = query.limit.unwrap_or(30).clamp(1, 200);
     let offset = query.offset.unwrap_or(0);
+
+    let rule_id_filter = query.rule_id.unwrap_or_default();
+    let action_filter = query.action.unwrap_or_default();
+    let actor_filter = query.actor.unwrap_or_default();
+    let success_filter: i8 = query.success.map(|s| if s { 1 } else { 0 }).unwrap_or(-1);
+
     let rows = sqlx::query(
-        "SELECT id, rule_id, action, actor, success, message, detail, created_at FROM audit_logs ORDER BY created_at DESC LIMIT ? OFFSET ?"
-    ).bind(limit).bind(offset).fetch_all(&state.pool).await?;
+        "SELECT id, rule_id, action, actor, success, message, detail, created_at FROM audit_logs \
+         WHERE (rule_id = ? OR ? = '') \
+         AND (action = ? OR ? = '') \
+         AND (actor = ? OR ? = '') \
+         AND (success = ? OR ? < 0) \
+         ORDER BY created_at DESC LIMIT ? OFFSET ?"
+    )
+    .bind(&rule_id_filter).bind(&rule_id_filter)
+    .bind(&action_filter).bind(&action_filter)
+    .bind(&actor_filter).bind(&actor_filter)
+    .bind(success_filter).bind(success_filter)
+    .bind(limit).bind(offset)
+    .fetch_all(&state.pool).await?;
     let items: Vec<AuditLogItem> = rows.iter().map(|r| {
         let created_at: DateTime<Utc> = r.try_get("created_at").unwrap_or(DateTime::UNIX_EPOCH);
         let detail_str: Option<String> = r.try_get("detail").ok();

@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use axum::extract::{Request, State};
-use axum::http::{HeaderName, StatusCode};
+use axum::http::{HeaderName, HeaderValue, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post, put};
@@ -154,7 +154,10 @@ async fn request_id_middleware(
         .unwrap_or_else(|| Uuid::new_v4().to_string());
     request.extensions_mut().insert(req_id.clone());
     let mut response = next.run(request).await;
-    response.headers_mut().insert(&X_REQUEST_ID, req_id.parse().unwrap());
+    response.headers_mut().insert(
+        &X_REQUEST_ID,
+        HeaderValue::from_str(&req_id).unwrap_or(HeaderValue::from_static("unknown")),
+    );
     response
 }
 
@@ -165,7 +168,7 @@ async fn data_plane_middleware(
 ) -> Response {
     request.extensions_mut().insert(AuthContext {
         authenticated: false,
-        subject: "admin".to_string(),
+        subject: "anonymous".to_string(),
         role: Role::Viewer,
         tenant_id: None,
     });
