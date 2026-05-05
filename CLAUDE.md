@@ -67,12 +67,11 @@ frontend/
 ```
 backend/src/
 ├── main.rs        ← #[tokio::main] entry point ONLY (<10 lines)
-├── lib.rs         ← module declarations + run() + router assembly
-├── config.rs      ← Settings, AppState, env parsing, CORS, tracing
-├── db.rs          ← pool init, schema bootstrap
-├── auth.rs        ← AuthContext, middleware, RBAC, JWT
-├── cache.rs       ← Redis helpers
-├── types/         ← Request/response structs, split by domain
+├── lib.rs         ← module declarations + run() + router assembly + health checks
+├── config.rs      ← Settings, AppState, AuthSettings, env parsing, CORS, tracing
+├── db.rs          ← pool init, schema bootstrap, seed functions
+├── auth.rs        ← AuthContext, middleware, RBAC, JWT, AppError
+├── types/         ← Request/response structs, split by domain (rule, api_key, rate_limit, metrics, approval, llm, user, system, validation)
 ├── handlers/      ← HTTP handlers, ONE file per domain entity
 └── engine/        ← Pure business logic, ZERO HTTP dependencies
 ```
@@ -377,9 +376,21 @@ frontend/
 ```
 backend/src/
 ├── main.rs              ← 4 lines. #[tokio::main] entry point.
-├── lib.rs               ← ~420 lines. AppState, Settings, run(), bootstrap_schema(), router assembly.
-├── auth.rs              ← 308 lines. AuthContext, middleware, JWT, RBAC, permissions. Also defines AppError.
-├── types.rs             ← ~950 lines. All request/response structs, enums. ⚠️ Candidate for types/ split.
+├── lib.rs               ← 174 lines. Module declarations, pub use, run(), router assembly, health checks.
+├── config.rs            ← 85 lines. AppState, Settings, AuthSettings, env parsing, CORS, tracing.
+├── db.rs                ← 248 lines. MySQL pool init, bootstrap_schema(), seed_settings(), seed_admin().
+├── auth.rs              ← 325 lines. AuthContext, middleware, JWT, RBAC, permissions. Also defines AppError.
+├── types/               ← Request/response structs, split by domain. All under 500 lines.
+│   ├── mod.rs           ← Re-exports all sub-modules.
+│   ├── rule.rs          ← TransformRule, GrayRelease, ConditionalRule, Pagination, all rule request/response types (350 lines).
+│   ├── api_key.rs       ← API key types (80 lines).
+│   ├── validation.rs    ← ValidateRequest, ValidationResult, ValidationErrorDetail (29 lines).
+│   ├── rate_limit.rs    ← Rate limit types + defaulters (106 lines).
+│   ├── metrics.rs       ← IngestMetrics, Analytics, TopApi, MetricsOverview types (91 lines).
+│   ├── approval.rs      ← Approval types (60 lines).
+│   ├── llm.rs           ← LLM Gateway types + defaulters (87 lines).
+│   ├── user.rs          ← Login, User, Session, LoginHistory, TOTP, Preferences types (161 lines).
+│   └── system.rs        ← SystemSettingItem, UpdateSettingRequest (17 lines).
 ├── engine/              ← Pure business logic. Zero HTTP/DB dependencies. Unit-testable.
 │   ├── mod.rs
 │   ├── transform.rs     ← apply_transform, transform_payload, transform_object, apply_conditional_rules, mask_value
@@ -427,8 +438,8 @@ When adding new transform/validation/expression logic, add it to the appropriate
 
 - **Router**: Defined in `lib.rs` `run()`. All `/api/v1/*` routes pass through `auth_middleware` (except health/live, health/ready).
 - **Auth**: `AuthContext` extraction via `auth_middleware`. JWT validation (HS256). RBAC with 4 roles (admin/reviewer/editor/viewer). When `AUTH_ENABLED=false`, all requests get `Role::Admin` with no checks.
-- **Database**: Three MySQL tables auto-created on startup: `rule_configs`, `rule_versions`, `audit_logs`. Redis caches rule detail reads (prefix `rule:`, TTL 300s default).
-- **Error handling**: `AppError` enum in `types.rs` implements `IntoResponse`, mapped to appropriate HTTP status codes.
+- **Database**: MySQL tables auto-created on startup in `db::bootstrap_schema()`: `rule_configs`, `rule_versions`, `audit_logs`, `api_keys`, `rate_limit_configs`, `metrics_ingest`, `approvals`, `llm_providers`, `prompt_templates`, `llm_usage_logs`, `api_products`, `subscriptions`, `circuit_breakers`, `protocol_configs`, `data_classifications`, `plugin_configs`, `users`, `user_sessions`, `login_history`, `user_totp`, `system_settings`. Redis caches rule detail reads (prefix `rule:`, TTL 300s default).
+- **Error handling**: `AppError` enum in `auth.rs` implements `IntoResponse`, mapped to appropriate HTTP status codes.
 - **Audit**: All mutating operations write to `audit_logs` table via `write_audit_log()`.
 
 ### Handler reference by domain
