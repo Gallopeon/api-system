@@ -318,38 +318,18 @@ pub async fn auth_middleware(
     mut request: Request,
     next: Next,
 ) -> Response {
-    let auth_disabled = !state.auth.enabled;
-
-    // Try to extract and validate JWT regardless of AUTH_ENABLED.
-    // This ensures logged-in users retain their identity even in dev mode.
-    let jwt_ctx = try_authenticate(&state, request.headers());
-
-    match (auth_disabled, jwt_ctx) {
-        // JWT present and valid — use it regardless of AUTH_ENABLED
-        (_, Some(ctx)) => {
+    match try_authenticate(&state, request.headers()) {
+        Some(ctx) => {
             request.extensions_mut().insert(ctx);
+            next.run(request).await
         }
-        // Auth disabled, no JWT — grant admin for dev convenience
-        (true, None) => {
-            request.extensions_mut().insert(AuthContext {
-                authenticated: false,
-                subject: "admin".to_string(),
-                role: Role::Admin,
-                tenant_id: None,
-            });
-        }
-        // Auth enabled, no JWT — reject
-        (false, None) => {
-            return AppError::Unauthorized("missing or invalid bearer token".to_string()).into_response();
-        }
+        None => AppError::Unauthorized("missing or invalid bearer token".to_string()).into_response(),
     }
-
-    next.run(request).await
 }
 
 fn try_authenticate(state: &AppState, headers: &HeaderMap) -> Option<AuthContext> {
     let token = extract_bearer_token(headers).filter(|t| !t.is_empty())?;
-    let secret = state.auth.jwt_secret.as_ref().filter(|s| !s.is_empty())?;
+    let secret = &state.auth.jwt_secret;
 
     let mut validation = Validation::new(Algorithm::HS256);
     validation.validate_exp = true;

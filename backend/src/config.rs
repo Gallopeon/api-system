@@ -20,15 +20,13 @@ pub struct Settings {
     pub redis_url: String,
     pub mysql_max_connections: u32,
     pub cache_ttl_seconds: u64,
-    pub auth_enabled: bool,
-    pub jwt_secret: Option<String>,
+    pub jwt_secret: String,
     pub cors_allowed_origins: Vec<String>,
 }
 
 #[derive(Clone)]
 pub struct AuthSettings {
-    pub enabled: bool,
-    pub jwt_secret: Option<String>,
+    pub jwt_secret: String,
 }
 
 impl Settings {
@@ -43,20 +41,10 @@ impl Settings {
                 .ok().and_then(|v| v.parse::<u32>().ok()).unwrap_or(15),
             cache_ttl_seconds: std::env::var("CACHE_TTL_SECONDS")
                 .ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(300),
-            auth_enabled: parse_bool_env("AUTH_ENABLED", false),
             jwt_secret: std::env::var("JWT_SECRET")
-                .ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty()),
+                .unwrap_or_else(|_| "dev-secret-change-me-in-production".to_string()),
             cors_allowed_origins: parse_csv_env("CORS_ALLOWED_ORIGINS", "*"),
         }
-    }
-}
-
-pub fn parse_bool_env(key: &str, default_value: bool) -> bool {
-    let raw = match std::env::var(key) { Ok(v) => v, Err(_) => return default_value };
-    match raw.trim().to_ascii_lowercase().as_str() {
-        "1" | "true" | "yes" | "on" => true,
-        "0" | "false" | "no" | "off" => false,
-        _ => default_value,
     }
 }
 

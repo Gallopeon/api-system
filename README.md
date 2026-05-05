@@ -50,14 +50,14 @@ docker compose up --build -d backend
 - `http://localhost/health/live`
 - `http://localhost/health/ready`
 
-## Auth and RBAC (phase-1)
+## Auth and RBAC
 
-Auth is disabled by default for local development.
+Authentication is always enforced via JWT (HS256). No unauthenticated access.
 
 Backend env vars:
 
-- `AUTH_ENABLED`: `true` / `false` (default `false`)
-- `JWT_SECRET`: HS256 secret (required when `AUTH_ENABLED=true`)
+- `JWT_SECRET`: HS256 secret (required)
+- `ADMIN_DEFAULT_PASSWORD`: password for the default admin user (required on first run)
 - `CORS_ALLOWED_ORIGINS`: comma-separated allowlist, e.g. `http://localhost,http://127.0.0.1:3000`
 
 Frontend env vars:
@@ -68,9 +68,9 @@ Frontend env vars:
 Role permissions:
 
 - `admin`: all actions
-- `reviewer`: read rules, rollback/publish, read audit/metrics, use transform APIs
-- `editor`: read/write rules, read metrics, use transform APIs
-- `viewer`: read rules/metrics, use transform APIs
+- `reviewer`: read all, publish rules, review approvals, manage LLM, self-profile
+- `editor`: read all, CRUD rules/API keys/rate limits/products/circuit breakers/protocols/classifications/plugins, transform, self-profile
+- `viewer`: read-only across all domains, transform preview, LLM routing, self-profile
 
 ## Core API endpoints
 

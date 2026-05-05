@@ -204,7 +204,6 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
 
 async fn seed_settings(pool: &MySqlPool) -> Result<(), AppError> {
     let defaults: Vec<(&str, &str, &str, bool)> = vec![
-        ("auth_enabled", "false", "Enable JWT authentication", true),
         ("cache_ttl_seconds", "300", "Redis cache TTL in seconds", true),
         ("jwt_ttl_seconds", "86400", "JWT token expiry in seconds", true),
         ("login_max_attempts", "5", "Max failed logins before lockout", true),

@@ -30,9 +30,6 @@ pub async fn run() -> anyhow::Result<()> {
     init_tracing();
 
     let settings = Settings::from_env();
-    if settings.auth_enabled && settings.jwt_secret.is_none() {
-        anyhow::bail!("AUTH_ENABLED=true but JWT_SECRET is missing");
-    }
 
     let pool = MySqlPoolOptions::new()
         .min_connections(1).max_connections(settings.mysql_max_connections)
@@ -46,7 +43,7 @@ pub async fn run() -> anyhow::Result<()> {
         pool, redis,
         cache_ttl_seconds: settings.cache_ttl_seconds,
         started_at: Instant::now(),
-        auth: AuthSettings { enabled: settings.auth_enabled, jwt_secret: settings.jwt_secret.clone() },
+        auth: AuthSettings { jwt_secret: settings.jwt_secret.clone() },
     });
 
     let admin_router = Router::new()

@@ -68,9 +68,7 @@ pub async fn login(State(state): State<Arc<AppState>>, Json(payload): Json<Login
     let role_str: String = row.try_get("role").unwrap_or_else(|_| "viewer".to_string());
     let role = parse_role(&role_str);
 
-    let secret = state.auth.jwt_secret.as_deref()
-        .ok_or_else(|| AppError::Internal("JWT secret not configured".to_string()))?;
-    let token = create_jwt(&payload.username, role, None, secret, 86400)?;
+    let token = create_jwt(&payload.username, role, None, &state.auth.jwt_secret, 86400)?;
 
     // Reset failed attempts on success, update last login, record successful login
     sqlx::query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE id = ?")

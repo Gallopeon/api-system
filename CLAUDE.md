@@ -437,7 +437,7 @@ When adding new transform/validation/expression logic, add it to the appropriate
 ### Backend patterns
 
 - **Router**: Defined in `lib.rs` `run()`. All `/api/v1/*` routes pass through `auth_middleware` (except health/live, health/ready).
-- **Auth**: `AuthContext` extraction via `auth_middleware`. JWT validation (HS256). RBAC with 4 roles (admin/reviewer/editor/viewer). When `AUTH_ENABLED=false`, all requests get `Role::Admin` with no checks.
+- **Auth**: `AuthContext` extraction via `auth_middleware`. JWT validation (HS256) is always enforced — every request must carry a valid bearer token. RBAC with 4 roles (admin/reviewer/editor/viewer).
 - **Permissions**: 30 granular permissions defined in `auth.rs`. Each handler calls `ensure_permission()` with the appropriate permission. Data plane endpoints (`/api/v1/*`) skip permission checks — they are authenticated by the gateway via API keys.
 
 | Role | Capabilities |
