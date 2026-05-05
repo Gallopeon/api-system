@@ -36,13 +36,60 @@ pub async fn list_plugins(State(state): State<Arc<AppState>>, Extension(auth): E
     Ok(Json(json!({"items": items})))
 }
 
-pub async fn get_plugin_config(Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
+pub async fn get_plugin_config(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::PluginsRead)?;
-    Err::<Json<Value>, _>(AppError::BadRequest(format!("not implemented: get_plugin_config {}", id)))
+    let row = sqlx::query("SELECT id, name, plugin_type, hook_point, config_json, priority, status FROM plugin_configs WHERE id = ?")
+        .bind(&id).fetch_optional(&state.pool).await?
+        .ok_or_else(|| AppError::NotFound(format!("plugin config {} not found", id)))?;
+    Ok(Json(json!({
+        "id": row.try_get::<String,_>("id").unwrap_or_default(),
+        "name": row.try_get::<String,_>("name").unwrap_or_default(),
+        "plugin_type": row.try_get::<String,_>("plugin_type").unwrap_or_default(),
+        "hook_point": row.try_get::<String,_>("hook_point").unwrap_or_default(),
+        "config_json": row.try_get::<String,_>("config_json").unwrap_or_default(),
+        "priority": row.try_get::<i32,_>("priority").unwrap_or(100),
+        "status": row.try_get::<String,_>("status").unwrap_or_default(),
+    })))
 }
-pub async fn update_plugin_config(Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(_payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
+pub async fn update_plugin_config(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::PluginsWrite)?;
-    Err::<Json<Value>, _>(AppError::BadRequest(format!("not implemented: update_plugin_config {}", id)))
+    let mut set_clauses: Vec<String> = Vec::new();
+    let mut bind_values: Vec<String> = Vec::new();
+    if payload.get("name").and_then(|v| v.as_str()).is_some() {
+        set_clauses.push("name = ?".into());
+        bind_values.push(payload["name"].as_str().unwrap().to_string());
+    }
+    if payload.get("plugin_type").and_then(|v| v.as_str()).is_some() {
+        set_clauses.push("plugin_type = ?".into());
+        bind_values.push(payload["plugin_type"].as_str().unwrap().to_string());
+    }
+    if payload.get("hook_point").and_then(|v| v.as_str()).is_some() {
+        set_clauses.push("hook_point = ?".into());
+        bind_values.push(payload["hook_point"].as_str().unwrap().to_string());
+    }
+    if payload.get("config_json").is_some() {
+        set_clauses.push("config_json = ?".into());
+        bind_values.push(payload["config_json"].to_string());
+    }
+    if let Some(v) = payload.get("priority").and_then(|v| v.as_i64()) {
+        set_clauses.push("priority = ?".into());
+        bind_values.push(v.to_string());
+    }
+    if payload.get("status").and_then(|v| v.as_str()).is_some() {
+        set_clauses.push("status = ?".into());
+        bind_values.push(payload["status"].as_str().unwrap().to_string());
+    }
+    if set_clauses.is_empty() {
+        return Err(AppError::BadRequest("no fields to update".into()));
+    }
+    let query = format!("UPDATE plugin_configs SET {} WHERE id = ?", set_clauses.join(", "));
+    bind_values.push(id.clone());
+    let mut q = sqlx::query(&query);
+    for v in &bind_values {
+        q = q.bind(v);
+    }
+    q.execute(&state.pool).await?;
+    Ok(Json(json!({"updated": true})))
 }
 pub async fn delete_plugin_config(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::PluginsWrite)?;

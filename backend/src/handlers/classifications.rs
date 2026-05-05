@@ -55,9 +55,49 @@ pub async fn get_classification(State(state): State<Arc<AppState>>, Extension(au
         "created_at": row.try_get::<String,_>("created_at").unwrap_or_default(),
     })))
 }
-pub async fn update_data_classification(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(_payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
+pub async fn update_data_classification(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ClassificationsWrite)?;
-    Err::<Json<Value>, _>(AppError::BadRequest(format!("not implemented: update_data_classification {}", id)))
+    let mut set_clauses: Vec<String> = Vec::new();
+    let mut bind_values: Vec<String> = Vec::new();
+    if payload.get("api_path").and_then(|v| v.as_str()).is_some() {
+        set_clauses.push("api_path = ?".into());
+        bind_values.push(payload["api_path"].as_str().unwrap().to_string());
+    }
+    if payload.get("data_category").and_then(|v| v.as_str()).is_some() {
+        set_clauses.push("data_category = ?".into());
+        bind_values.push(payload["data_category"].as_str().unwrap().to_string());
+    }
+    if payload.get("contains_pii").and_then(|v| v.as_bool()).is_some() {
+        set_clauses.push("contains_pii = ?".into());
+        bind_values.push(if payload["contains_pii"].as_bool().unwrap_or(false) { "1".into() } else { "0".into() });
+    }
+    if payload.get("gdpr_relevant").and_then(|v| v.as_bool()).is_some() {
+        set_clauses.push("gdpr_relevant = ?".into());
+        bind_values.push(if payload["gdpr_relevant"].as_bool().unwrap_or(false) { "1".into() } else { "0".into() });
+    }
+    if let Some(v) = payload.get("retention_days").and_then(|v| v.as_i64()) {
+        set_clauses.push("retention_days = ?".into());
+        bind_values.push(v.to_string());
+    }
+    if payload.get("notes").is_some() {
+        set_clauses.push("notes = ?".into());
+        bind_values.push(payload.get("notes").and_then(|v| v.as_str()).unwrap_or("").to_string());
+    }
+    if payload.get("classified_by").and_then(|v| v.as_str()).is_some() {
+        set_clauses.push("classified_by = ?".into());
+        bind_values.push(payload["classified_by"].as_str().unwrap().to_string());
+    }
+    if set_clauses.is_empty() {
+        return Err(AppError::BadRequest("no fields to update".into()));
+    }
+    let query = format!("UPDATE data_classifications SET {} WHERE id = ?", set_clauses.join(", "));
+    bind_values.push(id.clone());
+    let mut q = sqlx::query(&query);
+    for v in &bind_values {
+        q = q.bind(v);
+    }
+    q.execute(&state.pool).await?;
+    Ok(Json(json!({"updated": true})))
 }
 pub async fn delete_data_classification(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ClassificationsWrite)?;

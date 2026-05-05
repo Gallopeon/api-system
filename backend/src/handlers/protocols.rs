@@ -46,9 +46,37 @@ pub async fn get_protocol_config(State(state): State<Arc<AppState>>, Extension(a
         "status": row.try_get::<String,_>("status").unwrap_or_default(),
     })))
 }
-pub async fn update_protocol_config(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(_payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
+pub async fn update_protocol_config(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProtocolsWrite)?;
-    Err::<Json<Value>, _>(AppError::BadRequest(format!("not implemented: update_protocol_config {}", id)))
+    let mut set_clauses: Vec<String> = Vec::new();
+    let mut bind_values: Vec<String> = Vec::new();
+    if payload.get("api_path").and_then(|v| v.as_str()).is_some() {
+        set_clauses.push("api_path = ?".into());
+        bind_values.push(payload["api_path"].as_str().unwrap().to_string());
+    }
+    if payload.get("protocol").and_then(|v| v.as_str()).is_some() {
+        set_clauses.push("protocol = ?".into());
+        bind_values.push(payload["protocol"].as_str().unwrap().to_string());
+    }
+    if payload.get("config_json").is_some() {
+        set_clauses.push("config_json = ?".into());
+        bind_values.push(payload["config_json"].to_string());
+    }
+    if payload.get("status").and_then(|v| v.as_str()).is_some() {
+        set_clauses.push("status = ?".into());
+        bind_values.push(payload["status"].as_str().unwrap().to_string());
+    }
+    if set_clauses.is_empty() {
+        return Err(AppError::BadRequest("no fields to update".into()));
+    }
+    let query = format!("UPDATE protocol_configs SET {} WHERE id = ?", set_clauses.join(", "));
+    bind_values.push(id.clone());
+    let mut q = sqlx::query(&query);
+    for v in &bind_values {
+        q = q.bind(v);
+    }
+    q.execute(&state.pool).await?;
+    Ok(Json(json!({"updated": true})))
 }
 pub async fn delete_protocol_config(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProtocolsWrite)?;

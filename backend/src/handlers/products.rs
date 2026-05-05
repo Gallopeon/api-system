@@ -47,9 +47,37 @@ pub async fn get_product(State(state): State<Arc<AppState>>, Extension(auth): Ex
         "status": row.try_get::<String,_>("status").unwrap_or_default(),
     })))
 }
-pub async fn update_product(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(_payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
+pub async fn update_product(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsWrite)?;
-    Err::<Json<Value>, _>(AppError::BadRequest(format!("not implemented: update_product {}", id)))
+    let mut set_clauses: Vec<String> = Vec::new();
+    let mut bind_values: Vec<String> = Vec::new();
+    if payload.get("name").and_then(|v| v.as_str()).is_some() {
+        set_clauses.push("name = ?".into());
+        bind_values.push(payload["name"].as_str().unwrap().to_string());
+    }
+    if payload.get("description").is_some() {
+        set_clauses.push("description = ?".into());
+        bind_values.push(payload.get("description").and_then(|v| v.as_str()).unwrap_or("").to_string());
+    }
+    if payload.get("rule_ids").is_some() {
+        set_clauses.push("rule_ids = ?".into());
+        bind_values.push(payload["rule_ids"].to_string());
+    }
+    if payload.get("status").and_then(|v| v.as_str()).is_some() {
+        set_clauses.push("status = ?".into());
+        bind_values.push(payload["status"].as_str().unwrap().to_string());
+    }
+    if set_clauses.is_empty() {
+        return Err(AppError::BadRequest("no fields to update".into()));
+    }
+    let query = format!("UPDATE api_products SET {} WHERE id = ?", set_clauses.join(", "));
+    bind_values.push(id.clone());
+    let mut q = sqlx::query(&query);
+    for v in &bind_values {
+        q = q.bind(v);
+    }
+    q.execute(&state.pool).await?;
+    Ok(Json(json!({"updated": true})))
 }
 pub async fn delete_product(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsWrite)?;
@@ -97,9 +125,41 @@ pub async fn get_subscription(State(state): State<Arc<AppState>>, Extension(auth
         "created_at": row.try_get::<String,_>("created_at").unwrap_or_default(),
     })))
 }
-pub async fn update_subscription(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(_payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
+pub async fn update_subscription(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsWrite)?;
-    Err::<Json<Value>, _>(AppError::BadRequest(format!("not implemented: update_subscription {}", id)))
+    let mut set_clauses: Vec<String> = Vec::new();
+    let mut bind_values: Vec<String> = Vec::new();
+    if payload.get("plan").and_then(|v| v.as_str()).is_some() {
+        set_clauses.push("plan = ?".into());
+        bind_values.push(payload["plan"].as_str().unwrap().to_string());
+    }
+    if payload.get("status").and_then(|v| v.as_str()).is_some() {
+        set_clauses.push("status = ?".into());
+        bind_values.push(payload["status"].as_str().unwrap().to_string());
+    }
+    if let Some(v) = payload.get("rate_limit_rps").and_then(|v| v.as_i64()) {
+        set_clauses.push("rate_limit_rps = ?".into());
+        bind_values.push(v.to_string());
+    }
+    if let Some(v) = payload.get("quota_daily").and_then(|v| v.as_i64()) {
+        set_clauses.push("quota_daily = ?".into());
+        bind_values.push(v.to_string());
+    }
+    if payload.get("expires_at").is_some() {
+        set_clauses.push("expires_at = ?".into());
+        bind_values.push(payload.get("expires_at").and_then(|v| v.as_str()).unwrap_or("").to_string());
+    }
+    if set_clauses.is_empty() {
+        return Err(AppError::BadRequest("no fields to update".into()));
+    }
+    let query = format!("UPDATE subscriptions SET {} WHERE id = ?", set_clauses.join(", "));
+    bind_values.push(id.clone());
+    let mut q = sqlx::query(&query);
+    for v in &bind_values {
+        q = q.bind(v);
+    }
+    q.execute(&state.pool).await?;
+    Ok(Json(json!({"updated": true})))
 }
 pub async fn delete_subscription(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsWrite)?;

@@ -58,9 +58,53 @@ pub async fn get_circuit_breaker(State(state): State<Arc<AppState>>, Extension(a
         "status": row.try_get::<String,_>("status").unwrap_or_default(),
     })))
 }
-pub async fn update_circuit_breaker(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(_payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
+pub async fn update_circuit_breaker(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::CircuitBreakersWrite)?;
-    Err::<Json<Value>, _>(AppError::BadRequest(format!("not implemented: update_circuit_breaker {}", id)))
+    let mut set_clauses: Vec<String> = Vec::new();
+    let mut bind_values: Vec<String> = Vec::new();
+    if payload.get("api_path").and_then(|v| v.as_str()).is_some() {
+        set_clauses.push("api_path = ?".into());
+        bind_values.push(payload["api_path"].as_str().unwrap().to_string());
+    }
+    if let Some(v) = payload.get("failure_threshold").and_then(|v| v.as_i64()) {
+        set_clauses.push("failure_threshold = ?".into());
+        bind_values.push(v.to_string());
+    }
+    if let Some(v) = payload.get("recovery_timeout_sec").and_then(|v| v.as_i64()) {
+        set_clauses.push("recovery_timeout_sec = ?".into());
+        bind_values.push(v.to_string());
+    }
+    if let Some(v) = payload.get("half_open_max").and_then(|v| v.as_i64()) {
+        set_clauses.push("half_open_max = ?".into());
+        bind_values.push(v.to_string());
+    }
+    if let Some(v) = payload.get("retry_count").and_then(|v| v.as_i64()) {
+        set_clauses.push("retry_count = ?".into());
+        bind_values.push(v.to_string());
+    }
+    if let Some(v) = payload.get("retry_delay_ms").and_then(|v| v.as_i64()) {
+        set_clauses.push("retry_delay_ms = ?".into());
+        bind_values.push(v.to_string());
+    }
+    if let Some(v) = payload.get("timeout_ms").and_then(|v| v.as_i64()) {
+        set_clauses.push("timeout_ms = ?".into());
+        bind_values.push(v.to_string());
+    }
+    if payload.get("status").and_then(|v| v.as_str()).is_some() {
+        set_clauses.push("status = ?".into());
+        bind_values.push(payload["status"].as_str().unwrap().to_string());
+    }
+    if set_clauses.is_empty() {
+        return Err(AppError::BadRequest("no fields to update".into()));
+    }
+    let query = format!("UPDATE circuit_breakers SET {} WHERE id = ?", set_clauses.join(", "));
+    bind_values.push(id.clone());
+    let mut q = sqlx::query(&query);
+    for v in &bind_values {
+        q = q.bind(v);
+    }
+    q.execute(&state.pool).await?;
+    Ok(Json(json!({"updated": true})))
 }
 pub async fn delete_circuit_breaker(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::CircuitBreakersWrite)?;
