@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { UserCircle, Shield, Monitor, History, QrCode, Settings } from "lucide-react";
 import { cardClass, inputClass, labelClass, btnPrimary, btnSecondary } from "@/lib/constants";
 import { useUserProfile, useSessions, useLoginHistory, useTotp, usePreferences } from "@/hooks/useUserProfile";
@@ -148,7 +149,7 @@ export default function UserCenterPanel({
             <div className="space-y-4">
               <div className="flex items-center space-x-4 mb-6">
                 {profile.avatar_url ? (
-                  <img src={profile.avatar_url} alt="" className="w-16 h-16 rounded-full object-cover" />
+                  <Image src={profile.avatar_url} alt="" width={64} height={64} className="w-16 h-16 rounded-full object-cover" unoptimized />
                 ) : (
                   <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
                     <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
@@ -315,15 +316,13 @@ export default function UserCenterPanel({
                 <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                   {t("Scan this QR code with your authenticator app:", "使用认证器 App 扫描此二维码：")}
                 </p>
-                {totpQrUrl && (
-                  <img
-                    src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(totpQrUrl)}`}
-                    alt="TOTP QR Code"
-                    className="w-45 h-45 border rounded-lg"
-                  />
-                )}
+                <div className="w-45 h-45 border rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                  <p className="text-xs text-gray-500 text-center p-4">
+                    {t("Open your authenticator app and enter the secret key manually.", "打开认证器 App 并手动输入下方密钥。")}
+                  </p>
+                </div>
                 <p className="text-xs text-gray-400 mt-2 break-all font-mono">
-                  {t("Or enter manually:", "或手动输入密钥：")} {totpSecret}
+                  {t("Secret key:", "密钥：")} {totpSecret}
                 </p>
               </div>
               <div className="flex items-center space-x-2 max-w-xs">

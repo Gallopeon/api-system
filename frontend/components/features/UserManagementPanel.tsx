@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { Plus, Trash2, Edit3, UserCircle, Users } from "lucide-react";
 import { cardClass, inputClass, labelClass, btnPrimary, btnSecondary } from "@/lib/constants";
 import { useUsers } from "@/hooks/useUsers";
@@ -162,7 +163,7 @@ export default function UserManagementPanel({
                   <td className="py-3 pr-4">
                     <div className="flex items-center space-x-2">
                       {u.avatar_url ? (
-                        <img src={u.avatar_url} className="w-8 h-8 rounded-full" alt="" />
+                        <Image src={u.avatar_url} width={32} height={32} className="w-8 h-8 rounded-full" alt="" unoptimized />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
                           <UserCircle className="w-4 h-4 text-gray-500" />
@@ -211,7 +212,7 @@ export default function UserManagementPanel({
                   <td className="py-3 pr-4">
                     <div className="flex items-center space-x-2">
                       {u.avatar_url ? (
-                        <img src={u.avatar_url} className="w-8 h-8 rounded-full" alt="" />
+                        <Image src={u.avatar_url} width={32} height={32} className="w-8 h-8 rounded-full" alt="" unoptimized />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-gray-200 dark:bg-gray-700 flex items-center justify-center">
                           <UserCircle className="w-4 h-4 text-gray-500" />
