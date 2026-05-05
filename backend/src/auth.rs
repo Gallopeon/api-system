@@ -59,6 +59,8 @@ pub struct JwtClaims {
     pub _exp: usize,
     #[serde(default)]
     pub tenant_id: Option<String>,
+    #[serde(default)]
+    pub jti: Option<String>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -318,7 +320,7 @@ pub async fn auth_middleware(
     mut request: Request,
     next: Next,
 ) -> Response {
-    match try_authenticate(&state, request.headers()) {
+    match try_authenticate(&state, request.headers()).await {
         Some(ctx) => {
             request.extensions_mut().insert(ctx);
             next.run(request).await
@@ -327,23 +329,41 @@ pub async fn auth_middleware(
     }
 }
 
-fn try_authenticate(state: &AppState, headers: &HeaderMap) -> Option<AuthContext> {
+async fn try_authenticate(state: &AppState, headers: &HeaderMap) -> Option<AuthContext> {
     let token = extract_bearer_token(headers).filter(|t| !t.is_empty())?;
     let secret = &state.auth.jwt_secret;
 
     let mut validation = Validation::new(Algorithm::HS256);
     validation.validate_exp = true;
 
-    let claims = decode::<JwtClaims>(
+    let token_data = decode::<JwtClaims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
         &validation,
     )
-    .ok()?
-    .claims;
+    .ok()?;
+
+    let claims = token_data.claims;
 
     if claims.sub.trim().is_empty() {
         return None;
+    }
+
+    // Check JTI revocation via Redis bloom-filter (fast, no DB roundtrip)
+    if let Some(ref jti) = claims.jti {
+        if let Ok(mut conn) = state.redis.get_async_connection().await {
+            let revoked: Option<String> = redis::cmd("GET")
+                .arg(format!("jti:revoked:{}", jti))
+                .query_async(&mut conn)
+                .await
+                .ok()
+                .flatten();
+            if revoked.is_some() {
+                tracing::warn!(jti, subject = %claims.sub, "rejected revoked JTI");
+                return None;
+            }
+        }
+        // If Redis is unreachable, allow the request (availability over strict revocation)
     }
 
     let role = Role::from_claim(&claims.role)?;

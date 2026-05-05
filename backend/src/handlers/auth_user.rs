@@ -19,13 +19,14 @@ pub async fn login(State(state): State<Arc<AppState>>, Json(payload): Json<Login
         "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, failed_login_attempts, locked_until, last_login_at, created_at, updated_at FROM users WHERE username = ?"
     ).bind(&payload.username).fetch_optional(&state.pool).await?
     .ok_or_else(|| {
-        // Record failed login for non-existent user
         let pool = state.pool.clone();
         let username = payload.username.clone();
         tokio::spawn(async move {
-            let _ = sqlx::query(
+            if let Err(e) = sqlx::query(
                 "INSERT INTO login_history (username_attempt, success, failure_reason) VALUES (?, 0, 'user not found')"
-            ).bind(&username).execute(&pool).await;
+            ).bind(&username).execute(&pool).await {
+                tracing::warn!(error = %e, username = %username, "failed to record non-existent user login attempt");
+            }
         });
         AppError::Unauthorized("invalid credentials".to_string())
     })?;
@@ -166,8 +167,23 @@ pub async fn list_my_sessions(State(state): State<Arc<AppState>>, Extension(auth
 
 pub async fn revoke_session(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserSelf)?;
+    // Get the JTI before revoking so we can blacklist it in Redis
+    let jti: Option<String> = sqlx::query_scalar(
+        "SELECT token_jti FROM user_sessions WHERE id = ? AND user_id = (SELECT id FROM users WHERE username = ?)"
+    ).bind(&id).bind(&auth.subject).fetch_optional(&state.pool).await?.flatten();
     sqlx::query("UPDATE user_sessions SET revoked = 1 WHERE id = ? AND user_id = (SELECT id FROM users WHERE username = ?)")
         .bind(&id).bind(&auth.subject).execute(&state.pool).await?;
+    // Blacklist the JTI in Redis so the middleware rejects it immediately
+    if let Some(jti) = jti {
+        if let Ok(mut conn) = state.redis.get_async_connection().await {
+            let _: Result<(), _> = redis::cmd("SETEX")
+                .arg(format!("jti:revoked:{}", jti))
+                .arg(86400_i64) // TTL matches JWT expiry
+                .arg("1")
+                .query_async(&mut conn)
+                .await;
+        }
+    }
     Ok(Json(json!({"revoked": true})))
 }
 
@@ -214,7 +230,7 @@ pub async fn create_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
 pub async fn get_user(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserManage)?;
     let row = sqlx::query(
-        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, last_login_at, created_at, updated_at FROM users WHERE username = ?"
+        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, last_login_at, created_at, updated_at FROM users WHERE id = ?"
     ).bind(&id).fetch_optional(&state.pool).await?
     .ok_or_else(|| AppError::NotFound(format!("user {} not found", id)))?;
     Ok(Json(row_to_user(&row)))
@@ -223,29 +239,31 @@ pub async fn get_user(State(state): State<Arc<AppState>>, Extension(auth): Exten
 pub async fn update_user(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(payload): Json<UpdateUserRequest>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserManage)?;
     if let Some(ref role) = payload.role {
-        sqlx::query("UPDATE users SET role = ? WHERE username = ?").bind(role).bind(&id).execute(&state.pool).await?;
+        sqlx::query("UPDATE users SET role = ? WHERE id = ?").bind(role).bind(&id).execute(&state.pool).await?;
     }
     if let Some(ref status) = payload.status {
-        sqlx::query("UPDATE users SET status = ? WHERE username = ?").bind(status).bind(&id).execute(&state.pool).await?;
+        sqlx::query("UPDATE users SET status = ? WHERE id = ?").bind(status).bind(&id).execute(&state.pool).await?;
     }
     if let Some(ref display_name) = payload.display_name {
-        sqlx::query("UPDATE users SET display_name = ? WHERE username = ?").bind(display_name).bind(&id).execute(&state.pool).await?;
+        sqlx::query("UPDATE users SET display_name = ? WHERE id = ?").bind(display_name).bind(&id).execute(&state.pool).await?;
     }
     if let Some(ref email) = payload.email {
-        sqlx::query("UPDATE users SET email = ? WHERE username = ?").bind(email).bind(&id).execute(&state.pool).await?;
+        sqlx::query("UPDATE users SET email = ? WHERE id = ?").bind(email).bind(&id).execute(&state.pool).await?;
     }
     Ok(Json(json!({"id": id, "updated": true})))
 }
 
 pub async fn delete_user(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserManage)?;
-    let username: String = sqlx::query_scalar("SELECT username FROM users WHERE username = ?")
-        .bind(&id).fetch_optional(&state.pool).await?
-        .ok_or_else(|| AppError::NotFound(format!("user {} not found", id)))?;
-    if username == "admin" {
-        return Err(AppError::Forbidden("cannot delete the built-in admin user".to_string()));
+    // Check admin by id to prevent deleting the built-in admin
+    let is_admin: Option<String> = sqlx::query_scalar("SELECT username FROM users WHERE id = ?")
+        .bind(&id).fetch_optional(&state.pool).await?.flatten();
+    match is_admin {
+        None => return Err(AppError::NotFound(format!("user {} not found", id))),
+        Some(ref name) if name == "admin" => return Err(AppError::Forbidden("cannot delete the built-in admin user".to_string())),
+        _ => {}
     }
-    sqlx::query("DELETE FROM users WHERE username = ?").bind(&id).execute(&state.pool).await?;
+    sqlx::query("DELETE FROM users WHERE id = ?").bind(&id).execute(&state.pool).await?;
     Ok(Json(json!({"deleted": true})))
 }
 

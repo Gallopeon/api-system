@@ -113,11 +113,33 @@ pub async fn get_rule(
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::RuleRead)?;
+    // Read-through with cache-stampede protection using a Redis SET NX mutex.
     if let Some(cached) = get_cached_rule(&state.redis, &id).await.unwrap_or(None) {
         return Ok(Json(cached));
     }
+    // Try to acquire the recompute lock. If another request already holds it,
+    // retry the cache after a short wait instead of piling onto MySQL.
+    let lock_key = format!("rule:lock:{}", id);
+    if let Ok(mut conn) = state.redis.get_async_connection().await {
+        let acquired: bool = redis::cmd("SET")
+            .arg(&lock_key).arg("1").arg("NX").arg("EX").arg(5_u32)
+            .query_async(&mut conn).await.unwrap_or(false);
+        if !acquired {
+            // Another request is refreshing — poll the cache briefly
+            for _ in 0..6 {
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+                if let Some(cached) = get_cached_rule(&state.redis, &id).await.unwrap_or(None) {
+                    return Ok(Json(cached));
+                }
+            }
+        }
+    }
     let detail = load_rule_detail(&state.pool, &id).await?;
     let _ = cache_rule(&state.redis, state.cache_ttl_seconds, &detail).await;
+    // Release the lock (best-effort)
+    if let Ok(mut conn) = state.redis.get_async_connection().await {
+        let _: Result<(), _> = redis::cmd("DEL").arg(&lock_key).query_async(&mut conn).await;
+    }
     Ok(Json(detail))
 }
 

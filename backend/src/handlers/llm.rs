@@ -66,28 +66,18 @@ pub async fn get_llm_provider(State(state): State<Arc<AppState>>, Extension(auth
 
 pub async fn update_llm_provider(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::LlmManage)?;
-    let mut updates: Vec<String> = Vec::new();
-    let mut params: Vec<String> = Vec::new();
-    if let Some(v) = payload.get("name").and_then(|v| v.as_str()) { updates.push("name = ?".to_string()); params.push(v.to_string()); }
-    if let Some(v) = payload.get("provider_type").and_then(|v| v.as_str()) { updates.push("provider_type = ?".to_string()); params.push(v.to_string()); }
-    if let Some(v) = payload.get("endpoint_url").and_then(|v| v.as_str()) { updates.push("endpoint_url = ?".to_string()); params.push(v.to_string()); }
-    if let Some(v) = payload.get("api_key_env").and_then(|v| v.as_str()) { updates.push("api_key_env = ?".to_string()); params.push(v.to_string()); }
-    if let Some(v) = payload.get("model_name").and_then(|v| v.as_str()) { updates.push("model_name = ?".to_string()); params.push(v.to_string()); }
-    if let Some(v) = payload.get("cost_per_1k_input").and_then(|v| v.as_f64()) { updates.push("cost_per_1k_input = ?".to_string()); params.push(v.to_string()); }
-    if let Some(v) = payload.get("cost_per_1k_output").and_then(|v| v.as_f64()) { updates.push("cost_per_1k_output = ?".to_string()); params.push(v.to_string()); }
-    if let Some(v) = payload.get("max_tokens").and_then(|v| v.as_i64()) { updates.push("max_tokens = ?".to_string()); params.push(v.to_string()); }
-    if let Some(v) = payload.get("priority").and_then(|v| v.as_i64()) { updates.push("priority = ?".to_string()); params.push(v.to_string()); }
-    if let Some(v) = payload.get("status").and_then(|v| v.as_str()) { updates.push("status = ?".to_string()); params.push(v.to_string()); }
-    if updates.is_empty() {
-        return Err(AppError::BadRequest("No fields to update".to_string()));
-    }
-    let mut sql = String::from("UPDATE llm_providers SET ");
-    sql.push_str(&updates.join(", "));
-    sql.push_str(" WHERE id = ?");
-    let mut q = sqlx::query(&sql);
-    for p in &params { q = q.bind(p); }
-    q = q.bind(&id);
-    q.execute(&state.pool).await?;
+    let mut changed = false;
+    if let Some(v) = payload.get("name").and_then(|v| v.as_str()) { sqlx::query("UPDATE llm_providers SET name = ? WHERE id = ?").bind(v).bind(&id).execute(&state.pool).await?; changed = true; }
+    if let Some(v) = payload.get("provider_type").and_then(|v| v.as_str()) { sqlx::query("UPDATE llm_providers SET provider_type = ? WHERE id = ?").bind(v).bind(&id).execute(&state.pool).await?; changed = true; }
+    if let Some(v) = payload.get("endpoint_url").and_then(|v| v.as_str()) { sqlx::query("UPDATE llm_providers SET endpoint_url = ? WHERE id = ?").bind(v).bind(&id).execute(&state.pool).await?; changed = true; }
+    if let Some(v) = payload.get("api_key_env").and_then(|v| v.as_str()) { sqlx::query("UPDATE llm_providers SET api_key_env = ? WHERE id = ?").bind(v).bind(&id).execute(&state.pool).await?; changed = true; }
+    if let Some(v) = payload.get("model_name").and_then(|v| v.as_str()) { sqlx::query("UPDATE llm_providers SET model_name = ? WHERE id = ?").bind(v).bind(&id).execute(&state.pool).await?; changed = true; }
+    if let Some(v) = payload.get("cost_per_1k_input").and_then(|v| v.as_f64()) { sqlx::query("UPDATE llm_providers SET cost_per_1k_input = ? WHERE id = ?").bind(v).bind(&id).execute(&state.pool).await?; changed = true; }
+    if let Some(v) = payload.get("cost_per_1k_output").and_then(|v| v.as_f64()) { sqlx::query("UPDATE llm_providers SET cost_per_1k_output = ? WHERE id = ?").bind(v).bind(&id).execute(&state.pool).await?; changed = true; }
+    if let Some(v) = payload.get("max_tokens").and_then(|v| v.as_i64()) { sqlx::query("UPDATE llm_providers SET max_tokens = ? WHERE id = ?").bind(v).bind(&id).execute(&state.pool).await?; changed = true; }
+    if let Some(v) = payload.get("priority").and_then(|v| v.as_i64()) { sqlx::query("UPDATE llm_providers SET priority = ? WHERE id = ?").bind(v).bind(&id).execute(&state.pool).await?; changed = true; }
+    if let Some(v) = payload.get("status").and_then(|v| v.as_str()) { sqlx::query("UPDATE llm_providers SET status = ? WHERE id = ?").bind(v).bind(&id).execute(&state.pool).await?; changed = true; }
+    if !changed { return Err(AppError::BadRequest("No fields to update".to_string())); }
     Ok(Json(json!({"id": id, "updated": true})))
 }
 
@@ -143,21 +133,14 @@ pub async fn get_prompt_template(State(state): State<Arc<AppState>>, Extension(a
 
 pub async fn update_prompt_template(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::LlmManage)?;
-    let mut updates: Vec<String> = Vec::new();
-    let mut params: Vec<String> = Vec::new();
-    if let Some(v) = payload.get("name").and_then(|v| v.as_str()) { updates.push("name = ?".to_string()); params.push(v.to_string()); }
-    if let Some(v) = payload.get("template_text").and_then(|v| v.as_str()) { updates.push("template_text = ?".to_string()); params.push(v.to_string()); }
-    if let Some(v) = payload.get("variables") { updates.push("variables = ?".to_string()); params.push(v.to_string()); }
-    if let Some(v) = payload.get("status").and_then(|v| v.as_str()) { updates.push("status = ?".to_string()); params.push(v.to_string()); }
-    updates.push("version = version + 1".to_string());
-    if updates.len() == 1 { return Err(AppError::BadRequest("No fields to update".to_string())); }
-    let mut sql = String::from("UPDATE prompt_templates SET ");
-    sql.push_str(&updates.join(", "));
-    sql.push_str(" WHERE id = ?");
-    let mut q = sqlx::query(&sql);
-    for p in &params { q = q.bind(p); }
-    q = q.bind(&id);
-    q.execute(&state.pool).await?;
+    let mut changed = false;
+    if let Some(v) = payload.get("name").and_then(|v| v.as_str()) { sqlx::query("UPDATE prompt_templates SET name = ? WHERE id = ?").bind(v).bind(&id).execute(&state.pool).await?; changed = true; }
+    if let Some(v) = payload.get("template_text").and_then(|v| v.as_str()) { sqlx::query("UPDATE prompt_templates SET template_text = ? WHERE id = ?").bind(v).bind(&id).execute(&state.pool).await?; changed = true; }
+    if let Some(v) = payload.get("variables") { sqlx::query("UPDATE prompt_templates SET variables = ? WHERE id = ?").bind(v).bind(&id).execute(&state.pool).await?; changed = true; }
+    if let Some(v) = payload.get("status").and_then(|v| v.as_str()) { sqlx::query("UPDATE prompt_templates SET status = ? WHERE id = ?").bind(v).bind(&id).execute(&state.pool).await?; changed = true; }
+    if !changed { return Err(AppError::BadRequest("No fields to update".to_string())); }
+    // Always bump version when any field changes
+    sqlx::query("UPDATE prompt_templates SET version = version + 1 WHERE id = ?").bind(&id).execute(&state.pool).await?;
     Ok(Json(json!({"id": id, "updated": true})))
 }
 

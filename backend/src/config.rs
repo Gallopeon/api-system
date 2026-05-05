@@ -41,8 +41,14 @@ impl Settings {
                 .ok().and_then(|v| v.parse::<u32>().ok()).unwrap_or(15),
             cache_ttl_seconds: std::env::var("CACHE_TTL_SECONDS")
                 .ok().and_then(|v| v.parse::<u64>().ok()).unwrap_or(300),
-            jwt_secret: std::env::var("JWT_SECRET")
-                .unwrap_or_else(|_| "dev-secret-change-me-in-production".to_string()),
+            jwt_secret: {
+                let secret = std::env::var("JWT_SECRET")
+                    .unwrap_or_else(|_| "dev-secret-change-me-in-production".to_string());
+                if secret == "dev-secret-change-me-in-production" {
+                    tracing::error!("!!! JWT_SECRET is using the hardcoded default — set JWT_SECRET in production !!!");
+                }
+                secret
+            },
             cors_allowed_origins: parse_csv_env("CORS_ALLOWED_ORIGINS", "*"),
         }
     }
