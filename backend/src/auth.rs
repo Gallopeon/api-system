@@ -9,7 +9,7 @@ use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, 
 use serde::Deserialize;
 use serde_json::json;
 use thiserror::Error;
-use tracing::{error, warn};
+use tracing::error;
 use uuid::Uuid;
 
 use crate::AppState;
@@ -318,64 +318,62 @@ pub async fn auth_middleware(
     mut request: Request,
     next: Next,
 ) -> Response {
-    if !state.auth.enabled {
-        warn!("AUTH_ENABLED=false — all requests are granted Admin role without authentication. Set AUTH_ENABLED=true in production.");
-        request.extensions_mut().insert(AuthContext {
-            authenticated: false,
-            subject: "admin".to_string(),
-            role: Role::Admin,
-            tenant_id: None,
-        });
-        return next.run(request).await;
+    let auth_disabled = !state.auth.enabled;
+
+    // Try to extract and validate JWT regardless of AUTH_ENABLED.
+    // This ensures logged-in users retain their identity even in dev mode.
+    let jwt_ctx = try_authenticate(&state, request.headers());
+
+    match (auth_disabled, jwt_ctx) {
+        // JWT present and valid — use it regardless of AUTH_ENABLED
+        (_, Some(ctx)) => {
+            request.extensions_mut().insert(ctx);
+        }
+        // Auth disabled, no JWT — grant admin for dev convenience
+        (true, None) => {
+            request.extensions_mut().insert(AuthContext {
+                authenticated: false,
+                subject: "admin".to_string(),
+                role: Role::Admin,
+                tenant_id: None,
+            });
+        }
+        // Auth enabled, no JWT — reject
+        (false, None) => {
+            return AppError::Unauthorized("missing or invalid bearer token".to_string()).into_response();
+        }
     }
 
-    let token = match extract_bearer_token(request.headers()) {
-        Some(value) if !value.is_empty() => value,
-        _ => {
-            return AppError::Unauthorized("missing bearer token".to_string()).into_response();
-        }
-    };
+    next.run(request).await
+}
 
-    let secret = match state.auth.jwt_secret.as_ref() {
-        Some(value) if !value.is_empty() => value,
-        _ => {
-            return AppError::Unauthorized("jwt secret is not configured".to_string())
-                .into_response();
-        }
-    };
+fn try_authenticate(state: &AppState, headers: &HeaderMap) -> Option<AuthContext> {
+    let token = extract_bearer_token(headers).filter(|t| !t.is_empty())?;
+    let secret = state.auth.jwt_secret.as_ref().filter(|s| !s.is_empty())?;
 
     let mut validation = Validation::new(Algorithm::HS256);
     validation.validate_exp = true;
 
-    let claims = match decode::<JwtClaims>(
+    let claims = decode::<JwtClaims>(
         token,
         &DecodingKey::from_secret(secret.as_bytes()),
         &validation,
-    ) {
-        Ok(token_data) => token_data.claims,
-        Err(err) => {
-            return AppError::Unauthorized(format!("invalid token: {}", err)).into_response();
-        }
-    };
+    )
+    .ok()?
+    .claims;
 
     if claims.sub.trim().is_empty() {
-        return AppError::Unauthorized("invalid token subject".to_string()).into_response();
+        return None;
     }
 
-    let role = match Role::from_claim(&claims.role) {
-        Some(value) => value,
-        None => {
-            return AppError::Unauthorized("invalid token role".to_string()).into_response();
-        }
-    };
+    let role = Role::from_claim(&claims.role)?;
 
-    request.extensions_mut().insert(AuthContext {
+    Some(AuthContext {
         authenticated: true,
         subject: claims.sub,
         role,
         tenant_id: claims.tenant_id,
-    });
-    next.run(request).await
+    })
 }
 
 #[derive(Debug, Error)]
