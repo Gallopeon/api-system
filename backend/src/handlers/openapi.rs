@@ -14,7 +14,7 @@ pub async fn get_openapi_spec(
     Extension(auth): Extension<AuthContext>,
     Query(query): Query<OpenApiQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::OpenApiRead)?;
     let rows = if let Some(ref api_path) = query.api_path {
         sqlx::query("SELECT id, name, api_path, current_version, status FROM rule_configs WHERE api_path = ?")
             .bind(api_path).fetch_all(&state.pool).await?

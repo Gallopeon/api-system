@@ -10,7 +10,7 @@ use crate::AppState;
 use crate::auth::*;
 
 pub async fn create_plugin_config(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
+    ensure_permission(&auth, Permission::PluginsWrite)?;
     let id = Uuid::new_v4().to_string();
     let name = payload.get("name").and_then(|v| v.as_str()).unwrap_or("unnamed");
     let plugin_type = payload.get("plugin_type").and_then(|v| v.as_str()).unwrap_or("lua");
@@ -23,7 +23,7 @@ pub async fn create_plugin_config(State(state): State<Arc<AppState>>, Extension(
 }
 
 pub async fn list_plugins(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::PluginsRead)?;
     let rows = sqlx::query("SELECT id, name, plugin_type, hook_point, priority, status FROM plugin_configs ORDER BY priority ASC").fetch_all(&state.pool).await?;
     let items: Vec<Value> = rows.iter().map(|r| json!({
         "id": r.try_get::<String,_>("id").unwrap_or_default(),
@@ -36,15 +36,16 @@ pub async fn list_plugins(State(state): State<Arc<AppState>>, Extension(auth): E
     Ok(Json(json!({"items": items})))
 }
 
-pub async fn get_plugin_config(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
-    Ok(Json(json!({"id": id})))
+pub async fn get_plugin_config(Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::PluginsRead)?;
+    Err::<Json<Value>, _>(AppError::BadRequest(format!("not implemented: get_plugin_config {}", id)))
 }
-pub async fn update_plugin_config(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(_payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
-    Ok(Json(json!({"id": id, "updated": true})))
+pub async fn update_plugin_config(Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(_payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::PluginsWrite)?;
+    Err::<Json<Value>, _>(AppError::BadRequest(format!("not implemented: update_plugin_config {}", id)))
 }
-pub async fn delete_plugin_config(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(_id): Path<String>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
+pub async fn delete_plugin_config(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::PluginsWrite)?;
+    sqlx::query("DELETE FROM plugin_configs WHERE id = ?").bind(&id).execute(&state.pool).await?;
     Ok(Json(json!({"deleted": true})))
 }

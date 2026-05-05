@@ -10,7 +10,7 @@ use crate::types::*;
 use crate::auth::*;
 
 pub async fn list_system_settings(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::MetricsRead)?;
+    ensure_permission(&auth, Permission::SystemRead)?;
     let rows = sqlx::query(
         "SELECT setting_key, setting_value, description, editable, updated_at FROM system_settings ORDER BY setting_key"
     ).fetch_all(&state.pool).await?;
@@ -25,7 +25,7 @@ pub async fn list_system_settings(State(state): State<Arc<AppState>>, Extension(
 }
 
 pub async fn update_system_setting(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(key): Path<String>, Json(payload): Json<UpdateSettingRequest>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::UserManage)?;
+    ensure_permission(&auth, Permission::SystemWrite)?;
     let rows = sqlx::query(
         "UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = ? AND editable = 1"
     ).bind(&payload.value).bind(&key).execute(&state.pool).await?;

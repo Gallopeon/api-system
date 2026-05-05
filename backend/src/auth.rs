@@ -9,7 +9,7 @@ use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, 
 use serde::Deserialize;
 use serde_json::json;
 use thiserror::Error;
-use tracing::error;
+use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::AppState;
@@ -63,15 +63,54 @@ pub struct JwtClaims {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Permission {
+    // Rules & Versions
     RuleRead,
     RuleWrite,
     RulePublish,
-    TransformUse,
-    AuditRead,
+    // Transform & Playground
+    TransformPreview,
+    TransformExecute,
+    // API Keys
+    ApiKeyRead,
+    ApiKeyWrite,
+    // Rate Limits
+    RateLimitRead,
+    RateLimitWrite,
+    // Approvals
+    ApprovalRead,
+    ApprovalReview,
+    // Metrics
     MetricsRead,
+    // Audit
+    AuditRead,
+    // LLM Gateway
+    LlmRoute,
+    LlmManage,
+    // Products & Subscriptions
+    ProductsRead,
+    ProductsWrite,
+    // Circuit Breakers
+    CircuitBreakersRead,
+    CircuitBreakersWrite,
+    // Protocols
+    ProtocolsRead,
+    ProtocolsWrite,
+    // Data Classifications
+    ClassificationsRead,
+    ClassificationsWrite,
+    // Plugins
+    PluginsRead,
+    PluginsWrite,
+    // OpenAPI
+    OpenApiRead,
+    // Validation
+    ValidationRead,
+    // System
+    SystemRead,
+    SystemWrite,
+    // Users
     UserManage,
     UserSelf,
-    LlmManage,
 }
 
 impl Permission {
@@ -80,12 +119,34 @@ impl Permission {
             Self::RuleRead => "rule:read",
             Self::RuleWrite => "rule:write",
             Self::RulePublish => "rule:publish",
-            Self::TransformUse => "transform:use",
-            Self::AuditRead => "audit:read",
+            Self::TransformPreview => "transform:preview",
+            Self::TransformExecute => "transform:execute",
+            Self::ApiKeyRead => "apikey:read",
+            Self::ApiKeyWrite => "apikey:write",
+            Self::RateLimitRead => "ratelimit:read",
+            Self::RateLimitWrite => "ratelimit:write",
+            Self::ApprovalRead => "approval:read",
+            Self::ApprovalReview => "approval:review",
             Self::MetricsRead => "metrics:read",
+            Self::AuditRead => "audit:read",
+            Self::LlmRoute => "llm:route",
+            Self::LlmManage => "llm:manage",
+            Self::ProductsRead => "products:read",
+            Self::ProductsWrite => "products:write",
+            Self::CircuitBreakersRead => "circuit_breakers:read",
+            Self::CircuitBreakersWrite => "circuit_breakers:write",
+            Self::ProtocolsRead => "protocols:read",
+            Self::ProtocolsWrite => "protocols:write",
+            Self::ClassificationsRead => "classifications:read",
+            Self::ClassificationsWrite => "classifications:write",
+            Self::PluginsRead => "plugins:read",
+            Self::PluginsWrite => "plugins:write",
+            Self::OpenApiRead => "openapi:read",
+            Self::ValidationRead => "validation:read",
+            Self::SystemRead => "system:read",
+            Self::SystemWrite => "system:write",
             Self::UserManage => "user:manage",
             Self::UserSelf => "user:self",
-            Self::LlmManage => "llm:manage",
         }
     }
 }
@@ -97,24 +158,73 @@ pub fn role_has_permission(role: Role, permission: Permission) -> bool {
             permission,
             Permission::RuleRead
                 | Permission::RulePublish
-                | Permission::TransformUse
-                | Permission::AuditRead
+                | Permission::TransformPreview
+                | Permission::TransformExecute
+                | Permission::ApiKeyRead
+                | Permission::RateLimitRead
+                | Permission::ApprovalRead
+                | Permission::ApprovalReview
                 | Permission::MetricsRead
+                | Permission::AuditRead
+                | Permission::LlmRoute
+                | Permission::LlmManage
+                | Permission::ProductsRead
+                | Permission::CircuitBreakersRead
+                | Permission::ProtocolsRead
+                | Permission::ClassificationsRead
+                | Permission::PluginsRead
+                | Permission::OpenApiRead
+                | Permission::ValidationRead
+                | Permission::SystemRead
                 | Permission::UserSelf
         ),
         Role::Editor => matches!(
             permission,
             Permission::RuleRead
                 | Permission::RuleWrite
-                | Permission::TransformUse
+                | Permission::TransformPreview
+                | Permission::TransformExecute
+                | Permission::ApiKeyRead
+                | Permission::ApiKeyWrite
+                | Permission::RateLimitRead
+                | Permission::RateLimitWrite
+                | Permission::ApprovalRead
                 | Permission::MetricsRead
+                | Permission::AuditRead
+                | Permission::LlmRoute
+                | Permission::ProductsRead
+                | Permission::ProductsWrite
+                | Permission::CircuitBreakersRead
+                | Permission::CircuitBreakersWrite
+                | Permission::ProtocolsRead
+                | Permission::ProtocolsWrite
+                | Permission::ClassificationsRead
+                | Permission::ClassificationsWrite
+                | Permission::PluginsRead
+                | Permission::PluginsWrite
+                | Permission::OpenApiRead
+                | Permission::ValidationRead
+                | Permission::SystemRead
                 | Permission::UserSelf
         ),
         Role::Viewer => matches!(
             permission,
             Permission::RuleRead
-                | Permission::TransformUse
+                | Permission::TransformPreview
+                | Permission::ApiKeyRead
+                | Permission::RateLimitRead
+                | Permission::ApprovalRead
                 | Permission::MetricsRead
+                | Permission::AuditRead
+                | Permission::LlmRoute
+                | Permission::ProductsRead
+                | Permission::CircuitBreakersRead
+                | Permission::ProtocolsRead
+                | Permission::ClassificationsRead
+                | Permission::PluginsRead
+                | Permission::OpenApiRead
+                | Permission::ValidationRead
+                | Permission::SystemRead
                 | Permission::UserSelf
         ),
     }
@@ -209,9 +319,10 @@ pub async fn auth_middleware(
     next: Next,
 ) -> Response {
     if !state.auth.enabled {
+        warn!("AUTH_ENABLED=false — all requests are granted Admin role without authentication. Set AUTH_ENABLED=true in production.");
         request.extensions_mut().insert(AuthContext {
             authenticated: false,
-            subject: String::new(),
+            subject: "admin".to_string(),
             role: Role::Admin,
             tenant_id: None,
         });
@@ -289,22 +400,34 @@ pub enum AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, code) = match &self {
-            AppError::BadRequest(_) => (StatusCode::BAD_REQUEST, "bad_request"),
-            AppError::NotFound(_) => (StatusCode::NOT_FOUND, "not_found"),
-            AppError::Unauthorized(_) => (StatusCode::UNAUTHORIZED, "unauthorized"),
-            AppError::Forbidden(_) => (StatusCode::FORBIDDEN, "forbidden"),
-            AppError::Internal(_) | AppError::Db(_) | AppError::Redis(_) | AppError::Json(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "internal_error")
+        let (status, code, message) = match &self {
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, "bad_request", msg.clone()),
+            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, "not_found", msg.clone()),
+            AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, "unauthorized", msg.clone()),
+            AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, "forbidden", msg.clone()),
+            AppError::Internal(msg) => {
+                error!(error = %msg, "internal error");
+                (StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "internal server error".to_string())
+            }
+            AppError::Db(e) => {
+                error!(error = %e, "database error");
+                (StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "internal server error".to_string())
+            }
+            AppError::Redis(e) => {
+                error!(error = %e, "redis error");
+                (StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "internal server error".to_string())
+            }
+            AppError::Json(e) => {
+                error!(error = %e, "json error");
+                (StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "internal server error".to_string())
             }
         };
 
-        error!(error = %self, "request failed");
         (
             status,
             Json(json!({
                 "error": code,
-                "message": self.to_string()
+                "message": message
             })),
         )
             .into_response()

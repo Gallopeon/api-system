@@ -16,29 +16,71 @@ use crate::auth::*;
 
 pub async fn login(State(state): State<Arc<AppState>>, Json(payload): Json<LoginRequest>) -> Result<impl IntoResponse, AppError> {
     let row = sqlx::query(
-        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, last_login_at, created_at, updated_at FROM users WHERE username = ?"
+        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, failed_login_attempts, locked_until, last_login_at, created_at, updated_at FROM users WHERE username = ?"
     ).bind(&payload.username).fetch_optional(&state.pool).await?
-    .ok_or_else(|| AppError::Unauthorized("invalid credentials".to_string()))?;
+    .ok_or_else(|| {
+        // Record failed login for non-existent user
+        let pool = state.pool.clone();
+        let username = payload.username.clone();
+        tokio::spawn(async move {
+            let _ = sqlx::query(
+                "INSERT INTO login_history (username_attempt, success, failure_reason) VALUES (?, 0, 'user not found')"
+            ).bind(&username).execute(&pool).await;
+        });
+        AppError::Unauthorized("invalid credentials".to_string())
+    })?;
+
+    let status: String = row.try_get("status").unwrap_or_else(|_| "active".to_string());
+    if status != "active" {
+        return Err(AppError::Unauthorized("account is disabled".to_string()));
+    }
+
+    let locked_until: Option<chrono::DateTime<chrono::Utc>> = row.try_get("locked_until").ok();
+    if let Some(locked) = locked_until {
+        if chrono::Utc::now() < locked {
+            return Err(AppError::Unauthorized("account is temporarily locked due to too many failed attempts".to_string()));
+        }
+    }
 
     let password_hash: String = row.try_get("password_hash").unwrap_or_default();
     let ok = bcrypt::verify(&payload.password, &password_hash).unwrap_or(false);
+    let user_id: String = row.try_get("id").unwrap_or_default();
+
     if !ok {
+        // Increment failed login attempts and record in history
+        sqlx::query("UPDATE users SET failed_login_attempts = failed_login_attempts + 1 WHERE id = ?")
+            .bind(&user_id).execute(&state.pool).await?;
+        let failed_count: i32 = sqlx::query_scalar("SELECT failed_login_attempts FROM users WHERE id = ?")
+            .bind(&user_id).fetch_one(&state.pool).await?;
+        if failed_count >= 5 {
+            sqlx::query("UPDATE users SET locked_until = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?")
+                .bind(&user_id).execute(&state.pool).await?;
+        }
+        let _ = sqlx::query(
+            "INSERT INTO login_history (user_id, username_attempt, success, failure_reason) VALUES (?, ?, 0, 'wrong password')"
+        ).bind(&user_id).bind(&payload.username).execute(&state.pool).await;
         return Err(AppError::Unauthorized("invalid credentials".to_string()));
     }
 
-    let user_id: String = row.try_get("id").unwrap_or_default();
     let role_str: String = row.try_get("role").unwrap_or_else(|_| "viewer".to_string());
     let role = parse_role(&role_str);
 
-    let secret = state.auth.jwt_secret.as_deref().unwrap_or("dev-secret");
+    let secret = state.auth.jwt_secret.as_deref()
+        .ok_or_else(|| AppError::Internal("JWT secret not configured".to_string()))?;
     let token = create_jwt(&payload.username, role, None, secret, 86400)?;
 
-    sqlx::query("UPDATE users SET last_login_at = NOW() WHERE id = ?").bind(&user_id).execute(&state.pool).await?;
+    // Reset failed attempts on success, update last login, record successful login
+    sqlx::query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE id = ?")
+        .bind(&user_id).execute(&state.pool).await?;
+    let _ = sqlx::query(
+        "INSERT INTO login_history (user_id, username_attempt, success) VALUES (?, ?, 1)"
+    ).bind(&user_id).bind(&payload.username).execute(&state.pool).await;
 
     Ok(Json(LoginResponse { token, user: row_to_user(&row) }))
 }
 
 pub async fn get_my_profile(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
     let row = sqlx::query(
         "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, last_login_at, created_at, updated_at FROM users WHERE username = ?"
     ).bind(&auth.subject).fetch_optional(&state.pool).await?
@@ -47,6 +89,7 @@ pub async fn get_my_profile(State(state): State<Arc<AppState>>, Extension(auth):
 }
 
 pub async fn update_my_profile(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
     if let Some(display_name) = payload.get("display_name").and_then(|v| v.as_str()) {
         sqlx::query("UPDATE users SET display_name = ? WHERE username = ?").bind(display_name).bind(&auth.subject).execute(&state.pool).await?;
     }
@@ -60,6 +103,8 @@ pub async fn update_my_profile(State(state): State<Arc<AppState>>, Extension(aut
 }
 
 pub async fn change_my_password(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<ChangePasswordRequest>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
+    validate_password_strength(&payload.new_password)?;
     let current_hash: String = sqlx::query_scalar("SELECT password_hash FROM users WHERE username = ?")
         .bind(&auth.subject).fetch_optional(&state.pool).await?
         .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
@@ -72,16 +117,41 @@ pub async fn change_my_password(State(state): State<Arc<AppState>>, Extension(au
     Ok(Json(json!({"changed": true})))
 }
 
-pub async fn list_my_sessions(State(_state): State<Arc<AppState>>, Extension(_auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
-    Ok(Json(json!({"items": []})))
+pub async fn list_my_sessions(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
+    let rows = sqlx::query("SELECT id, token_jti, token_expires_at, client_ip, user_agent, revoked, created_at FROM user_sessions WHERE user_id = (SELECT id FROM users WHERE username = ?) AND revoked = 0 AND token_expires_at > NOW()")
+        .bind(&auth.subject).fetch_all(&state.pool).await?;
+    let items: Vec<Value> = rows.iter().map(|r| json!({
+        "id": r.try_get::<String,_>("id").unwrap_or_default(),
+        "client_ip": r.try_get::<String,_>("client_ip").unwrap_or_default(),
+        "user_agent": r.try_get::<String,_>("user_agent").unwrap_or_default(),
+        "expires_at": r.try_get::<String,_>("token_expires_at").unwrap_or_default(),
+        "current": false,
+    })).collect();
+    Ok(Json(json!({"items": items})))
 }
 
-pub async fn revoke_session(State(_state): State<Arc<AppState>>, Extension(_auth): Extension<AuthContext>, Path(_id): Path<String>) -> Result<impl IntoResponse, AppError> {
+pub async fn revoke_session(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
+    sqlx::query("UPDATE user_sessions SET revoked = 1 WHERE id = ? AND user_id = (SELECT id FROM users WHERE username = ?)")
+        .bind(&id).bind(&auth.subject).execute(&state.pool).await?;
     Ok(Json(json!({"revoked": true})))
 }
 
-pub async fn list_my_login_history(State(_state): State<Arc<AppState>>, Extension(_auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
-    Ok(Json(json!({"items": []})))
+pub async fn list_my_login_history(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
+    let rows = sqlx::query("SELECT id, username_attempt, client_ip, user_agent, success, failure_reason, created_at FROM login_history WHERE user_id = (SELECT id FROM users WHERE username = ?) ORDER BY created_at DESC LIMIT 50")
+        .bind(&auth.subject).fetch_all(&state.pool).await?;
+    let items: Vec<Value> = rows.iter().map(|r| json!({
+        "id": r.try_get::<i64,_>("id").unwrap_or(0),
+        "username_attempt": r.try_get::<String,_>("username_attempt").unwrap_or_default(),
+        "client_ip": r.try_get::<String,_>("client_ip").unwrap_or_default(),
+        "user_agent": r.try_get::<String,_>("user_agent").unwrap_or_default(),
+        "success": r.try_get::<i8,_>("success").unwrap_or(0) == 1,
+        "failure_reason": r.try_get::<String,_>("failure_reason").unwrap_or_default(),
+        "created_at": r.try_get::<String,_>("created_at").unwrap_or_default(),
+    })).collect();
+    Ok(Json(json!({"items": items})))
 }
 
 pub async fn list_users(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Query(query): Query<ListUsersQuery>) -> Result<impl IntoResponse, AppError> {
@@ -97,6 +167,7 @@ pub async fn list_users(State(state): State<Arc<AppState>>, Extension(auth): Ext
 
 pub async fn create_user(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<CreateUserRequest>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserManage)?;
+    validate_password_strength(&payload.password)?;
     let id = Uuid::new_v4().to_string();
     let hash = bcrypt::hash(&payload.password, 12).map_err(|e| AppError::BadRequest(format!("bcrypt: {}", e)))?;
     sqlx::query(
@@ -145,19 +216,97 @@ pub async fn delete_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
     Ok(Json(json!({"deleted": true})))
 }
 
-pub async fn setup_totp(State(_state): State<Arc<AppState>>, Extension(_auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
-    Ok(Json(TotpSetupResponse { secret: String::new(), qr_code_url: None }))
+pub async fn setup_totp(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
+    let raw_secret: Vec<u8> = (0..20).map(|_| rand::random::<u8>()).collect();
+    let encoded = base32_encode(&raw_secret);
+    let qr_code_url = totp_rs::TOTP::new(
+        totp_rs::Algorithm::SHA1, 6, 1, 30, raw_secret,
+        Some("API Control Plane".to_string()),
+        auth.subject.clone(),
+    ).map_err(|e| AppError::BadRequest(format!("TOTP setup error: {}", e)))?.get_url();
+    let user_id: String = sqlx::query_scalar("SELECT id FROM users WHERE username = ?")
+        .bind(&auth.subject).fetch_optional(&state.pool).await?
+        .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
+    sqlx::query("INSERT INTO user_totp (user_id, secret, enabled) VALUES (?, ?, 0) ON DUPLICATE KEY UPDATE secret = ?, enabled = 0")
+        .bind(&user_id).bind(&encoded).bind(&encoded).execute(&state.pool).await?;
+    Ok(Json(TotpSetupResponse { secret: encoded, qr_code_url: Some(qr_code_url) }))
 }
 
-pub async fn verify_totp(State(_state): State<Arc<AppState>>, Extension(_auth): Extension<AuthContext>, Json(_payload): Json<TotpVerifyRequest>) -> Result<impl IntoResponse, AppError> {
-    Ok(Json(json!({"verified": true})))
+pub async fn verify_totp(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<TotpVerifyRequest>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
+    let raw_secret: Vec<u8> = {
+        let encoded: String = sqlx::query_scalar("SELECT secret FROM user_totp WHERE user_id = (SELECT id FROM users WHERE username = ?)")
+            .bind(&auth.subject).fetch_optional(&state.pool).await?
+            .ok_or_else(|| AppError::NotFound("TOTP not set up".to_string()))?;
+        base32_decode(&encoded)
+            .ok_or_else(|| AppError::BadRequest("invalid TOTP secret encoding".to_string()))?
+    };
+    let totp = totp_rs::TOTP::new(totp_rs::Algorithm::SHA1, 6, 1, 30, raw_secret, Some("API Control Plane".to_string()), auth.subject.clone())
+        .map_err(|e| AppError::BadRequest(format!("TOTP error: {}", e)))?;
+    let verified = totp.check_current(&payload.code)
+        .map_err(|e| AppError::BadRequest(format!("TOTP check error: {}", e)))?;
+    if verified {
+        sqlx::query("UPDATE user_totp SET enabled = 1 WHERE user_id = (SELECT id FROM users WHERE username = ?)")
+            .bind(&auth.subject).execute(&state.pool).await?;
+        Ok(Json(json!({"verified": true})))
+    } else {
+        Err(AppError::BadRequest("invalid TOTP code".to_string()))
+    }
 }
 
-pub async fn disable_totp(State(_state): State<Arc<AppState>>, Extension(_auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
+pub async fn disable_totp(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
+    sqlx::query("UPDATE user_totp SET enabled = 0 WHERE user_id = (SELECT id FROM users WHERE username = ?)")
+        .bind(&auth.subject).execute(&state.pool).await?;
     Ok(Json(json!({"disabled": true})))
 }
 
+fn base32_encode(data: &[u8]) -> String {
+    const ALPHABET: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+    let mut out = String::new();
+    let mut buf = 0u32;
+    let mut bits = 0u8;
+    for &byte in data {
+        buf = (buf << 8) | byte as u32;
+        bits += 8;
+        while bits >= 5 {
+            bits -= 5;
+            out.push(ALPHABET[((buf >> bits) & 0x1F) as usize] as char);
+        }
+    }
+    if bits > 0 {
+        out.push(ALPHABET[((buf << (5 - bits)) & 0x1F) as usize] as char);
+    }
+    while out.len() % 8 != 0 {
+        out.push('=');
+    }
+    out
+}
+
+fn base32_decode(encoded: &str) -> Option<Vec<u8>> {
+    let encoded = encoded.trim_end_matches('=').to_uppercase();
+    let mut out = Vec::new();
+    let mut buf = 0u32;
+    let mut bits = 0u8;
+    for c in encoded.chars() {
+        let val = match c {
+            'A'..='Z' => c as u8 - b'A',
+            '2'..='7' => c as u8 - b'2' + 26,
+            _ => return None,
+        };
+        buf = (buf << 5) | val as u32;
+        bits += 5;
+        if bits >= 8 {
+            bits -= 8;
+            out.push((buf >> bits) as u8);
+        }
+    }
+    Some(out)
+}
+
 pub async fn get_my_preferences(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
     let prefs: Option<String> = sqlx::query_scalar("SELECT preferences FROM users WHERE username = ?")
         .bind(&auth.subject).fetch_optional(&state.pool).await?
         .and_then(|v: Option<String>| v);
@@ -170,6 +319,7 @@ pub async fn get_my_preferences(State(state): State<Arc<AppState>>, Extension(au
 }
 
 pub async fn update_my_preferences(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<UpdatePreferencesRequest>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
     let prefs_json = serde_json::to_string(&payload).unwrap_or_default();
     sqlx::query("UPDATE users SET preferences = ? WHERE username = ?").bind(&prefs_json).bind(&auth.subject).execute(&state.pool).await?;
     Ok(Json(json!({"updated": true})))

@@ -16,7 +16,7 @@ pub async fn eval_expression_handler(
     Extension(auth): Extension<AuthContext>,
     Json(payload): Json<ExprEvalRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::TransformPreview)?;
     let matched = eval_expression(&payload.expression, &payload.input)?;
     Ok(Json(ExprEvalResponse { expression: payload.expression, matched }))
 }
@@ -26,7 +26,6 @@ pub async fn execute_transform(
     Extension(auth): Extension<AuthContext>,
     Json(payload): Json<ExecuteTransformRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
     let rule = load_rule_config_by_id(&state.pool, &payload.rule_id).await?;
     let (effective, selected_variant) = resolve_effective_rule(&rule, payload.traffic_context.as_ref(), payload.force_variant.as_deref())?;
     let output = apply_transform(&payload.input, &effective);
@@ -43,7 +42,7 @@ pub async fn preview_transform(
     Extension(auth): Extension<AuthContext>,
     Json(payload): Json<PreviewRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::TransformPreview)?;
     let preview_rule_id = payload.rule_id.clone().unwrap_or_else(|| "adhoc".to_string());
     let (effective, selected_variant) = if let Some(ref rule_id) = payload.rule_id {
         let rule = load_rule_config_by_id(&state.pool, rule_id).await?;

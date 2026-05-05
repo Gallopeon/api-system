@@ -15,7 +15,7 @@ pub async fn list_audit_logs(
     Extension(auth): Extension<AuthContext>,
     Query(query): Query<AuditListQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::MetricsRead)?;
+    ensure_permission(&auth, Permission::AuditRead)?;
     let limit = query.limit.unwrap_or(30).clamp(1, 200);
     let offset = query.offset.unwrap_or(0);
     let rows = sqlx::query(

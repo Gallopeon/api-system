@@ -69,10 +69,11 @@ pub async fn invalidate_cache(redis: &redis::Client, id: &str) -> Result<(), App
 }
 
 pub async fn load_rule_config_by_id(pool: &MySqlPool, rule_id: &str) -> Result<TransformRule, AppError> {
-    let config_text: String = sqlx::query_scalar(
-        "SELECT config_text FROM rule_versions WHERE rule_id = ? ORDER BY version DESC LIMIT 1"
+    let row = sqlx::query(
+        "SELECT v.config_text, c.status FROM rule_versions v JOIN rule_configs c ON v.rule_id = c.id WHERE v.rule_id = ? AND c.status = 'published' ORDER BY v.version DESC LIMIT 1"
     ).bind(rule_id).fetch_optional(pool).await?
-    .ok_or_else(|| AppError::NotFound(format!("rule {} not found", rule_id)))?;
+    .ok_or_else(|| AppError::NotFound(format!("rule {} not found or not published", rule_id)))?;
+    let config_text: String = row.try_get("config_text").unwrap_or_default();
     Ok(serde_json::from_str(&config_text).unwrap_or_default())
 }
 

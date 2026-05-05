@@ -4,8 +4,10 @@ use axum::http::StatusCode;
 use axum::response::IntoResponse;
 use axum::{Extension, Json};
 use chrono::{DateTime, Utc};
+use redis::AsyncCommands;
 use serde_json::json;
 use sqlx::Row;
+use tracing::warn;
 use uuid::Uuid;
 
 use crate::AppState;
@@ -18,7 +20,7 @@ pub async fn create_rate_limit(
     Extension(auth): Extension<AuthContext>,
     Json(payload): Json<CreateRateLimitRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
+    ensure_permission(&auth, Permission::RateLimitWrite)?;
     let id = Uuid::new_v4().to_string();
     sqlx::query(
         "INSERT INTO rate_limit_configs (id, name, api_path, window_seconds, max_requests, burst_size, quota_daily, quota_monthly, per_api_key, per_ip, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
@@ -35,7 +37,7 @@ pub async fn get_rate_limit(
     Extension(auth): Extension<AuthContext>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::RateLimitRead)?;
     Ok(Json(get_rate_limit_by_id(&state.pool, &id).await?))
 }
 
@@ -44,7 +46,7 @@ pub async fn list_rate_limits(
     Extension(auth): Extension<AuthContext>,
     Query(query): Query<ListRateLimitsQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::RateLimitRead)?;
     let limit = query.limit.unwrap_or(20).clamp(1, 100);
     let offset = query.offset.unwrap_or(0);
     let rows = sqlx::query(
@@ -78,7 +80,7 @@ pub async fn update_rate_limit(
     Path(id): Path<String>,
     Json(payload): Json<UpdateRateLimitRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
+    ensure_permission(&auth, Permission::RateLimitWrite)?;
     if let Some(ref status) = payload.status {
         sqlx::query("UPDATE rate_limit_configs SET status = ? WHERE id = ?").bind(status).bind(&id).execute(&state.pool).await?;
     }
@@ -90,32 +92,72 @@ pub async fn delete_rate_limit(
     Extension(auth): Extension<AuthContext>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
+    ensure_permission(&auth, Permission::RateLimitWrite)?;
     sqlx::query("DELETE FROM rate_limit_configs WHERE id = ?").bind(&id).execute(&state.pool).await?;
     Ok(Json(json!({"deleted": true})))
 }
 
 pub async fn check_rate_limit(
     State(state): State<Arc<AppState>>,
-    Extension(auth): Extension<AuthContext>,
+    Extension(_auth): Extension<AuthContext>,
     Json(payload): Json<RateLimitCheckRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
-    let rows = sqlx::query(
-        "SELECT max_requests, burst_size, quota_daily, quota_monthly FROM rate_limit_configs WHERE api_path = ? AND status = 'active'"
-    ).bind(&payload.api_path).fetch_all(&state.pool).await?;
-    if rows.is_empty() {
+    let row = sqlx::query(
+        "SELECT window_seconds, max_requests, burst_size, quota_daily, quota_monthly FROM rate_limit_configs WHERE api_path = ? AND status = 'active'"
+    ).bind(&payload.api_path).fetch_optional(&state.pool).await?;
+
+    let (window, max_req, burst, quota_daily, quota_monthly) = match row {
+        Some(r) => (
+            r.try_get::<i32, _>("window_seconds").unwrap_or(60),
+            r.try_get::<i32, _>("max_requests").unwrap_or(100),
+            r.try_get::<i32, _>("burst_size").unwrap_or(50),
+            r.try_get::<Option<i32>, _>("quota_daily").ok().flatten(),
+            r.try_get::<Option<i32>, _>("quota_monthly").ok().flatten(),
+        ),
+        None => {
+            return Ok(Json(RateLimitCheckResponse {
+                allowed: true, limit: 0, remaining: 0, reset_seconds: 0,
+                quota_daily_remaining: None, quota_monthly_remaining: None,
+                reason: Some("no rate limit configured".to_string()),
+            }));
+        }
+    };
+
+    let now = Utc::now().timestamp();
+    let window_key = format!("rl:{}:{}", payload.api_path, payload.api_key.as_deref().unwrap_or("anon"));
+    let reset_seconds = window as i64 - (now % window as i64);
+
+    let mut conn = match state.redis.get_async_connection().await {
+        Ok(c) => c,
+        Err(e) => {
+            warn!(error = %e, "redis unavailable for rate limit check, allowing request");
+            return Ok(Json(RateLimitCheckResponse {
+                allowed: true, limit: max_req, remaining: max_req, reset_seconds,
+                quota_daily_remaining: quota_daily, quota_monthly_remaining: quota_monthly,
+                reason: Some("rate limit store unavailable, request allowed".to_string()),
+            }));
+        }
+    };
+
+    let current: i32 = conn.get(&window_key).await.unwrap_or(0);
+    let limit = max_req + burst;
+
+    if current >= limit {
         return Ok(Json(RateLimitCheckResponse {
-            allowed: true, limit: 0, remaining: 0, reset_seconds: 0,
-            quota_daily_remaining: None, quota_monthly_remaining: None,
-            reason: Some("no rate limit configured".to_string()),
+            allowed: false, limit, remaining: 0, reset_seconds,
+            quota_daily_remaining: quota_daily, quota_monthly_remaining: quota_monthly,
+            reason: Some("rate limit exceeded".to_string()),
         }));
     }
-    let max: i32 = rows[0].try_get("max_requests").unwrap_or(100);
+
+    let _: () = conn.incr(&window_key, 1).await?;
+    if current == 0 {
+        let _: () = conn.expire(&window_key, window as i64).await?;
+    }
+
     Ok(Json(RateLimitCheckResponse {
-        allowed: true, limit: max, remaining: max, reset_seconds: 60,
-        quota_daily_remaining: rows[0].try_get("quota_daily").ok(),
-        quota_monthly_remaining: rows[0].try_get("quota_monthly").ok(),
+        allowed: true, limit, remaining: limit - current - 1, reset_seconds,
+        quota_daily_remaining: quota_daily, quota_monthly_remaining: quota_monthly,
         reason: None,
     }))
 }

@@ -438,6 +438,14 @@ When adding new transform/validation/expression logic, add it to the appropriate
 
 - **Router**: Defined in `lib.rs` `run()`. All `/api/v1/*` routes pass through `auth_middleware` (except health/live, health/ready).
 - **Auth**: `AuthContext` extraction via `auth_middleware`. JWT validation (HS256). RBAC with 4 roles (admin/reviewer/editor/viewer). When `AUTH_ENABLED=false`, all requests get `Role::Admin` with no checks.
+- **Permissions**: 30 granular permissions defined in `auth.rs`. Each handler calls `ensure_permission()` with the appropriate permission. Data plane endpoints (`/api/v1/*`) skip permission checks — they are authenticated by the gateway via API keys.
+
+| Role | Capabilities |
+|------|-------------|
+| **Admin** | All permissions (full CRUD, user management, system settings) |
+| **Reviewer** | Read all, publish rules, review approvals, manage LLM, self-profile |
+| **Editor** | Read all, write rules/API keys/rate limits/products/circuit breakers/protocols/classifications/plugins, transform, self-profile. Cannot publish or approve. |
+| **Viewer** | Read-only: rules, API keys, rate limits, approvals, metrics, audit, products, circuit breakers, LLM routing, self-profile. Cannot write, publish, or approve. |
 - **Database**: MySQL tables auto-created on startup in `db::bootstrap_schema()`: `rule_configs`, `rule_versions`, `audit_logs`, `api_keys`, `rate_limit_configs`, `metrics_ingest`, `approvals`, `llm_providers`, `prompt_templates`, `llm_usage_logs`, `api_products`, `subscriptions`, `circuit_breakers`, `protocol_configs`, `data_classifications`, `plugin_configs`, `users`, `user_sessions`, `login_history`, `user_totp`, `system_settings`. Redis caches rule detail reads (prefix `rule:`, TTL 300s default).
 - **Error handling**: `AppError` enum in `auth.rs` implements `IntoResponse`, mapped to appropriate HTTP status codes.
 - **Audit**: All mutating operations write to `audit_logs` table via `write_audit_log()`.

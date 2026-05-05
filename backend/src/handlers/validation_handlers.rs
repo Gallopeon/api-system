@@ -14,7 +14,7 @@ pub async fn validate_request(
     Extension(auth): Extension<AuthContext>,
     Json(payload): Json<ValidateRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::ValidationRead)?;
     let rows = sqlx::query(
         "SELECT v.config_text FROM rule_configs c INNER JOIN rule_versions v ON c.id = v.rule_id AND c.current_version = v.version WHERE c.api_path = ? AND c.status = 'published'"
     ).bind(&payload.api_path).fetch_optional(&state.pool).await?;
@@ -34,7 +34,7 @@ pub async fn validate_response(
     Extension(auth): Extension<AuthContext>,
     Json(payload): Json<ValidateResponseRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::ValidationRead)?;
     let rows = sqlx::query(
         "SELECT v.config_text FROM rule_configs c INNER JOIN rule_versions v ON c.id = v.rule_id AND c.current_version = v.version WHERE c.api_path = ? AND c.status = 'published'"
     ).bind(&payload.api_path).fetch_optional(&state.pool).await?;
@@ -55,7 +55,7 @@ pub async fn validate_against_rule(
     Path(rule_id): Path<String>,
     Json(payload): Json<ValidateResponseRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::ValidationRead)?;
     let rows = sqlx::query(
         "SELECT config_text FROM rule_versions WHERE rule_id = ? ORDER BY version DESC LIMIT 1"
     ).bind(&rule_id).fetch_optional(&state.pool).await?;

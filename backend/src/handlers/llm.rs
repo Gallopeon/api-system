@@ -24,7 +24,7 @@ pub async fn create_llm_provider(State(state): State<Arc<AppState>>, Extension(a
 }
 
 pub async fn list_llm_providers(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::LlmManage)?;
     let rows = sqlx::query("SELECT id, name, provider_type, endpoint_url, api_key_env, model_name, cost_per_1k_input, cost_per_1k_output, max_tokens, priority, status FROM llm_providers ORDER BY priority ASC").fetch_all(&state.pool).await?;
     let items: Vec<Value> = rows.iter().map(|r| json!({
         "id": r.try_get::<String,_>("id").unwrap_or_default(),
@@ -43,7 +43,7 @@ pub async fn list_llm_providers(State(state): State<Arc<AppState>>, Extension(au
 }
 
 pub async fn get_llm_provider(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::LlmManage)?;
     let row = sqlx::query("SELECT id, name, provider_type, endpoint_url, api_key_env, model_name, cost_per_1k_input, cost_per_1k_output, max_tokens, priority, status FROM llm_providers WHERE id = ?")
         .bind(&id).fetch_optional(&state.pool).await?;
     match row {
@@ -109,7 +109,7 @@ pub async fn create_prompt_template(State(state): State<Arc<AppState>>, Extensio
 }
 
 pub async fn list_prompt_templates(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::LlmManage)?;
     let rows = sqlx::query("SELECT id, name, template_text, variables, version, status, created_at FROM prompt_templates ORDER BY created_at DESC").fetch_all(&state.pool).await?;
     let items: Vec<Value> = rows.iter().map(|r| json!({
         "id": r.try_get::<String,_>("id").unwrap_or_default(),
@@ -124,7 +124,7 @@ pub async fn list_prompt_templates(State(state): State<Arc<AppState>>, Extension
 }
 
 pub async fn get_prompt_template(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::LlmManage)?;
     let row = sqlx::query("SELECT id, name, template_text, variables, version, status, created_at FROM prompt_templates WHERE id = ?")
         .bind(&id).fetch_optional(&state.pool).await?;
     match row {
@@ -233,7 +233,7 @@ fn substitute_template(template_text: &str, prompt: &str, variables: &Value) -> 
 }
 
 pub async fn llm_route(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<LlmRouteRequest>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::LlmRoute)?;
 
     let mut prompt = payload.prompt.clone();
     let mut template_id: Option<String> = None;

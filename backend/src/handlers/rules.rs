@@ -67,20 +67,32 @@ pub async fn update_rule(
     validate_transform_rule(&payload.config)?;
 
     let actor = resolve_actor(&auth, payload.actor.as_deref());
+    let mut tx = state.pool.begin().await?;
+
     let current_ver: i32 = sqlx::query_scalar("SELECT current_version FROM rule_configs WHERE id = ?")
-        .bind(&id).fetch_optional(&state.pool).await?
+        .bind(&id).fetch_optional(&mut *tx).await?
         .ok_or_else(|| AppError::NotFound(format!("rule {} not found", id)))?;
     let new_ver = current_ver + 1;
 
-    sqlx::query("UPDATE rule_configs SET name = ?, api_path = ?, status = ?, current_version = ?, updated_at = NOW() WHERE id = ?")
-        .bind(payload.name.as_deref().unwrap_or("")).bind(payload.api_path.as_deref().unwrap_or("")).bind(&payload.status).bind(new_ver).bind(&id)
-        .execute(&state.pool).await?;
+    if let Some(ref name) = payload.name {
+        sqlx::query("UPDATE rule_configs SET name = ? WHERE id = ?").bind(name).bind(&id)
+            .execute(&mut *tx).await?;
+    }
+    if let Some(ref api_path) = payload.api_path {
+        sqlx::query("UPDATE rule_configs SET api_path = ? WHERE id = ?").bind(api_path).bind(&id)
+            .execute(&mut *tx).await?;
+    }
+    sqlx::query("UPDATE rule_configs SET status = ?, current_version = ?, updated_at = NOW() WHERE id = ?")
+        .bind(&payload.status).bind(new_ver).bind(&id)
+        .execute(&mut *tx).await?;
 
     let config_text = serde_json::to_string(&payload.config)?;
     let change_kind = payload.change_kind.unwrap_or_else(|| "non_breaking".to_string());
     sqlx::query("INSERT INTO rule_versions (rule_id, version, config_text, note, change_kind) VALUES (?, ?, ?, ?, ?)")
         .bind(&id).bind(new_ver).bind(config_text).bind(payload.note.clone()).bind(&change_kind)
-        .execute(&state.pool).await?;
+        .execute(&mut *tx).await?;
+
+    tx.commit().await?;
 
     let detail = load_rule_detail(&state.pool, &id).await?;
     if let Err(e) = cache_rule(&state.redis, state.cache_ttl_seconds, &detail).await {

@@ -10,7 +10,7 @@ use crate::AppState;
 use crate::auth::*;
 
 pub async fn create_circuit_breaker(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
+    ensure_permission(&auth, Permission::CircuitBreakersWrite)?;
     let id = Uuid::new_v4().to_string();
     let api_path = payload.get("api_path").and_then(|v| v.as_str()).unwrap_or("");
     let threshold = payload.get("failure_threshold").and_then(|v| v.as_i64()).unwrap_or(5);
@@ -25,7 +25,7 @@ pub async fn create_circuit_breaker(State(state): State<Arc<AppState>>, Extensio
 }
 
 pub async fn list_circuit_breakers(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::CircuitBreakersRead)?;
     let rows = sqlx::query("SELECT id, api_path, failure_threshold, recovery_timeout_sec, half_open_max, retry_count, retry_delay_ms, timeout_ms, status FROM circuit_breakers").fetch_all(&state.pool).await?;
     let items: Vec<Value> = rows.iter().map(|r| json!({
         "id": r.try_get::<String,_>("id").unwrap_or_default(),
@@ -41,15 +41,29 @@ pub async fn list_circuit_breakers(State(state): State<Arc<AppState>>, Extension
     Ok(Json(json!({"items": items})))
 }
 
-pub async fn get_circuit_breaker(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
-    Ok(Json(json!({"id": id})))
+pub async fn get_circuit_breaker(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::CircuitBreakersRead)?;
+    let row = sqlx::query("SELECT id, api_path, failure_threshold, recovery_timeout_sec, half_open_max, retry_count, retry_delay_ms, timeout_ms, status FROM circuit_breakers WHERE id = ?")
+        .bind(&id).fetch_optional(&state.pool).await?
+        .ok_or_else(|| AppError::NotFound(format!("circuit breaker {} not found", id)))?;
+    Ok(Json(json!({
+        "id": row.try_get::<String,_>("id").unwrap_or_default(),
+        "api_path": row.try_get::<String,_>("api_path").unwrap_or_default(),
+        "failure_threshold": row.try_get::<i32,_>("failure_threshold").unwrap_or(5),
+        "recovery_timeout_sec": row.try_get::<i32,_>("recovery_timeout_sec").unwrap_or(30),
+        "half_open_max": row.try_get::<i32,_>("half_open_max").unwrap_or(3),
+        "retry_count": row.try_get::<i32,_>("retry_count").unwrap_or(3),
+        "retry_delay_ms": row.try_get::<i32,_>("retry_delay_ms").unwrap_or(100),
+        "timeout_ms": row.try_get::<i32,_>("timeout_ms").unwrap_or(10000),
+        "status": row.try_get::<String,_>("status").unwrap_or_default(),
+    })))
 }
 pub async fn update_circuit_breaker(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(_payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
-    Ok(Json(json!({"id": id, "updated": true})))
+    ensure_permission(&auth, Permission::CircuitBreakersWrite)?;
+    Err::<Json<Value>, _>(AppError::BadRequest(format!("not implemented: update_circuit_breaker {}", id)))
 }
-pub async fn delete_circuit_breaker(State(_state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(_id): Path<String>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
+pub async fn delete_circuit_breaker(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::CircuitBreakersWrite)?;
+    sqlx::query("DELETE FROM circuit_breakers WHERE id = ?").bind(&id).execute(&state.pool).await?;
     Ok(Json(json!({"deleted": true})))
 }

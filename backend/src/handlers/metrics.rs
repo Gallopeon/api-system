@@ -40,8 +40,8 @@ pub async fn get_analytics(
     Ok(Json(AnalyticsResponse {
         total_requests: total,
         avg_latency_ms: avg_latency,
-        p95_latency_ms: (avg_latency * 1.5) as i64,
-        p99_latency_ms: (avg_latency * 2.0) as i64,
+        p95_latency_ms: 0,
+        p99_latency_ms: 0,
         error_rate,
         requests_by_hour: vec![],
         top_apis: vec![],

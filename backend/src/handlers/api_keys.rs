@@ -18,7 +18,7 @@ pub async fn create_api_key(
     Extension(auth): Extension<AuthContext>,
     Json(payload): Json<CreateApiKeyRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
+    ensure_permission(&auth, Permission::ApiKeyWrite)?;
     let id = Uuid::new_v4().to_string();
     let actor = resolve_actor(&auth, payload.actor.as_deref());
     let (key, key_hash) = generate_api_key();
@@ -40,7 +40,7 @@ pub async fn list_api_keys(
     Extension(auth): Extension<AuthContext>,
     Query(query): Query<ListApiKeysQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::ApiKeyRead)?;
     let limit = query.limit.unwrap_or(20).clamp(1, 100);
     let offset = query.offset.unwrap_or(0);
     let rows = if let Some(ref status) = query.status {
@@ -78,7 +78,7 @@ pub async fn get_api_key(
     Extension(auth): Extension<AuthContext>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::ApiKeyRead)?;
     let row = sqlx::query("SELECT id, key_prefix, name, status, scopes, expires_at, max_calls, call_count, tenant_id, created_by, created_at, updated_at FROM api_keys WHERE id = ?")
         .bind(&id).fetch_optional(&state.pool).await?
         .ok_or_else(|| AppError::NotFound(format!("api key {} not found", id)))?;
@@ -108,7 +108,7 @@ pub async fn update_api_key(
     Path(id): Path<String>,
     Json(payload): Json<UpdateApiKeyRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
+    ensure_permission(&auth, Permission::ApiKeyWrite)?;
     if let Some(ref name) = payload.name {
         sqlx::query("UPDATE api_keys SET name = ? WHERE id = ?").bind(name).bind(&id).execute(&state.pool).await?;
     }
@@ -128,17 +128,16 @@ pub async fn delete_api_key(
     Extension(auth): Extension<AuthContext>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleWrite)?;
+    ensure_permission(&auth, Permission::ApiKeyWrite)?;
     sqlx::query("DELETE FROM api_keys WHERE id = ?").bind(&id).execute(&state.pool).await?;
     Ok(Json(json!({"deleted": true})))
 }
 
 pub async fn validate_api_key(
     State(state): State<Arc<AppState>>,
-    Extension(auth): Extension<AuthContext>,
+    Extension(_auth): Extension<AuthContext>,
     Json(payload): Json<ValidateApiKeyRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
     let hash = key_hash(&payload.api_key);
     let row = sqlx::query("SELECT id, status, scopes, expires_at, max_calls, call_count FROM api_keys WHERE key_hash = ?")
         .bind(&hash).fetch_optional(&state.pool).await?;

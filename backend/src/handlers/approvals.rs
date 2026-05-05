@@ -90,7 +90,7 @@ pub async fn get_approval(
     Extension(auth): Extension<AuthContext>,
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::ApprovalRead)?;
     Ok(Json(get_approval_by_id(&state.pool, &id).await?))
 }
 
@@ -99,7 +99,7 @@ pub async fn list_approvals(
     Extension(auth): Extension<AuthContext>,
     Query(query): Query<ListApprovalsQuery>,
 ) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::RuleRead)?;
+    ensure_permission(&auth, Permission::ApprovalRead)?;
     let limit = query.limit.unwrap_or(30).clamp(1, 200);
     let offset = query.offset.unwrap_or(0);
     let rows = if let Some(ref status) = query.status {
@@ -119,12 +119,7 @@ pub async fn review_approval(
     Path(id): Path<String>,
     Json(payload): Json<ReviewApprovalRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    // Only Admin or Reviewer can review; Editors can submit but not review
-    if auth.role != Role::Admin && auth.role != Role::Reviewer {
-        return Err(AppError::Forbidden(
-            "only admin and reviewer can review approvals".to_string(),
-        ));
-    }
+    ensure_permission(&auth, Permission::ApprovalReview)?;
     let actor = resolve_actor(&auth, payload.actor.as_deref());
     let new_status = if payload.action == "approve" { "approved" } else { "rejected" };
     sqlx::query("UPDATE approvals SET status = ?, reviewer = COALESCE(NULLIF(?, ''), reviewer), reviewed_at = NOW() WHERE id = ?")
