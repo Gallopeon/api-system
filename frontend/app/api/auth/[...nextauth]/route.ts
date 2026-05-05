@@ -10,7 +10,7 @@ const handler = NextAuth({
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+        const apiBase = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8080";
         try {
           const res = await fetch(`${apiBase}/admin/v1/auth/login`, {
             method: "POST",
@@ -47,12 +47,13 @@ const handler = NextAuth({
     },
     async session({ session, token }) {
       (session as any).role = token.role;
-      (session as any).accessToken = token.accessToken;
       (session as any).userId = token.userId;
+      // accessToken stays server-side only — never sent to the browser.
+      // Frontend API calls go through /api/proxy/[...path] which injects it.
       return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET || "secret_for_demo",
+  secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
   },
