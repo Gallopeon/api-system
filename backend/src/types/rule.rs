@@ -319,6 +319,7 @@ pub struct RuleListResponse {
     pub items: Vec<RuleSummary>,
     pub limit: u32,
     pub offset: u32,
+    pub total: i64,
 }
 
 #[derive(Debug, Serialize)]

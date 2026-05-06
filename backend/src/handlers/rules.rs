@@ -174,18 +174,34 @@ pub async fn list_rules(
     let name_filter = query.name.unwrap_or_default();
     let api_path_filter = query.api_path.unwrap_or_default();
 
-    let rows = sqlx::query(
-        "SELECT id, name, api_path, current_version, status, updated_at FROM rule_configs \
-         WHERE (status = ? OR ? = '') \
-         AND (name LIKE ? OR ? = '') \
-         AND (api_path LIKE ? OR ? = '') \
-         ORDER BY updated_at DESC LIMIT ? OFFSET ?"
-    )
-    .bind(&status_filter).bind(&status_filter)
-    .bind(format!("%{}%", name_filter)).bind(&name_filter)
-    .bind(format!("%{}%", api_path_filter)).bind(&api_path_filter)
-    .bind(limit).bind(offset)
-    .fetch_all(&state.pool).await?;
+    let like_name = format!("%{}%", &name_filter);
+    let like_path = format!("%{}%", &api_path_filter);
+
+    let (rows, total) = tokio::try_join!(
+        sqlx::query(
+            "SELECT id, name, api_path, current_version, status, updated_at FROM rule_configs \
+             WHERE (status = ? OR ? = '') \
+             AND (name LIKE ? OR ? = '') \
+             AND (api_path LIKE ? OR ? = '') \
+             ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+        )
+        .bind(&status_filter).bind(&status_filter)
+        .bind(&like_name).bind(&name_filter)
+        .bind(&like_path).bind(&api_path_filter)
+        .bind(limit).bind(offset)
+        .fetch_all(&state.pool),
+        sqlx::query_scalar::<_, i64>(
+            "SELECT COUNT(*) FROM rule_configs \
+             WHERE (status = ? OR ? = '') \
+             AND (name LIKE ? OR ? = '') \
+             AND (api_path LIKE ? OR ? = '')"
+        )
+        .bind(&status_filter).bind(&status_filter)
+        .bind(&like_name).bind(&name_filter)
+        .bind(&like_path).bind(&api_path_filter)
+        .fetch_one(&state.pool),
+    ).map_err(|e: sqlx::Error| AppError::Internal(format!("list rules query failed: {}", e)))?;
+
     let items: Vec<RuleSummary> = rows.iter().map(|r| RuleSummary {
         id: r.try_get("id").unwrap_or_default(),
         name: r.try_get("name").unwrap_or_default(),
@@ -194,5 +210,5 @@ pub async fn list_rules(
         status: r.try_get("status").unwrap_or_default(),
         updated_at: r.try_get::<DateTime<Utc>, _>("updated_at").map(|d| d.to_rfc3339()).unwrap_or_default(),
     }).collect();
-    Ok(Json(RuleListResponse { items, limit, offset }))
+    Ok(Json(RuleListResponse { items, limit, offset, total }))
 }
