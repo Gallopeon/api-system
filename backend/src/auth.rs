@@ -111,6 +111,7 @@ pub enum Permission {
     SystemRead,
     SystemWrite,
     // Users
+    UserRead,
     UserManage,
     UserSelf,
 }
@@ -147,6 +148,7 @@ impl Permission {
             Self::ValidationRead => "validation:read",
             Self::SystemRead => "system:read",
             Self::SystemWrite => "system:write",
+            Self::UserRead => "user:read",
             Self::UserManage => "user:manage",
             Self::UserSelf => "user:self",
         }
@@ -178,6 +180,7 @@ pub fn role_has_permission(role: Role, permission: Permission) -> bool {
                 | Permission::OpenApiRead
                 | Permission::ValidationRead
                 | Permission::SystemRead
+                | Permission::UserRead
                 | Permission::UserSelf
         ),
         Role::Editor => matches!(
@@ -207,6 +210,7 @@ pub fn role_has_permission(role: Role, permission: Permission) -> bool {
                 | Permission::OpenApiRead
                 | Permission::ValidationRead
                 | Permission::SystemRead
+                | Permission::UserRead
                 | Permission::UserSelf
         ),
         Role::Viewer => matches!(
@@ -227,6 +231,7 @@ pub fn role_has_permission(role: Role, permission: Permission) -> bool {
                 | Permission::OpenApiRead
                 | Permission::ValidationRead
                 | Permission::SystemRead
+                | Permission::UserRead
                 | Permission::UserSelf
         ),
     }

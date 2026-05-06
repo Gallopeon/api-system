@@ -204,7 +204,7 @@ pub async fn list_my_login_history(State(state): State<Arc<AppState>>, Extension
 }
 
 pub async fn list_users(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Query(query): Query<ListUsersQuery>) -> Result<impl IntoResponse, AppError> {
-    ensure_permission(&auth, Permission::UserManage)?;
+    ensure_permission(&auth, Permission::UserRead)?;
     let limit = query.limit.unwrap_or(20).clamp(1, 100);
     let offset = query.offset.unwrap_or(0);
     let rows = sqlx::query(
