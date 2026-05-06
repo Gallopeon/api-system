@@ -18,7 +18,7 @@ pub struct MetricsOverview {
     pub top_actions_24h: Vec<Value>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct IngestMetricsRequest {
     pub api_path: String,
     #[serde(default = "default_method")]

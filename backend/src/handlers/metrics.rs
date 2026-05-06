@@ -9,16 +9,103 @@ use crate::AppState;
 use crate::types::*;
 use crate::auth::*;
 
+const METRICS_BUFFER_KEY: &str = "metrics:buffer";
+const METRICS_FLUSH_BATCH: usize = 1000;
+const METRICS_FLUSH_INTERVAL_SECS: u64 = 30;
+
 pub async fn ingest_metrics(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<IngestMetricsRequest>,
 ) -> Result<impl IntoResponse, AppError> {
-    sqlx::query(
-        "INSERT INTO metrics_ingest (api_path, method, status_code, latency_ms, client_ip, api_key_id, timestamp) VALUES (?, ?, ?, ?, ?, ?, NOW())"
-    ).bind(&payload.api_path).bind(&payload.method).bind(payload.status_code as i32)
-     .bind(payload.latency_ms as i32).bind(&payload.client_ip).bind(&payload.api_key_id)
-     .execute(&state.pool).await?;
+    let mut conn = state.redis.get_multiplexed_async_connection().await?;
+    let payload_json = serde_json::to_string(&payload)?;
+    let _: () = redis::cmd("LPUSH")
+        .arg(METRICS_BUFFER_KEY)
+        .arg(payload_json)
+        .query_async(&mut conn)
+        .await?;
     Ok(Json(json!({"ingested": true})))
+}
+
+/// Background task: periodically flush metrics from Redis buffer to MySQL.
+pub async fn run_metrics_flusher(pool: sqlx::MySqlPool, redis: redis::Client, mut shutdown: tokio::sync::watch::Receiver<bool>) {
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(METRICS_FLUSH_INTERVAL_SECS));
+    loop {
+        tokio::select! {
+            _ = interval.tick() => {
+                if let Err(e) = flush_metrics_buffer(&pool, &redis).await {
+                    tracing::warn!(error = %e, "metrics flush failed");
+                }
+            }
+            _ = shutdown.changed() => {
+                tracing::info!("metrics flusher shutting down, final flush...");
+                if let Err(e) = flush_metrics_buffer(&pool, &redis).await {
+                    tracing::warn!(error = %e, "final metrics flush failed");
+                }
+                break;
+            }
+        }
+    }
+}
+
+async fn flush_metrics_buffer(pool: &sqlx::MySqlPool, redis: &redis::Client) -> Result<(), AppError> {
+    let mut conn = redis.get_multiplexed_async_connection().await?;
+
+    // Atomically pop a batch from the buffer
+    let items: Vec<String> = redis::cmd("LRANGE")
+        .arg(METRICS_BUFFER_KEY)
+        .arg(0)
+        .arg(METRICS_FLUSH_BATCH as i64 - 1)
+        .query_async(&mut conn)
+        .await?;
+
+    if items.is_empty() {
+        return Ok(());
+    }
+
+    // Trim the buffer (remove the items we just read)
+    let _: () = redis::cmd("LTRIM")
+        .arg(METRICS_BUFFER_KEY)
+        .arg(items.len() as i64)
+        .arg(-1)
+        .query_async(&mut conn)
+        .await?;
+
+    let mut batch = Vec::with_capacity(items.len());
+    for item in items {
+        if let Ok(req) = serde_json::from_str::<IngestMetricsRequest>(&item) {
+            batch.push(req);
+        }
+    }
+
+    if batch.is_empty() {
+        return Ok(());
+    }
+
+    // Build batch INSERT: VALUES (?, ?, ...), (?, ?, ...), ...
+    let mut query_str = String::from(
+        "INSERT INTO metrics_ingest (api_path, method, status_code, latency_ms, client_ip, api_key_id, timestamp) VALUES "
+    );
+    let mut first = true;
+    for _ in &batch {
+        if !first { query_str.push_str(", "); }
+        query_str.push_str("(?, ?, ?, ?, ?, ?, NOW())");
+        first = false;
+    }
+
+    let mut q = sqlx::query(&query_str);
+    for req in &batch {
+        q = q.bind(&req.api_path)
+            .bind(&req.method)
+            .bind(req.status_code)
+            .bind(req.latency_ms)
+            .bind(&req.client_ip)
+            .bind(&req.api_key_id);
+    }
+
+    q.execute(pool).await?;
+    tracing::info!(count = batch.len(), "metrics batch inserted");
+    Ok(())
 }
 
 pub async fn get_analytics(

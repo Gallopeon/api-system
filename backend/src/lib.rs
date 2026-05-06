@@ -43,11 +43,15 @@ pub async fn run() -> anyhow::Result<()> {
 
     let redis = redis::Client::open(settings.redis_url.clone())?;
     let state = Arc::new(AppState {
-        pool, redis,
+        pool: pool.clone(), redis: redis.clone(),
         cache_ttl_seconds: settings.cache_ttl_seconds,
         started_at: Instant::now(),
         auth: AuthSettings { jwt_secret: settings.jwt_secret.clone() },
     });
+
+    // Spawn metrics background flusher
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
+    let flusher_handle = tokio::spawn(handlers::run_metrics_flusher(pool, redis, shutdown_rx));
 
     let admin_router = Router::new()
         .route("/admin/v1/rules", post(create_rule).get(list_rules))
@@ -144,6 +148,11 @@ pub async fn run() -> anyhow::Result<()> {
             info!("shutdown signal received, draining connections...");
         })
         .await?;
+
+    // Signal metrics flusher to shut down and wait for final flush
+    let _ = shutdown_tx.send(true);
+    let _ = flusher_handle.await;
+    info!("metrics flusher stopped");
     Ok(())
 }
 
