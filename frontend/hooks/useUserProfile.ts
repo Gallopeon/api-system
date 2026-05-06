@@ -134,26 +134,15 @@ export function useTotp(
 
   const checkTotpStatus = useCallback(async () => {
     try {
-      // Try to get preferences or profile to check 2FA status
-      // For now, try setup which will tell us if already enabled
-      const r = await apiFetch("/admin/v1/users/me/totp/setup", {
-        method: "POST",
-      }, accessToken);
+      const r = await apiFetch("/admin/v1/users/me/totp");
       if (r.ok) {
         const d = await r.json();
-        setTotpSecret(d.secret);
-        setTotpQrUrl(d.qr_code_url);
-        setTotpEnabled(false);
-      } else {
-        const err = await r.json();
-        if (err.message?.includes("already enabled")) {
-          setTotpEnabled(true);
-        }
+        setTotpEnabled(d.enabled === true);
       }
     } catch {
       /* ignore */
     }
-  }, [accessToken]);
+  }, []);
 
   const setupTotp = useCallback(async () => {
     setTotpBusy(true);
