@@ -57,15 +57,15 @@ export default function APIControlCenter() {
 
   // ---- Hooks ----
   const { notif, notifyError, notifySucc, clearNotif } = useNotification();
-  const { metrics, liveState, readyState, loadHealthStatus, loadMetrics } = useDashboard();
-  const { auditItems, loadAuditLogs } = useAuditLog();
+  const { metrics, liveState, readyState, loadHealthStatus, loadMetrics } = useDashboard(notifyError);
+  const { auditItems, loadAuditLogs } = useAuditLog(notifyError);
   const { approvals, myApprovals, myPending, approvalFilter, approvalTab, apprBusy,
     approvalRuleId, approvalComment, approvalReviewer,
     setApprovalFilter, setApprovalTab, setApprovalRuleId, setApprovalComment, setApprovalReviewer,
     loadApprovals, loadMyRequests, loadMyPending, createApproval, reviewApproval } =
     useApprovals(notifyError, notifySucc);
   const { analytics, analyticsHours, analyticsBusy, topApis, keyStats,
-    setAnalyticsHours, loadAnalytics } = useAnalytics();
+    setAnalyticsHours, loadAnalytics } = useAnalytics(notifyError);
 
   const rulesHook = useRules(notifyError, notifySucc);
   const apiKeysHook = useApiKeys(notifyError, notifySucc);

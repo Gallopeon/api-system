@@ -47,11 +47,12 @@ export function useRules(
         setRules(d.items || []);
         return d.items;
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      notifyError("Failed to load rules");
+      console.error("loadRules failed:", e);
     }
     return null;
-  }, []);
+  }, [notifyError]);
 
   const selectRule = useCallback(async (id: string) => {
     setSelectedRuleId(id);
@@ -89,10 +90,11 @@ export function useRules(
           else setToVer(String(v.items[0].version));
         }
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      notifyError("Failed to load rule detail");
+      console.error("selectRule failed:", e);
     }
-  }, []);
+  }, [notifyError]);
 
   const buildConfig = useCallback((): TransformRuleConfig => {
     return {

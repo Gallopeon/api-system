@@ -12,7 +12,7 @@ import type {
   ApiKeyStatsResponse,
 } from "@/lib/types";
 
-export function useDashboard() {
+export function useDashboard(notifyError?: (msg: string) => void) {
   const [metrics, setMetrics] = useState<MetricsOverview | null>(null);
   const [liveState, setLiveState] = useState("unknown");
   const [readyState, setReadyState] = useState("unknown");
@@ -35,15 +35,16 @@ export function useDashboard() {
     try {
       const r = await apiFetch("/admin/v1/metrics/overview");
       if (r.ok) setMetrics(await r.json());
-    } catch {
-      /* ignore */
+    } catch (e) {
+      notifyError?.("Failed to load metrics overview");
+      console.error("loadMetrics failed:", e);
     }
-  }, []);
+  }, [notifyError]);
 
   return { metrics, liveState, readyState, loadHealthStatus, loadMetrics };
 }
 
-export function useAuditLog() {
+export function useAuditLog(notifyError?: (msg: string) => void) {
   const [auditItems, setAuditItems] = useState<AuditLogItem[]>([]);
 
   const loadAuditLogs = useCallback(async () => {
@@ -53,10 +54,11 @@ export function useAuditLog() {
         const d = (await r.json()) as AuditLogResponse;
         setAuditItems(d.items || []);
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      notifyError?.("Failed to load audit logs");
+      console.error("loadAuditLogs failed:", e);
     }
-  }, []);
+  }, [notifyError]);
 
   return { auditItems, loadAuditLogs };
 }
@@ -84,10 +86,11 @@ export function useApprovals(
         const d = (await r.json()) as ApprovalListResponse;
         setApprovals(d.items || []);
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      notifyError("Failed to load approvals");
+      console.error("loadApprovals failed:", e);
     }
-  }, [approvalFilter, accessToken]);
+  }, [approvalFilter, accessToken, notifyError]);
 
   const loadMyRequests = useCallback(async () => {
     try {
@@ -96,8 +99,11 @@ export function useApprovals(
         const d = (await r.json()) as ApprovalListResponse;
         setMyApprovals(d.items || []);
       }
-    } catch { /* ignore */ }
-  }, [accessToken]);
+    } catch (e) {
+      notifyError("Failed to load my approval requests");
+      console.error("loadMyRequests failed:", e);
+    }
+  }, [accessToken, notifyError]);
 
   const loadMyPending = useCallback(async () => {
     try {
@@ -106,8 +112,11 @@ export function useApprovals(
         const d = (await r.json()) as ApprovalListResponse;
         setMyPending(d.items || []);
       }
-    } catch { /* ignore */ }
-  }, [accessToken]);
+    } catch (e) {
+      notifyError("Failed to load pending approvals");
+      console.error("loadMyPending failed:", e);
+    }
+  }, [accessToken, notifyError]);
 
   const createApproval = useCallback(
     async (selectedRuleId: string, rules: Array<{ id: string; current_version: number }>) => {
@@ -177,7 +186,7 @@ export function useApprovals(
   };
 }
 
-export function useAnalytics() {
+export function useAnalytics(notifyError?: (msg: string) => void) {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [analyticsHours, setAnalyticsHours] = useState("24");
   const [analyticsBusy, setAnalyticsBusy] = useState(false);
@@ -198,12 +207,13 @@ export function useAnalytics() {
         setTopApis(data.top_apis);
         setKeyStats(data.api_key_stats);
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      notifyError?.("Failed to load analytics");
+      console.error("loadAnalytics failed:", e);
     } finally {
       setAnalyticsBusy(false);
     }
-  }, [analyticsHours]);
+  }, [analyticsHours, notifyError]);
 
   return {
     analytics,
