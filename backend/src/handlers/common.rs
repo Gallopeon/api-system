@@ -50,7 +50,7 @@ pub async fn write_audit_log(pool: &MySqlPool, entry: AuditEntry) -> Result<(), 
 }
 
 pub async fn get_cached_rule(redis: &redis::Client, id: &str) -> Result<Option<RuleDetail>, AppError> {
-    let mut conn = redis.get_async_connection().await?;
+    let mut conn = redis.get_multiplexed_async_connection().await?;
     let key = format!("rule:{}", id);
     let raw: Option<String> = conn.get(key).await?;
     match raw {
@@ -60,7 +60,7 @@ pub async fn get_cached_rule(redis: &redis::Client, id: &str) -> Result<Option<R
 }
 
 pub async fn cache_rule(redis: &redis::Client, ttl_seconds: u64, detail: &RuleDetail) -> Result<(), AppError> {
-    let mut conn = redis.get_async_connection().await?;
+    let mut conn = redis.get_multiplexed_async_connection().await?;
     let key = format!("rule:{}", detail.id);
     let payload = serde_json::to_string(detail)?;
     let _: () = conn.set_ex(key, payload, ttl_seconds).await?;
@@ -68,7 +68,7 @@ pub async fn cache_rule(redis: &redis::Client, ttl_seconds: u64, detail: &RuleDe
 }
 
 pub async fn invalidate_cache(redis: &redis::Client, id: &str) -> Result<(), AppError> {
-    let mut conn = redis.get_async_connection().await?;
+    let mut conn = redis.get_multiplexed_async_connection().await?;
     let key = format!("rule:{}", id);
     let _: () = conn.del(key).await?;
     Ok(())

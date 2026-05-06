@@ -127,7 +127,7 @@ pub async fn check_rate_limit(
     let window_key = format!("rl:{}:{}", payload.api_path, payload.api_key.as_deref().unwrap_or("anon"));
     let reset_seconds = window as i64 - (now % window as i64);
 
-    let mut conn = match state.redis.get_async_connection().await {
+    let mut conn = match state.redis.get_multiplexed_async_connection().await {
         Ok(c) => c,
         Err(e) => {
             warn!(error = %e, "redis unavailable for rate limit check, allowing request");

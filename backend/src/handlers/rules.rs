@@ -120,7 +120,7 @@ pub async fn get_rule(
     // Try to acquire the recompute lock. If another request already holds it,
     // retry the cache after a short wait instead of piling onto MySQL.
     let lock_key = format!("rule:lock:{}", id);
-    if let Ok(mut conn) = state.redis.get_async_connection().await {
+    if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
         let acquired: bool = redis::cmd("SET")
             .arg(&lock_key).arg("1").arg("NX").arg("EX").arg(5_u32)
             .query_async(&mut conn).await.unwrap_or(false);
@@ -137,7 +137,7 @@ pub async fn get_rule(
     let detail = load_rule_detail(&state.pool, &id).await?;
     let _ = cache_rule(&state.redis, state.cache_ttl_seconds, &detail).await;
     // Release the lock (best-effort)
-    if let Ok(mut conn) = state.redis.get_async_connection().await {
+    if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
         let _: Result<(), _> = redis::cmd("DEL").arg(&lock_key).query_async(&mut conn).await;
     }
     Ok(Json(detail))

@@ -186,8 +186,8 @@ async fn live() -> impl IntoResponse {
 
 async fn ready(State(state): State<Arc<AppState>>) -> impl IntoResponse {
     let mysql_ready = sqlx::query_scalar::<_, i64>("SELECT 1").fetch_one(&state.pool).await.is_ok();
-    let redis_ready = match state.redis.get_async_connection().await {
-        Ok(mut conn) => redis::cmd("PING").query_async::<_, String>(&mut conn).await.is_ok(),
+    let redis_ready = match state.redis.get_multiplexed_async_connection().await {
+        Ok(mut conn) => redis::cmd("PING").query_async::<String>(&mut conn).await.is_ok(),
         Err(_) => false,
     };
     if mysql_ready && redis_ready {

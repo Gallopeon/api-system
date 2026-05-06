@@ -175,7 +175,7 @@ pub async fn revoke_session(State(state): State<Arc<AppState>>, Extension(auth):
         .bind(&id).bind(&auth.subject).execute(&state.pool).await?;
     // Blacklist the JTI in Redis so the middleware rejects it immediately
     if let Some(jti) = jti {
-        if let Ok(mut conn) = state.redis.get_async_connection().await {
+        if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
             let _: Result<(), _> = redis::cmd("SETEX")
                 .arg(format!("jti:revoked:{}", jti))
                 .arg(86400_i64) // TTL matches JWT expiry

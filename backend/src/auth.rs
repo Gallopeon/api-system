@@ -356,7 +356,7 @@ async fn try_authenticate(state: &AppState, headers: &HeaderMap) -> Option<AuthC
 
     // Check JTI revocation via Redis bloom-filter (fast, no DB roundtrip)
     if let Some(ref jti) = claims.jti {
-        if let Ok(mut conn) = state.redis.get_async_connection().await {
+        if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
             let revoked: Option<String> = redis::cmd("GET")
                 .arg(format!("jti:revoked:{}", jti))
                 .query_async(&mut conn)
