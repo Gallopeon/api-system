@@ -13,6 +13,7 @@ export type RuleListResponse = {
   items: RuleSummary[];
   limit: number;
   offset: number;
+  total: number;
 };
 
 export type TransformRuleConfig = {
