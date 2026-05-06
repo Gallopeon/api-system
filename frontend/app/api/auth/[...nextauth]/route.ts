@@ -46,7 +46,7 @@ const handler = NextAuth({
       return token;
     },
     async session({ session, token }) {
-      (session as any).role = token.role;
+      (session.user as any).role = token.role;
       (session as any).userId = token.userId;
       // accessToken stays server-side only — never sent to the browser.
       // Frontend API calls go through /api/proxy/[...path] which injects it.
