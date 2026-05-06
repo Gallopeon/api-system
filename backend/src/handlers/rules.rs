@@ -170,9 +170,22 @@ pub async fn list_rules(
     ensure_permission(&auth, Permission::RuleRead)?;
     let limit = query.limit.unwrap_or(50).clamp(1, 200);
     let offset = query.offset.unwrap_or(0);
+    let status_filter = query.status.unwrap_or_default();
+    let name_filter = query.name.unwrap_or_default();
+    let api_path_filter = query.api_path.unwrap_or_default();
+
     let rows = sqlx::query(
-        "SELECT id, name, api_path, current_version, status, updated_at FROM rule_configs ORDER BY updated_at DESC LIMIT ? OFFSET ?"
-    ).bind(limit).bind(offset).fetch_all(&state.pool).await?;
+        "SELECT id, name, api_path, current_version, status, updated_at FROM rule_configs \
+         WHERE (status = ? OR ? = '') \
+         AND (name LIKE ? OR ? = '') \
+         AND (api_path LIKE ? OR ? = '') \
+         ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+    )
+    .bind(&status_filter).bind(&status_filter)
+    .bind(format!("%{}%", name_filter)).bind(&name_filter)
+    .bind(format!("%{}%", api_path_filter)).bind(&api_path_filter)
+    .bind(limit).bind(offset)
+    .fetch_all(&state.pool).await?;
     let items: Vec<RuleSummary> = rows.iter().map(|r| RuleSummary {
         id: r.try_get("id").unwrap_or_default(),
         name: r.try_get("name").unwrap_or_default(),

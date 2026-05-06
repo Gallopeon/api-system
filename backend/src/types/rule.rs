@@ -208,6 +208,12 @@ pub struct ListRulesQuery {
     pub limit: Option<u32>,
     #[serde(default)]
     pub offset: Option<u32>,
+    #[serde(default)]
+    pub status: Option<String>,
+    #[serde(default)]
+    pub name: Option<String>,
+    #[serde(default)]
+    pub api_path: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
