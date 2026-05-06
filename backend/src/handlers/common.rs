@@ -74,6 +74,30 @@ pub async fn invalidate_cache(redis: &redis::Client, id: &str) -> Result<(), App
     Ok(())
 }
 
+const RULES_ALL_KEY: &str = "rules:all";
+
+pub async fn get_cached_all_rules(redis: &redis::Client) -> Result<Option<Vec<RuleSummary>>, AppError> {
+    let mut conn = redis.get_multiplexed_async_connection().await?;
+    let raw: Option<String> = conn.get(RULES_ALL_KEY).await?;
+    match raw {
+        Some(payload) => Ok(Some(serde_json::from_str(&payload)?)),
+        None => Ok(None),
+    }
+}
+
+pub async fn cache_all_rules(redis: &redis::Client, ttl_seconds: u64, items: &[RuleSummary]) -> Result<(), AppError> {
+    let mut conn = redis.get_multiplexed_async_connection().await?;
+    let payload = serde_json::to_string(items)?;
+    let _: () = conn.set_ex(RULES_ALL_KEY, payload, ttl_seconds).await?;
+    Ok(())
+}
+
+pub async fn invalidate_all_rules_cache(redis: &redis::Client) -> Result<(), AppError> {
+    let mut conn = redis.get_multiplexed_async_connection().await?;
+    let _: () = conn.del(RULES_ALL_KEY).await?;
+    Ok(())
+}
+
 pub async fn load_rule_config_by_id(pool: &MySqlPool, rule_id: &str) -> Result<TransformRule, AppError> {
     let row = sqlx::query(
         "SELECT v.config_text, c.status FROM rule_versions v JOIN rule_configs c ON v.rule_id = c.id WHERE v.rule_id = ? AND c.status = 'published' ORDER BY v.version DESC LIMIT 1"

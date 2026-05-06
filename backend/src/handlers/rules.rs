@@ -45,6 +45,10 @@ pub async fn create_rule(
     if let Err(e) = cache_rule(&state.redis, state.cache_ttl_seconds, &detail).await {
         warn!(error = %e, rule_id = %id, "cache write failed");
     }
+    // Invalidate full list cache so next list_rules sees the new rule
+    if let Err(e) = invalidate_all_rules_cache(&state.redis).await {
+        warn!(error = %e, "all-rules cache invalidate failed");
+    }
     write_audit_log(&state.pool, AuditEntry {
         rule_id: Some(id.clone()), action: "rule_create".to_string(), actor,
         success: true, message: payload.note,
@@ -97,6 +101,9 @@ pub async fn update_rule(
     let detail = load_rule_detail(&state.pool, &id).await?;
     if let Err(e) = cache_rule(&state.redis, state.cache_ttl_seconds, &detail).await {
         warn!(error = %e, rule_id = %id, "cache write failed");
+    }
+    if let Err(e) = invalidate_all_rules_cache(&state.redis).await {
+        warn!(error = %e, "all-rules cache invalidate failed");
     }
     write_audit_log(&state.pool, AuditEntry {
         rule_id: Some(id.clone()), action: "rule_update".to_string(), actor,
@@ -154,6 +161,9 @@ pub async fn delete_rule(
     sqlx::query("DELETE FROM rule_configs WHERE id = ?").bind(&id).execute(&mut *tx).await?;
     tx.commit().await?;
     invalidate_cache(&state.redis, &id).await.unwrap_or_else(|e| warn!(error = %e, "cache invalidate failed"));
+    if let Err(e) = invalidate_all_rules_cache(&state.redis).await {
+        warn!(error = %e, "all-rules cache invalidate failed");
+    }
     let actor = resolve_actor(&auth, None);
     write_audit_log(&state.pool, AuditEntry {
         rule_id: Some(id.clone()), action: "rule_delete".to_string(), actor,
@@ -173,6 +183,20 @@ pub async fn list_rules(
     let status_filter = query.status.unwrap_or_default();
     let name_filter = query.name.unwrap_or_default();
     let api_path_filter = query.api_path.unwrap_or_default();
+
+    let has_filters = !status_filter.is_empty() || !name_filter.is_empty() || !api_path_filter.is_empty();
+
+    // Cache only unfiltered full list (most common case)
+    if !has_filters {
+        if let Ok(Some(cached)) = get_cached_all_rules(&state.redis).await {
+            let total = cached.len() as i64;
+            let items: Vec<RuleSummary> = cached.into_iter()
+                .skip(offset as usize)
+                .take(limit as usize)
+                .collect();
+            return Ok(Json(RuleListResponse { items, limit, offset, total }));
+        }
+    }
 
     let like_name = format!("%{}%", &name_filter);
     let like_path = format!("%{}%", &api_path_filter);
@@ -210,5 +234,22 @@ pub async fn list_rules(
         status: r.try_get("status").unwrap_or_default(),
         updated_at: r.try_get::<DateTime<Utc>, _>("updated_at").map(|d| d.to_rfc3339()).unwrap_or_default(),
     }).collect();
+
+    // Cache the unfiltered full list for subsequent cache hits
+    if !has_filters {
+        let all_items: Vec<RuleSummary> = rows.into_iter().map(|r| RuleSummary {
+            id: r.try_get("id").unwrap_or_default(),
+            name: r.try_get("name").unwrap_or_default(),
+            api_path: r.try_get("api_path").unwrap_or_default(),
+            current_version: r.try_get("current_version").unwrap_or(1),
+            status: r.try_get("status").unwrap_or_default(),
+            updated_at: r.try_get::<DateTime<Utc>, _>("updated_at").map(|d| d.to_rfc3339()).unwrap_or_default(),
+        }).collect();
+        let ttl = state.cache_ttl_seconds.min(60); // cap list cache at 60s
+        if let Err(e) = cache_all_rules(&state.redis, ttl, &all_items).await {
+            warn!(error = %e, "all-rules cache write failed");
+        }
+    }
+
     Ok(Json(RuleListResponse { items, limit, offset, total }))
 }
