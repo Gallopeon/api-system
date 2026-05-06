@@ -366,7 +366,13 @@ frontend/
 │       ├── AdvancedPluginsTab.tsx      ← Plugins CRUD (84 lines)
 │       ├── PortalPanel.tsx         ← API catalog + self-service key request (136 lines)
 │       ├── ManualPanel.tsx         ← Full user manual (404 lines)
-│       ├── UserCenterPanel.tsx     ← User profile/settings (431 lines)
+│       ├── UserCenterPanel.tsx     ← Tab router for user center (210 lines)
+│       ├── UserProfileTab.tsx      ← Profile info + avatar (66 lines)
+│       ├── UserSecurityTab.tsx     ← Password change (44 lines)
+│       ├── UserTotpTab.tsx         ← TOTP setup/verify/disable (78 lines)
+│       ├── UserSessionsTab.tsx     ← Active session list + revoke (53 lines)
+│       ├── UserLoginHistoryTab.tsx ← Login history table (53 lines)
+│       ├── UserPreferencesTab.tsx  ← Theme/lang/notification prefs (82 lines)
 │       └── UserManagementPanel.tsx ← Admin user management (280 lines)
 ```
 
