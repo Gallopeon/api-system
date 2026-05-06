@@ -114,74 +114,94 @@ export function useRules(
   const saveRule = useCallback(
     async (isCreate: boolean) => {
       setBusy(true);
-      try {
-        const payload = {
-          name: ruleName,
-          api_path: apiPath,
-          status: isCreate ? "draft" : ruleStatus,
-          actor: "panel",
-          note: `${isCreate ? "Create" : "Update"} from visual panel`,
-          change_kind: changeKind,
-          config: buildConfig(),
-        };
-        const r = await apiFetch(
-          isCreate ? "/admin/v1/rules" : `/admin/v1/rules/${selectedRuleId}`,
-          { method: isCreate ? "POST" : "PUT", body: JSON.stringify(payload) },
-        );
-        if (!r.ok) {
-          throw new Error(
-            (await r.json())?.message || `Failed (${r.status})`,
-          );
-        }
-        notifySucc(
-          isCreate ? "Rule created successfully!" : "Rule updated successfully!",
-        );
-        await loadRules();
-        if (isCreate) {
+      const previousRules = [...rules];
+      const nowIso = new Date().toISOString();
+
+      if (isCreate) {
+        // Optimistically add a placeholder rule
+        const tempId = `temp-${Date.now()}`;
+        setRules((prev) => [
+          { id: tempId, name: ruleName, api_path: apiPath, status: "draft", current_version: 1, updated_at: nowIso },
+          ...prev,
+        ]);
+        try {
+          const payload = {
+            name: ruleName, api_path: apiPath, status: "draft", actor: "panel",
+            note: "Create from visual panel", change_kind: changeKind, config: buildConfig(),
+          };
+          const r = await apiFetch("/admin/v1/rules", { method: "POST", body: JSON.stringify(payload) });
+          if (!r.ok) throw new Error((await r.json())?.message || `Failed (${r.status})`);
           const d = (await r.json()) as { id: string };
+          notifySucc("Rule created successfully!");
+          // Replace placeholder with real data
+          await loadRules();
           selectRule(d.id);
-        } else {
-          selectRule(selectedRuleId);
+        } catch (e) {
+          setRules(previousRules);
+          notifyError((e as Error).message);
+        } finally {
+          setBusy(false);
         }
-      } catch (e) {
-        notifyError((e as Error).message);
-      } finally {
-        setBusy(false);
+      } else {
+        // Optimistically update existing rule in list
+        setRules((prev) =>
+          prev.map((r) =>
+            r.id === selectedRuleId
+              ? { ...r, name: ruleName, api_path: apiPath, status: ruleStatus, updated_at: nowIso }
+              : r,
+          ),
+        );
+        try {
+          const payload = {
+            name: ruleName, api_path: apiPath, status: ruleStatus, actor: "panel",
+            note: "Update from visual panel", change_kind: changeKind, config: buildConfig(),
+          };
+          const r = await apiFetch(`/admin/v1/rules/${selectedRuleId}`, { method: "PUT", body: JSON.stringify(payload) });
+          if (!r.ok) throw new Error((await r.json())?.message || `Failed (${r.status})`);
+          notifySucc("Rule updated successfully!");
+          await loadRules();
+          selectRule(selectedRuleId);
+        } catch (e) {
+          setRules(previousRules);
+          notifyError((e as Error).message);
+        } finally {
+          setBusy(false);
+        }
       }
     },
-    [
-      ruleName, apiPath, ruleStatus, changeKind, selectedRuleId,
-      buildConfig, loadRules, selectRule, notifyError, notifySucc,
-    ],
+    [rules, ruleName, apiPath, ruleStatus, changeKind, selectedRuleId, buildConfig, loadRules, selectRule, notifyError, notifySucc],
   );
 
   const deleteRule = useCallback(async () => {
     if (!selectedRuleId) return;
     if (!confirm("Are you sure you want to delete this rule?")) return;
     setBusy(true);
+    const previousRules = [...rules];
+    // Optimistically remove from list
+    setRules((prev) => prev.filter((r) => r.id !== selectedRuleId));
+    const deletedId = selectedRuleId;
+    setSelectedRuleId("");
+    setRuleName("");
+    setApiPath("");
+    setRuleStatus("draft");
+    setWhitelist("");
+    setRenames("");
+    setMasked("");
+    setComputed("{}");
+    setConditional("[]");
+    setGray("{}");
     try {
-      const r = await apiFetch(`/admin/v1/rules/${selectedRuleId}`, {
-        method: "DELETE",
-      });
+      const r = await apiFetch(`/admin/v1/rules/${deletedId}`, { method: "DELETE" });
       if (!r.ok) throw new Error("Delete failed");
       notifySucc("Rule deleted successfully!");
-      setSelectedRuleId("");
-      setRuleName("");
-      setApiPath("");
-      setRuleStatus("draft");
-      setWhitelist("");
-      setRenames("");
-      setMasked("");
-      setComputed("{}");
-      setConditional("[]");
-      setGray("{}");
-      await loadRules();
     } catch (e) {
+      // Rollback: restore the rule and its form state
+      setRules(previousRules);
       notifyError((e as Error).message);
     } finally {
       setBusy(false);
     }
-  }, [selectedRuleId, loadRules, notifyError, notifySucc]);
+  }, [rules, selectedRuleId, notifyError, notifySucc]);
 
   const computeDiff = useCallback(async () => {
     if (!selectedRuleId || !fromVer || !toVer) {
