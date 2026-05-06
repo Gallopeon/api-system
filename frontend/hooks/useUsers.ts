@@ -3,7 +3,6 @@ import { apiFetch } from "@/lib/api";
 import type { UserResponse, UserListResponse } from "@/lib/types";
 
 export function useUsers(
-  accessToken?: string,
   notifyError?: (msg: string) => void,
   notifySucc?: (msg: string) => void,
 ) {
@@ -34,7 +33,7 @@ export function useUsers(
       if (filterStatus) params.set("status", filterStatus);
       if (search) params.set("search", search);
       params.set("limit", "50");
-      const r = await apiFetch(`/admin/v1/users?${params.toString()}`, undefined, accessToken);
+      const r = await apiFetch(`/admin/v1/users?${params.toString()}`);
       if (r.ok) {
         const d = (await r.json()) as UserListResponse;
         setUsers(d.items || []);
@@ -44,7 +43,7 @@ export function useUsers(
     } finally {
       setBusy(false);
     }
-  }, [accessToken, filterRole, filterStatus, search]);
+  }, [filterRole, filterStatus, search]);
 
   const createUser = useCallback(async () => {
     if (!newUsername || !newPassword) {
@@ -62,8 +61,11 @@ export function useUsers(
           display_name: newDisplayName || undefined,
           role: newRole,
         }),
-      }, accessToken);
-      if (!r.ok) throw new Error((await r.json())?.message || "Create failed");
+      });
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        throw new Error(body.message || `Create failed (${r.status})`);
+      }
       notifySucc?.("User created");
       setNewUsername("");
       setNewPassword("");
@@ -76,7 +78,7 @@ export function useUsers(
     } finally {
       setBusy(false);
     }
-  }, [newUsername, newPassword, newEmail, newDisplayName, newRole, accessToken, loadUsers, notifyError, notifySucc]);
+  }, [newUsername, newPassword, newEmail, newDisplayName, newRole, loadUsers, notifyError, notifySucc]);
 
   const updateUser = useCallback(
     async (userId: string) => {
@@ -89,8 +91,11 @@ export function useUsers(
         const r = await apiFetch(`/admin/v1/users/${userId}`, {
           method: "PUT",
           body: JSON.stringify(body),
-        }, accessToken);
-        if (!r.ok) throw new Error((await r.json())?.message || "Update failed");
+        });
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}));
+          throw new Error(body.message || `Update failed (${r.status})`);
+        }
         notifySucc?.("User updated");
         setEditUserId("");
         setEditRole("");
@@ -103,7 +108,7 @@ export function useUsers(
         setBusy(false);
       }
     },
-    [editRole, editStatus, editDisplayName, accessToken, loadUsers, notifyError, notifySucc],
+    [editRole, editStatus, editDisplayName, loadUsers, notifyError, notifySucc],
   );
 
   const deleteUser = useCallback(
@@ -113,8 +118,11 @@ export function useUsers(
       try {
         const r = await apiFetch(`/admin/v1/users/${userId}`, {
           method: "DELETE",
-        }, accessToken);
-        if (!r.ok) throw new Error((await r.json())?.message || "Delete failed");
+        });
+        if (!r.ok) {
+          const body = await r.json().catch(() => ({}));
+          throw new Error(body.message || `Delete failed (${r.status})`);
+        }
         notifySucc?.("User deleted");
         await loadUsers();
       } catch (e) {
@@ -123,7 +131,7 @@ export function useUsers(
         setBusy(false);
       }
     },
-    [accessToken, loadUsers, notifyError, notifySucc],
+    [loadUsers, notifyError, notifySucc],
   );
 
   return {

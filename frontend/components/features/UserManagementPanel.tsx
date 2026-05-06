@@ -8,7 +8,7 @@ import { useUsers } from "@/hooks/useUsers";
 import type { UserResponse } from "@/lib/types";
 
 interface UserManagementPanelProps {
-  accessToken?: string;
+  canManage: boolean;
   notifyError: (msg: string) => void;
   notifySucc: (msg: string) => void;
   t: <T>(en: T, zh: T) => T;
@@ -18,13 +18,13 @@ const ROLES = ["admin", "reviewer", "editor", "viewer"];
 const STATUSES = ["active", "disabled"];
 
 export default function UserManagementPanel({
-  accessToken,
+  canManage,
   notifyError,
   notifySucc,
   t,
 }: UserManagementPanelProps) {
   const [showCreate, setShowCreate] = useState(false);
-  const usersHook = useUsers(accessToken, notifyError, notifySucc);
+  const usersHook = useUsers(notifyError, notifySucc);
 
   useEffect(() => {
     usersHook.loadUsers();
@@ -71,9 +71,11 @@ export default function UserManagementPanel({
             {t("Manage users, roles, and access control.", "管理用户、角色和访问控制。")}
           </p>
         </div>
-        <button onClick={() => setShowCreate(!showCreate)} className={btnPrimary}>
-          <Plus className="w-4 h-4 mr-2" /> {t("Create User", "创建用户")}
-        </button>
+        {canManage && (
+          <button onClick={() => setShowCreate(!showCreate)} className={btnPrimary}>
+            <Plus className="w-4 h-4 mr-2" /> {t("Create User", "创建用户")}
+          </button>
+        )}
       </div>
 
       {/* Create User Form */}
@@ -198,9 +200,11 @@ export default function UserManagementPanel({
                   </td>
                   <td className="py-3">
                     <div className="flex space-x-1">
-                      <button onClick={() => usersHook.updateUser(u.id)} disabled={usersHook.busy} className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1">
-                        {t("Save", "保存")}
-                      </button>
+                      {canManage && (
+                        <button onClick={() => usersHook.updateUser(u.id)} disabled={usersHook.busy} className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1">
+                          {t("Save", "保存")}
+                        </button>
+                      )}
                       <button onClick={cancelEdit} className="text-xs text-gray-500 hover:text-gray-700 font-medium px-2 py-1">
                         {t("Cancel", "取消")}
                       </button>
@@ -251,16 +255,18 @@ export default function UserManagementPanel({
                     {u.last_login_at ? new Date(u.last_login_at).toLocaleString() : t("Never", "从未")}
                   </td>
                   <td className="py-3">
-                    <div className="flex space-x-1">
-                      <button onClick={() => startEdit(u)} className="text-blue-500 hover:text-blue-700 p-1" title={t("Edit", "编辑") as string}>
-                        <Edit3 className="w-4 h-4" />
-                      </button>
-                      {u.username !== "admin" && (
-                        <button onClick={() => usersHook.deleteUser(u.id)} className="text-red-500 hover:text-red-700 p-1" title={t("Delete", "删除") as string}>
-                          <Trash2 className="w-4 h-4" />
+                    {canManage && (
+                      <div className="flex space-x-1">
+                        <button onClick={() => startEdit(u)} className="text-blue-500 hover:text-blue-700 p-1" title={t("Edit", "编辑") as string}>
+                          <Edit3 className="w-4 h-4" />
                         </button>
-                      )}
-                    </div>
+                        {u.username !== "admin" && (
+                          <button onClick={() => usersHook.deleteUser(u.id)} className="text-red-500 hover:text-red-700 p-1" title={t("Delete", "删除") as string}>
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </td>
                 </tr>
               ),

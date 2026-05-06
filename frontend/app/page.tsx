@@ -7,6 +7,7 @@ import LoginPage from "@/components/features/LoginPage";
 
 // ---- Foundation ----
 import { getDefaultExpiry } from "@/lib/utils";
+import { hasPermission, PERMISSIONS, type Role } from "@/lib/permissions";
 
 // ---- Hooks ----
 import { useNotification } from "@/hooks/useNotification";
@@ -48,6 +49,7 @@ export default function APIControlCenter() {
   const { lang, setLang } = useI18n();
   const t = useCallback(<T,>(en: T, zh: T): T => (lang === "zh" ? zh : en), [lang]);
   const { data: session, status } = useSession();
+  const userRole = (session?.user?.role as Role) || null;
   const [activeMenu, setActiveMenu] = useState("dashboard");
 
   // Cross-tab state
@@ -125,7 +127,7 @@ export default function APIControlCenter() {
       />
 
       <div className="flex-1 flex overflow-hidden">
-        <Sidebar activeMenu={activeMenu} onMenuSelect={setActiveMenu} metrics={metrics} t={t} />
+        <Sidebar activeMenu={activeMenu} onMenuSelect={setActiveMenu} role={userRole} metrics={metrics} t={t} />
 
         <main className="flex-1 overflow-y-auto p-6 lg:p-10 relative">
           <Toast msg={notif.msg} type={notif.type} onClose={clearNotif} />
@@ -297,7 +299,12 @@ export default function APIControlCenter() {
           )}
 
           {activeMenu === "llmgateway" && (
-            <LlmGatewayPanel isAdmin={session?.user?.role === "admin"} notifyError={notifyError} notifySucc={notifySucc} t={t} />
+            <LlmGatewayPanel
+              canManage={hasPermission(userRole, PERMISSIONS.LlmManage)}
+              notifyError={notifyError}
+              notifySucc={notifySucc}
+              t={t}
+            />
           )}
 
           {activeMenu === "advanced" && (
@@ -338,6 +345,7 @@ export default function APIControlCenter() {
 
           {activeMenu === "user-management" && (
             <UserManagementPanel
+              canManage={hasPermission(userRole, PERMISSIONS.UserManage)}
               notifyError={notifyError}
               notifySucc={notifySucc}
               t={t}

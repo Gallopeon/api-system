@@ -15,14 +15,14 @@ const TABS = [
 const PROVIDER_TYPES = ["openai", "anthropic", "azure", "google", "custom"];
 
 interface PanelProps {
-  isAdmin: boolean;
+  canManage: boolean;
   notifyError: (msg: string) => void;
   notifySucc: (msg: string) => void;
   t: <T>(en: T, zh: T) => T;
   accessToken?: string;
 }
 
-export default function LlmGatewayPanel({ isAdmin, notifyError, notifySucc, t, accessToken }: PanelProps) {
+export default function LlmGatewayPanel({ canManage, notifyError, notifySucc, t, accessToken }: PanelProps) {
   const [activeTab, setActiveTab] = useState("route");
   const hook = useLlmGateway(notifyError, notifySucc, accessToken);
 
@@ -32,7 +32,7 @@ export default function LlmGatewayPanel({ isAdmin, notifyError, notifySucc, t, a
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const st = !isAdmin && activeTab !== "route" ? "route" : activeTab;
+  const st = !canManage && activeTab !== "route" ? "route" : activeTab;
 
   // ── Shared helpers ──
   const statusBadge = (status: string) => (
@@ -231,12 +231,12 @@ export default function LlmGatewayPanel({ isAdmin, notifyError, notifySucc, t, a
   const infoCards = (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
       {[
-        { title: t("Multi-Model Routing", "多模型路由"), desc: t("Route to the best model by cost, latency, and priority. Automatic failover.", "根据成本、延迟和优先级路由到最佳模型，支持自动故障转移。"), icon: Network, color: "purple" },
-        { title: t("Token Cost Tracking", "Token 成本追踪"), desc: t("Track tokens and cost per request with usage logging.", "追踪每次请求的 Token 和成本并记录使用日志。"), icon: DollarSign, color: "blue" },
-        { title: t("Prompt Governance", "Prompt 治理"), desc: t("Versioned templates with variable substitution for prompt engineering.", "版本化模板支持变量替换，便于 Prompt 工程管理。"), icon: FileText, color: "green" },
+        { title: t("Multi-Model Routing", "多模型路由"), desc: t("Route to the best model by cost, latency, and priority. Automatic failover.", "根据成本、延迟和优先级路由到最佳模型，支持自动故障转移。"), icon: Network, color: "border-t-purple-500", iconColor: "text-purple-500" },
+        { title: t("Token Cost Tracking", "Token 成本追踪"), desc: t("Track tokens and cost per request with usage logging.", "追踪每次请求的 Token 和成本并记录使用日志。"), icon: DollarSign, color: "border-t-blue-500", iconColor: "text-blue-500" },
+        { title: t("Prompt Governance", "Prompt 治理"), desc: t("Versioned templates with variable substitution for prompt engineering.", "版本化模板支持变量替换，便于 Prompt 工程管理。"), icon: FileText, color: "border-t-green-500", iconColor: "text-green-500" },
       ].map((c, i) => (
-        <div key={i} className={`${cardClass} border-t-4 border-t-${c.color}-500`}>
-          <c.icon className={`w-6 h-6 text-${c.color}-500 mb-2`} />
+        <div key={i} className={`${cardClass} border-t-4 ${c.color}`}>
+          <c.icon className={`w-6 h-6 ${c.iconColor} mb-2`} />
           <h3 className="font-bold mb-1">{c.title}</h3>
           <p className="text-sm text-gray-500">{c.desc}</p>
         </div>
@@ -253,7 +253,7 @@ export default function LlmGatewayPanel({ isAdmin, notifyError, notifySucc, t, a
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 p-1 rounded-xl">
-        {TABS.filter(tab => !tab.admin || isAdmin).map(tab => (
+        {TABS.filter(tab => !tab.admin || canManage).map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition flex-1 justify-center ${activeTab === tab.id ? "bg-white dark:bg-gray-800 shadow text-gray-900 dark:text-white" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"}`}>
             <tab.icon className="w-4 h-4" />{t(tab.en, tab.zh)}
           </button>

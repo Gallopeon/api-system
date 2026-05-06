@@ -19,9 +19,12 @@ import {
   Users,
 } from "lucide-react";
 
+import { canAccessMenu, type Role } from "@/lib/permissions";
+
 interface SidebarProps {
   activeMenu: string;
   onMenuSelect: (menu: string) => void;
+  role: Role | null;
   metrics: {
     total_rules?: number;
     total_audit_events?: number;
@@ -51,13 +54,14 @@ const menuItems = [
   { id: "system-settings", icon: Settings, en: "System Settings", zh: "系统设置" },
 ];
 
-export default function Sidebar({ activeMenu, onMenuSelect, metrics, t }: SidebarProps) {
+export default function Sidebar({ activeMenu, onMenuSelect, role, metrics, t }: SidebarProps) {
+  const visibleItems = menuItems.filter((m) => canAccessMenu(role, m.id));
   return (
     <aside className="w-64 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-black/20 p-4 space-y-1">
       <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2 mt-4">
         {t("Menu", "菜单")}
       </div>
-      {menuItems.map((m) => (
+      {visibleItems.map((m) => (
         <button
           key={m.id}
           onClick={() => onMenuSelect(m.id)}
