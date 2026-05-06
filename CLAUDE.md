@@ -473,7 +473,7 @@ The old `handlers.rs` monolith (~4600 lines) has been split into per-domain file
 | Approvals | `handlers/approvals.rs` | create/list/get/review_approval |
 | Metrics | `handlers/metrics.rs` | ingest_metrics, get_analytics, get_top_apis, get_api_key_stats, get_metrics_overview |
 | Audit | `handlers/audit.rs` | list_audit_logs |
-| Auth & Users | `handlers/auth_user.rs` | login, CRUD users, profile, password, sessions, login history, TOTP, preferences |
+| Auth & Users | `handlers/auth_user.rs` | login, list_users (with filters), CRUD users, profile, password, sessions, login history, TOTP (setup/verify/disable/status), preferences |
 | Products | `handlers/products.rs` | products CRUD, product subscriptions list |
 | Subscriptions | `handlers/subscriptions.rs` | subscriptions CRUD, usage, upgrade, cancel, renew |
 | Circuit Breakers | `handlers/circuit_breakers.rs` | circuit breaker CRUD |
