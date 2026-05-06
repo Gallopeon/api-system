@@ -187,14 +187,17 @@ export function useAnalytics() {
   const loadAnalytics = useCallback(async () => {
     setAnalyticsBusy(true);
     try {
-      const [aRes, tRes, kRes] = await Promise.all([
-        apiFetch(`/admin/v1/metrics/analytics?hours=${analyticsHours}`),
-        apiFetch(`/admin/v1/metrics/top-apis?hours=${analyticsHours}`),
-        apiFetch(`/admin/v1/metrics/api-key-stats?hours=${analyticsHours}`),
-      ]);
-      if (aRes.ok) setAnalytics((await aRes.json()) as AnalyticsData);
-      if (tRes.ok) setTopApis((await tRes.json()) as TopApisResponse);
-      if (kRes.ok) setKeyStats((await kRes.json()) as ApiKeyStatsResponse);
+      const res = await apiFetch(`/admin/v1/metrics/dashboard?hours=${analyticsHours}`);
+      if (res.ok) {
+        const data = await res.json() as {
+          analytics: AnalyticsData;
+          top_apis: TopApisResponse;
+          api_key_stats: ApiKeyStatsResponse;
+        };
+        setAnalytics(data.analytics);
+        setTopApis(data.top_apis);
+        setKeyStats(data.api_key_stats);
+      }
     } catch {
       /* ignore */
     } finally {

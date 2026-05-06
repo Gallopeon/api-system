@@ -413,7 +413,7 @@ backend/src/
     ├── api_keys.rs       ← create/list/get/update/delete/validate_api_key
     ├── rate_limits.rs    ← create/list/update/delete/check_rate_limit
     ├── approvals.rs      ← create/list/get/review_approval
-    ├── metrics.rs        ← ingest_metrics, get_analytics, get_top_apis, get_api_key_stats, get_metrics_overview
+    ├── metrics.rs        ← ingest_metrics, get_analytics, get_top_apis, get_api_key_stats, get_metrics_overview, get_dashboard
     ├── audit.rs          ← list_audit_logs
     ├── auth_user.rs      ← login, get_my_profile, update_my_profile, change_my_password, list_users, create_user, get_user, update_user, delete_user, session/login_history handlers, TOTP handlers, preferences handlers
     ├── products.rs       ← create/list/get/update/delete_product, list_product_subscriptions (211 lines)
@@ -471,7 +471,7 @@ The old `handlers.rs` monolith (~4600 lines) has been split into per-domain file
 | API Keys | `handlers/api_keys.rs` | create/list/get/update/delete/validate_api_key |
 | Rate Limits | `handlers/rate_limits.rs` | create/list/update/delete/check_rate_limit |
 | Approvals | `handlers/approvals.rs` | create/list/get/review_approval |
-| Metrics | `handlers/metrics.rs` | ingest_metrics, get_analytics, get_top_apis, get_api_key_stats, get_metrics_overview |
+| Metrics | `handlers/metrics.rs` | ingest_metrics, get_analytics, get_top_apis, get_api_key_stats, get_metrics_overview, get_dashboard |
 | Audit | `handlers/audit.rs` | list_audit_logs |
 | Auth & Users | `handlers/auth_user.rs` | login, list_users (with filters), CRUD users, profile, password, sessions, login history, TOTP (setup/verify/disable/status), preferences |
 | Products | `handlers/products.rs` | products CRUD, product subscriptions list |
