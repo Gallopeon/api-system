@@ -60,6 +60,7 @@ pub async fn run() -> anyhow::Result<()> {
         .route("/admin/v1/metrics/analytics", get(get_analytics))
         .route("/admin/v1/metrics/top-apis", get(get_top_apis))
         .route("/admin/v1/metrics/api-key-stats", get(get_api_key_stats))
+        .route("/admin/v1/metrics/dashboard", get(get_dashboard))
         .route("/admin/v1/transform/preview", post(preview_transform))
         .route("/admin/v1/transform/expr-eval", post(eval_expression_handler))
         .route("/admin/v1/openapi.json", get(get_openapi_spec))

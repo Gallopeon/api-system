@@ -89,3 +89,10 @@ pub struct ApiKeyStatsResponse {
     pub items: Vec<ApiKeyStatsItem>,
     pub hours: u32,
 }
+
+#[derive(Debug, Serialize)]
+pub struct DashboardResponse {
+    pub analytics: AnalyticsResponse,
+    pub top_apis: TopApisResponse,
+    pub api_key_stats: ApiKeyStatsResponse,
+}
