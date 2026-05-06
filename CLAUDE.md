@@ -318,6 +318,7 @@ frontend/
 │   ├── api.ts                      ← endpoint(), apiFetch(), getApiToken()
 │   ├── constants.ts                ← cardClass, inputClass, btnPrimary, etc.
 │   ├── types.ts                    ← All shared TypeScript interfaces
+│   ├── permissions.ts              ← Role/Permission enums, hasPermission(), canAccessMenu(). Mirrors backend auth.rs.
 │   └── utils.ts                    ← parseJson, formatRenames, fmtRelativeExpiry, etc.
 ├── hooks/
 │   ├── useNotification.ts          ← Toast notification state (27 lines)
@@ -382,7 +383,7 @@ backend/src/
 ├── lib.rs               ← 174 lines. Module declarations, pub use, run(), router assembly, health checks.
 ├── config.rs            ← 85 lines. AppState, Settings, AuthSettings, env parsing, CORS, tracing.
 ├── db.rs                ← 248 lines. MySQL pool init, bootstrap_schema(), seed_settings(), seed_admin().
-├── auth.rs              ← 325 lines. AuthContext, middleware, JWT, RBAC, permissions. Also defines AppError.
+├── auth.rs              ← 438 lines. AuthContext, middleware, JWT, RBAC, permissions. Also defines AppError.
 ├── types/               ← Request/response structs, split by domain. All under 500 lines.
 │   ├── mod.rs           ← Re-exports all sub-modules.
 │   ├── rule.rs          ← TransformRule, GrayRelease, ConditionalRule, Pagination, all rule request/response types (350 lines).
@@ -442,14 +443,18 @@ When adding new transform/validation/expression logic, add it to the appropriate
 
 - **Router**: Defined in `lib.rs` `run()`. All `/api/v1/*` routes pass through `auth_middleware` (except health/live, health/ready).
 - **Auth**: `AuthContext` extraction via `auth_middleware`. JWT validation (HS256) is always enforced — every request must carry a valid bearer token. RBAC with 4 roles (admin/reviewer/editor/viewer).
-- **Permissions**: 30 granular permissions defined in `auth.rs`. Each handler calls `ensure_permission()` with the appropriate permission. Data plane endpoints (`/api/v1/*`) skip permission checks — they are authenticated by the gateway via API keys.
+- **Permissions**: 31 granular permissions defined in `auth.rs`. Each handler calls `ensure_permission()` with the appropriate permission. Data plane endpoints (`/api/v1/*`) skip permission checks — they are authenticated by the gateway via API keys.
 
 | Role | Capabilities |
 |------|-------------|
-| **Admin** | All permissions (full CRUD, user management, system settings) |
-| **Reviewer** | Read all, publish rules, review approvals, manage LLM, self-profile |
-| **Editor** | Read all, write rules/API keys/rate limits/products/circuit breakers/protocols/classifications/plugins, transform, self-profile. Cannot publish or approve. |
-| **Viewer** | Read-only: rules, API keys, rate limits, approvals, metrics, audit, products, circuit breakers, LLM routing, self-profile. Cannot write, publish, or approve. |
+| **Admin** | All 31 permissions (full CRUD, user management, system settings) |
+| **Reviewer** | Read all, publish rules, review approvals, manage LLM, view user directory (`user:read`), self-profile (`user:self`). Cannot write rules or manage users. |
+| **Editor** | Read all, write rules/API keys/rate limits/products/circuit breakers/protocols/classifications/plugins, transform, view user directory (`user:read`), self-profile (`user:self`). Cannot publish, approve, or manage users. |
+| **Viewer** | Read-only: rules, API keys, rate limits, approvals, metrics, audit, products, circuit breakers, LLM routing, view user directory (`user:read`), self-profile (`user:self`). Cannot write, publish, or approve. |
+
+**New permission**: `UserRead` (`user:read`) — allows viewing the user directory without the ability to create, edit, or delete users. This separates "seeing who is on the team" from "managing accounts". All authenticated roles now have `UserRead`; only Admin has `UserManage`.
+
+**Frontend role gating**: The frontend implements role-based UI hiding via `lib/permissions.ts`. `canAccessMenu(role, menuId)` filters the Sidebar, and individual panels receive `canManage` / `canWrite` props to hide action buttons. Non-admin users never see buttons for operations they cannot perform. This prevents the poor UX of clickable buttons that result in 403 errors.
 - **Database**: MySQL tables auto-created on startup in `db::bootstrap_schema()`: `rule_configs`, `rule_versions`, `audit_logs`, `api_keys`, `rate_limit_configs`, `metrics_ingest`, `approvals`, `llm_providers`, `prompt_templates`, `llm_usage_logs`, `api_products`, `subscriptions`, `circuit_breakers`, `protocol_configs`, `data_classifications`, `plugin_configs`, `users`, `user_sessions`, `login_history`, `user_totp`, `system_settings`. Redis caches rule detail reads (prefix `rule:`, TTL 300s default).
 - **Error handling**: `AppError` enum in `auth.rs` implements `IntoResponse`, mapped to appropriate HTTP status codes.
 - **Audit**: All mutating operations write to `audit_logs` table via `write_audit_log()`.
