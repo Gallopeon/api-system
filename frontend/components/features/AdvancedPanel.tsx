@@ -73,10 +73,10 @@ export default function AdvancedPanel({ accessToken, notifyError, notifySucc, t 
       </div>
 
       {activeTab === "products" && (
-        <AdvancedProductsTab products={prod.products} busy={prod.busy} createProduct={prod.createProduct} updateProduct={prod.updateProduct} deleteProduct={prod.deleteProduct} notifyError={notifyError} t={t} />
+        <AdvancedProductsTab products={prod.products} busy={prod.busy} createProduct={prod.createProduct} updateProduct={prod.updateProduct} toggleProductStatus={prod.toggleProductStatus} deleteProduct={prod.deleteProduct} loadProducts={prod.loadProducts} notifyError={notifyError} t={t} />
       )}
       {activeTab === "subscriptions" && (
-        <AdvancedSubscriptionsTab subscriptions={sub.subscriptions} busy={sub.busy} createSubscription={sub.createSubscription} updateSubscription={sub.updateSubscription} deleteSubscription={sub.deleteSubscription} notifyError={notifyError} t={t} />
+        <AdvancedSubscriptionsTab subscriptions={sub.subscriptions} busy={sub.busy} apiKeys={sub.apiKeys} productsList={sub.products} usageMap={sub.usageMap} loadSubscriptions={sub.loadSubscriptions} loadApiKeys={sub.loadApiKeys} loadProductsList={sub.loadProductsList} createSubscription={sub.createSubscription} updateSubscription={sub.updateSubscription} upgradeSubscription={sub.upgradeSubscription} cancelSubscription={sub.cancelSubscription} renewSubscription={sub.renewSubscription} getSubscriptionUsage={sub.getSubscriptionUsage} deleteSubscription={sub.deleteSubscription} notifyError={notifyError} t={t} />
       )}
       {activeTab === "circuit-breakers" && (
         <AdvancedCircuitBreakersTab cbs={cb.cbs} busy={cb.busy} createCB={cb.createCB} updateCB={cb.updateCB} deleteCB={cb.deleteCB} notifyError={notifyError} t={t} />

@@ -1,82 +1,223 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import { Plus, Edit3, Trash2, Check, X, RefreshCw } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { Plus, Edit3, Trash2, Check, X, RefreshCw, TrendingUp, XCircle, RotateCcw, BarChart3 } from "lucide-react";
 import { cardClass, inputClass, labelClass, btnPrimary, btnSecondary } from "@/lib/constants";
-import type { Subscription } from "@/lib/types";
+import type { Subscription, SubscriptionUsage, ApiKeyItem, ApiProduct } from "@/lib/types";
 
 interface Props {
   subscriptions: Subscription[];
   busy: boolean;
-  createSubscription: (keyId: string, prodId: string, plan: string) => Promise<void>;
+  apiKeys: ApiKeyItem[];
+  productsList: ApiProduct[];
+  usageMap: Record<string, SubscriptionUsage>;
+  loadSubscriptions: () => Promise<void>;
+  loadApiKeys: () => Promise<void>;
+  loadProductsList: () => Promise<void>;
+  createSubscription: (data: Record<string, unknown>) => Promise<void>;
   updateSubscription: (id: string, data: Record<string, unknown>) => Promise<void>;
+  upgradeSubscription: (id: string, plan: string) => Promise<void>;
+  cancelSubscription: (id: string) => Promise<void>;
+  renewSubscription: (id: string, expiresAt: string) => Promise<void>;
+  getSubscriptionUsage: (id: string) => Promise<SubscriptionUsage | null>;
   deleteSubscription: (id: string) => Promise<void>;
   notifyError: (m: string) => void;
   t: <T>(en: T, zh: T) => T;
 }
 
-const statusBadge = (s: string, t: Props["t"]) => (
-  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>
-    {s === "active" ? t("active", "激活") : s}
-  </span>
-);
+const PLAN_LABELS: Record<string, string> = { free: "Free", pro: "Pro", enterprise: "Enterprise" };
 
-const th = (t: string) => <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t}</th>;
-const td = (c: React.ReactNode, cls = "") => <td className={`px-4 py-3 ${cls}`}>{c}</td>;
+const statusBadge = (s: string, t: Props["t"]) => {
+  const colors: Record<string, string> = {
+    active: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400",
+    cancelled: "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400",
+    expired: "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400",
+    suspended: "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400",
+  };
+  return <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${colors[s] || colors.suspended}`}>{s}</span>;
+};
 
-export default function AdvancedSubscriptionsTab({ subscriptions, busy, createSubscription, updateSubscription, deleteSubscription, notifyError, t }: Props) {
+const th = (t: string) => <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t}</th>;
+const td = (c: React.ReactNode, cls = "") => <td className={`px-3 py-3 ${cls}`}>{c}</td>;
+
+export default function AdvancedSubscriptionsTab(props: Props) {
+  const { subscriptions, busy, apiKeys, productsList, usageMap, loadSubscriptions, loadApiKeys, loadProductsList, createSubscription, updateSubscription, upgradeSubscription, cancelSubscription, renewSubscription, getSubscriptionUsage, deleteSubscription, notifyError, t } = props;
   const [show, setShow] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [keyId, setKeyId] = useState(""); const [prodId, setProdId] = useState(""); const [plan, setPlan] = useState("free");
-  const [eKey, setEKey] = useState(""); const [eProd, setEProd] = useState(""); const [ePlan, setEPlan] = useState("free");
+  const [showRenew, setShowRenew] = useState<string | null>(null);
+  const [renewDate, setRenewDate] = useState("");
 
-  const startEdit = (s: Subscription) => { setEditId(s.id); setEKey(s.api_key_id); setEProd(s.product_id); setEPlan(s.plan); };
+  // Create form
+  const [keyId, setKeyId] = useState(""); const [prodId, setProdId] = useState("");
+  const [plan, setPlan] = useState("free"); const [rps, setRps] = useState("");
+  const [quota, setQuota] = useState(""); const [expiry, setExpiry] = useState("");
+
+  // Edit form
+  const [ePlan, setEPlan] = useState("free"); const [eRps, setERps] = useState("");
+  const [eQuota, setEQuota] = useState(""); const [eExpiry, setEExpiry] = useState("");
+
+  useEffect(() => {
+    loadApiKeys(); loadProductsList();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const getKeyName = (keyId: string) => apiKeys.find(k => k.id === keyId)?.name || keyId.substring(0, 12) + "...";
+  const getProductName = (prodId: string) => productsList.find(p => p.id === prodId)?.name || prodId.substring(0, 12) + "...";
+
+  const startEdit = (s: Subscription) => {
+    setEditId(s.id); setEPlan(s.plan); setERps(s.rate_limit_rps?.toString() || "");
+    setEQuota(s.quota_daily?.toString() || ""); setEExpiry(s.expires_at || "");
+  };
 
   const saveEdit = useCallback(async () => {
     if (!editId) return;
-    await updateSubscription(editId, { api_key_id: eKey.trim(), product_id: eProd.trim(), plan: ePlan });
+    const data: Record<string, unknown> = { plan: ePlan };
+    if (eRps) data.rate_limit_rps = parseInt(eRps);
+    if (eQuota) data.quota_daily = parseInt(eQuota);
+    if (eExpiry) data.expires_at = eExpiry;
+    await updateSubscription(editId, data);
     setEditId(null);
-  }, [editId, eKey, eProd, ePlan, updateSubscription]);
+  }, [editId, ePlan, eRps, eQuota, eExpiry, updateSubscription]);
 
   const handleCreate = useCallback(async () => {
-    if (!keyId.trim() || !prodId.trim()) { notifyError("API Key ID and Product ID are required"); return; }
-    await createSubscription(keyId.trim(), prodId.trim(), plan);
-    setKeyId(""); setProdId(""); setPlan("free"); setShow(false);
-  }, [keyId, prodId, plan, createSubscription, notifyError]);
+    if (!keyId || !prodId) { notifyError("API Key and Product are required"); return; }
+    const data: Record<string, unknown> = { api_key_id: keyId, product_id: prodId, plan };
+    if (rps) data.rate_limit_rps = parseInt(rps);
+    if (quota) data.quota_daily = parseInt(quota);
+    if (expiry) data.expires_at = expiry;
+    await createSubscription(data);
+    setKeyId(""); setProdId(""); setPlan("free"); setRps(""); setQuota(""); setExpiry(""); setShow(false);
+  }, [keyId, prodId, plan, rps, quota, expiry, createSubscription, notifyError]);
+
+  const handleRenew = useCallback(async () => {
+    if (!showRenew || !renewDate) return;
+    await renewSubscription(showRenew, renewDate);
+    setShowRenew(null); setRenewDate("");
+  }, [showRenew, renewDate, renewSubscription]);
+
+  const renderUsage = (s: Subscription) => {
+    const u = usageMap[s.id];
+    if (!u || u.quota_used_pct === null) return <span className="text-gray-400 text-xs">—</span>;
+    const pct = u.quota_used_pct;
+    const barColor = pct > 90 ? "bg-red-500" : pct > 70 ? "bg-amber-500" : "bg-emerald-500";
+    return (
+      <div className="flex items-center gap-2 min-w-[100px]">
+        <div className="flex-1 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+        </div>
+        <span className={`text-[10px] font-medium ${pct > 90 ? "text-red-500" : pct > 70 ? "text-amber-500" : "text-emerald-500"}`}>{pct}%</span>
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
-        <div><h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t("Subscriptions", "订阅管理")}</h2><p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t("Manage API product subscriptions with tiered plans.", "管理 API 产品订阅，支持分层套餐。")}</p></div>
+        <div>
+          <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t("Subscriptions", "订阅管理")}</h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t("Manage API product subscriptions with tiered plans, quotas, and lifecycle controls.", "管理 API 产品订阅，支持分层套餐、配额和生命周期控制。")}</p>
+        </div>
         <button className={btnPrimary} onClick={() => setShow(!show)} disabled={busy}><Plus className="w-4 h-4 mr-1" />{t("Create", "创建")}</button>
       </div>
+
       {show && (
         <div className={`${cardClass} space-y-4`}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div><label className={labelClass}>{t("API Key ID", "API Key ID")} <span className="text-red-500">*</span></label><input className={inputClass} value={keyId} onChange={e => setKeyId(e.target.value)} placeholder="key-abc123" /></div>
-            <div><label className={labelClass}>{t("Product ID", "产品 ID")} <span className="text-red-500">*</span></label><input className={inputClass} value={prodId} onChange={e => setProdId(e.target.value)} placeholder="prod-xyz" /></div>
+            <div>
+              <label className={labelClass}>{t("API Key", "API Key")} <span className="text-red-500">*</span></label>
+              <select className={inputClass} value={keyId} onChange={e => setKeyId(e.target.value)}>
+                <option value="">{t("Select API Key…", "选择 API Key…")}</option>
+                {apiKeys.filter(k => k.status === "active").map(k => <option key={k.id} value={k.id}>{k.name} ({k.key_prefix}…)</option>)}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>{t("Product", "产品")} <span className="text-red-500">*</span></label>
+              <select className={inputClass} value={prodId} onChange={e => setProdId(e.target.value)}>
+                <option value="">{t("Select Product…", "选择产品…")}</option>
+                {productsList.filter(p => p.status === "active").map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </div>
             <div><label className={labelClass}>{t("Plan", "套餐")}</label><select className={inputClass} value={plan} onChange={e => setPlan(e.target.value)}><option value="free">{t("Free", "免费")}</option><option value="pro">{t("Pro", "专业")}</option><option value="enterprise">{t("Enterprise", "企业")}</option></select></div>
+            <div><label className={labelClass}>{t("Rate Limit (RPS)", "速率限制 (RPS)")}</label><input className={inputClass} type="number" value={rps} onChange={e => setRps(e.target.value)} placeholder="100" /></div>
+            <div><label className={labelClass}>{t("Daily Quota", "每日配额")}</label><input className={inputClass} type="number" value={quota} onChange={e => setQuota(e.target.value)} placeholder="10000" /></div>
+            <div><label className={labelClass}>{t("Expires At", "过期时间")}</label><input className={inputClass} type="date" value={expiry} onChange={e => setExpiry(e.target.value)} /></div>
           </div>
           <div className="flex gap-2"><button className={btnPrimary} onClick={handleCreate} disabled={busy}>{busy ? t("Creating…", "创建中…") : t("Save Subscription", "保存订阅")}</button><button className={btnSecondary} onClick={() => setShow(false)}>{t("Cancel", "取消")}</button></div>
         </div>
       )}
+
       {subscriptions.length === 0 ? (
         <div className={`${cardClass} text-center py-10 text-gray-400`}><RefreshCw className="w-10 h-10 mx-auto mb-3 opacity-40" /><p className="text-sm">{t("No items found", "暂无数据")}</p></div>
       ) : (
-        <div className={`${cardClass} p-0 overflow-hidden`}>
-          <table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800"><tr>{[t("API Key ID", "API Key ID"), t("Product ID", "产品 ID"), t("Plan", "套餐"), t("Status", "状态"), t("Created", "创建时间"), t("Actions", "操作")].map(h => th(h))}</tr></thead>
+        <div className={`${cardClass} p-0 overflow-x-auto`}>
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800">
+              <tr>{[t("API Key", "API Key"), t("Product", "产品"), t("Plan", "套餐"), t("Rate/QoS", "速率/配额"), t("Usage", "用量"), t("Expires", "过期"), t("Status", "状态"), t("Actions", "操作")].map(h => th(h))}</tr>
+            </thead>
             <tbody className="divide-y dark:divide-gray-800">
               {subscriptions.map(s => (
                 <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition">
                   {editId === s.id ? (
-                    <>{td(<input className={inputClass} value={eKey} onChange={e => setEKey(e.target.value)} />)}{td(<input className={inputClass} value={eProd} onChange={e => setEProd(e.target.value)} />)}{td(<select className={inputClass} value={ePlan} onChange={e => setEPlan(e.target.value)}><option value="free">{t("Free", "免费")}</option><option value="pro">{t("Pro", "专业")}</option><option value="enterprise">{t("Enterprise", "企业")}</option></select>)}{td(statusBadge(s.status, t))}{td(<span className="text-gray-500 text-xs">{new Date(s.created_at).toLocaleDateString()}</span>)}{td(<div className="flex gap-1"><button className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg" onClick={saveEdit}><Check className="w-3.5 h-3.5" /></button><button className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" onClick={() => setEditId(null)}><X className="w-3.5 h-3.5" /></button></div>)}</>
+                    <>
+                      {td(<span className="font-mono text-xs text-gray-600">{getKeyName(s.api_key_id)}</span>)}
+                      {td(<span className="text-xs text-gray-600">{getProductName(s.product_id)}</span>)}
+                      {td(<select className={inputClass} value={ePlan} onChange={e => setEPlan(e.target.value)}><option value="free">{t("Free", "免费")}</option><option value="pro">{t("Pro", "专业")}</option><option value="enterprise">{t("Enterprise", "企业")}</option></select>)}
+                      {td(<div className="flex gap-1"><input className={inputClass} type="number" value={eRps} onChange={e => setERps(e.target.value)} placeholder="RPS" style={{ width: 70 }} /><input className={inputClass} type="number" value={eQuota} onChange={e => setEQuota(e.target.value)} placeholder="Qty" style={{ width: 70 }} /></div>)}
+                      {td(<span className="text-xs">—</span>)}
+                      {td(<input className={inputClass} type="date" value={eExpiry} onChange={e => setEExpiry(e.target.value)} />)}
+                      {td(statusBadge(s.status, t))}
+                      {td(<div className="flex gap-1"><button className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg" onClick={saveEdit}><Check className="w-3.5 h-3.5" /></button><button className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" onClick={() => setEditId(null)}><X className="w-3.5 h-3.5" /></button></div>)}
+                    </>
                   ) : (
-                    <>{td(<span className="font-mono text-xs text-gray-600 dark:text-gray-400">{s.api_key_id}</span>)}{td(<span className="font-mono text-xs text-gray-600 dark:text-gray-400">{s.product_id}</span>)}{td(<span className="capitalize font-medium">{s.plan}</span>)}{td(statusBadge(s.status, t))}{td(<span className="text-gray-500 text-xs">{new Date(s.created_at).toLocaleDateString()}</span>)}{td(<div className="flex items-center gap-1"><button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(s)}><Edit3 className="w-3.5 h-3.5" /></button><button className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" onClick={() => deleteSubscription(s.id)} disabled={busy}><Trash2 className="w-3.5 h-3.5" /></button></div>)}</>
+                    <>
+                      {td(<span className="font-mono text-xs text-gray-600 dark:text-gray-400" title={s.api_key_id}>{getKeyName(s.api_key_id)}</span>)}
+                      {td(<span className="text-xs font-medium text-gray-700 dark:text-gray-300">{getProductName(s.product_id)}</span>)}
+                      {td(<span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold capitalize ${s.plan === "enterprise" ? "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" : s.plan === "pro" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>{PLAN_LABELS[s.plan] || s.plan}</span>)}
+                      {td(<div className="flex flex-col gap-0.5 text-[10px] text-gray-500">{s.rate_limit_rps ? <span>{t("RPS", "速率")}: {s.rate_limit_rps}</span> : null}{s.quota_daily ? <span>{t("Qty", "配额")}: {s.quota_daily.toLocaleString()}/day</span> : null}{!s.rate_limit_rps && !s.quota_daily && <span className="text-gray-400">—</span>}</div>)}
+                      {td(renderUsage(s))}
+                      {td(<span className={`text-xs ${s.expires_at && new Date(s.expires_at) < new Date() ? "text-red-500 font-medium" : "text-gray-500"}`}>{s.expires_at ? new Date(s.expires_at).toLocaleDateString() : <span className="text-gray-400">{t("Never", "无限制")}</span>}</span>)}
+                      {td(statusBadge(s.status, t))}
+                      {td(
+                        <div className="flex items-center gap-0.5">
+                          {/* Usage lookup */}
+                          <button className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => getSubscriptionUsage(s.id)} title={t("Check Usage", "查看用量")}><BarChart3 className="w-3.5 h-3.5" /></button>
+                          {/* Edit */}
+                          <button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(s)} title={t("Edit", "编辑")}><Edit3 className="w-3.5 h-3.5" /></button>
+                          {/* Upgrade/Downgrade */}
+                          {s.status === "active" && (
+                            <select className="text-[10px] px-1 py-1 rounded border border-gray-200 dark:border-gray-700 dark:bg-gray-800" value="" onChange={e => { if (e.target.value) upgradeSubscription(s.id, e.target.value); }}>
+                              <option value="">{t("Upgrade", "升降")}</option>
+                              {["free", "pro", "enterprise"].filter(v => v !== s.plan).map(v => <option key={v} value={v}>{PLAN_LABELS[v]}</option>)}
+                            </select>
+                          )}
+                          {/* Renew */}
+                          {s.status === "active" && (
+                            <button className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 transition" onClick={() => { setShowRenew(s.id); setRenewDate(""); }} title={t("Renew", "续期")}><RotateCcw className="w-3.5 h-3.5" /></button>
+                          )}
+                          {/* Cancel */}
+                          {s.status === "active" && (
+                            <button className="p-1.5 rounded-lg text-amber-500 hover:bg-amber-50 dark:hover:bg-amber-900/20 transition" onClick={() => cancelSubscription(s.id)} title={t("Cancel", "取消订阅")} disabled={busy}><XCircle className="w-3.5 h-3.5" /></button>
+                          )}
+                          {/* Delete */}
+                          <button className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" onClick={() => deleteSubscription(s.id)} disabled={busy} title={t("Delete", "删除")}><Trash2 className="w-3.5 h-3.5" /></button>
+                        </div>
+                      )}
+                    </>
                   )}
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {/* Renew modal */}
+      {showRenew && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+          <div className={`${cardClass} w-80 space-y-4`}>
+            <h3 className="text-lg font-semibold">{t("Renew Subscription", "续期订阅")}</h3>
+            <div><label className={labelClass}>{t("New Expiry Date", "新过期日期")}</label><input className={inputClass} type="date" value={renewDate} onChange={e => setRenewDate(e.target.value)} /></div>
+            <div className="flex gap-2 justify-end"><button className={btnPrimary} onClick={handleRenew} disabled={busy || !renewDate}>{t("Renew", "续期")}</button><button className={btnSecondary} onClick={() => setShowRenew(null)}>{t("Cancel", "取消")}</button></div>
+          </div>
         </div>
       )}
     </div>

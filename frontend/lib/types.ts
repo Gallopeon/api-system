@@ -246,7 +246,20 @@ export type ApiProduct = {
   description: string | null;
   rule_ids: string[] | null;
   status: string;
+  tags: string[] | null;
+  documentation_url: string | null;
+  pricing_tiers: PricingTier[] | null;
+  owner: string;
   created_at: string;
+  updated_at: string;
+};
+
+export type PricingTier = {
+  name: string;
+  rate_limit_rps: number;
+  quota_daily: number;
+  quota_monthly: number;
+  price_monthly: number;
 };
 
 export type Subscription = {
@@ -259,6 +272,15 @@ export type Subscription = {
   status: string;
   expires_at: string | null;
   created_at: string;
+};
+
+export type SubscriptionUsage = {
+  subscription_id: string;
+  api_key_id: string;
+  calls_24h: number;
+  calls_today: number;
+  quota_daily: number | null;
+  quota_used_pct: number | null;
 };
 
 export type CircuitBreaker = {
