@@ -207,9 +207,41 @@ pub async fn list_users(State(state): State<Arc<AppState>>, Extension(auth): Ext
     ensure_permission(&auth, Permission::UserRead)?;
     let limit = query.limit.unwrap_or(20).clamp(1, 100);
     let offset = query.offset.unwrap_or(0);
-    let rows = sqlx::query(
-        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, last_login_at, created_at, updated_at FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?"
-    ).bind(limit).bind(offset).fetch_all(&state.pool).await?;
+
+    let mut where_clauses: Vec<String> = Vec::new();
+    let mut params: Vec<String> = Vec::new();
+
+    if let Some(ref role) = query.role {
+        where_clauses.push("role = ?".to_string());
+        params.push(role.clone());
+    }
+    if let Some(ref status) = query.status {
+        where_clauses.push("status = ?".to_string());
+        params.push(status.clone());
+    }
+    if let Some(ref search) = query.search {
+        where_clauses.push("(username LIKE ? OR email LIKE ?)".to_string());
+        let pattern = format!("%{}%", search);
+        params.push(pattern.clone());
+        params.push(pattern);
+    }
+
+    let where_sql = if where_clauses.is_empty() {
+        String::new()
+    } else {
+        format!("WHERE {} ", where_clauses.join(" AND "))
+    };
+
+    let sql = format!(
+        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, last_login_at, created_at, updated_at FROM users {}ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        where_sql
+    );
+
+    let mut q = sqlx::query(&sql);
+    for p in &params {
+        q = q.bind(p);
+    }
+    let rows = q.bind(limit).bind(offset).fetch_all(&state.pool).await?;
     let items: Vec<UserResponse> = rows.iter().map(|r| row_to_user(r)).collect();
     Ok(Json(UserListResponse { items, limit, offset }))
 }
@@ -265,6 +297,14 @@ pub async fn delete_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
     }
     sqlx::query("DELETE FROM users WHERE id = ?").bind(&id).execute(&state.pool).await?;
     Ok(Json(json!({"deleted": true})))
+}
+
+pub async fn get_totp_status(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
+    let row = sqlx::query("SELECT enabled FROM user_totp WHERE user_id = (SELECT id FROM users WHERE username = ?)")
+        .bind(&auth.subject).fetch_optional(&state.pool).await?;
+    let enabled = row.map_or(0, |r| r.try_get::<i8, _>("enabled").unwrap_or(0));
+    Ok(Json(json!({ "enabled": enabled == 1 })))
 }
 
 pub async fn setup_totp(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
