@@ -57,7 +57,10 @@ export function useRules(
     setSelectedRuleId(id);
     if (!id) return;
     try {
-      const res = await apiFetch(`/admin/v1/rules/${id}`);
+      const [res, vRes] = await Promise.all([
+        apiFetch(`/admin/v1/rules/${id}`),
+        apiFetch(`/admin/v1/rules/${id}/versions`),
+      ]);
       if (res.ok) {
         const d = (await res.json()) as RuleDetail;
         setRuleName(d.name);
@@ -76,7 +79,6 @@ export function useRules(
         );
         setRemoveNulls(!!c.remove_nulls);
       }
-      const vRes = await apiFetch(`/admin/v1/rules/${id}/versions`);
       if (vRes.ok) {
         const v = (await vRes.json()) as RuleVersionsResponse;
         setVersions(v.items || []);
