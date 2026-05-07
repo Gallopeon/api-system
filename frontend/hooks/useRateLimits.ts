@@ -29,10 +29,11 @@ export function useRateLimits(
         const d = (await r.json()) as RateLimitListResponse;
         setRateLimits(d.items || []);
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      notifyError("Failed to load rate limits");
+      console.error("loadRateLimits failed:", e);
     }
-  }, []);
+  }, [notifyError]);
 
   const createRateLimit = useCallback(async () => {
     if (!rlName.trim() || !rlApiPath.trim()) {

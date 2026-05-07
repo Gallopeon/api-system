@@ -38,8 +38,9 @@ export function useUsers(
         const d = (await r.json()) as UserListResponse;
         setUsers(d.items || []);
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      notifyError?.("Failed to load users");
+      console.error("loadUsers failed:", e);
     } finally {
       setBusy(false);
     }

@@ -25,9 +25,10 @@ export function useDashboard(notifyError?: (msg: string) => void) {
       ]);
       setLiveState(live.ok ? "ok" : `err:${live.status}`);
       setReadyState(ready.ok ? "ready" : `degraded:${ready.status}`);
-    } catch {
+    } catch (e) {
       setLiveState("down");
       setReadyState("down");
+      console.error("Health check failed:", e);
     }
   }, []);
 

@@ -16,10 +16,11 @@ export function useUserProfile(
       if (r.ok) {
         setProfile(await r.json());
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      notifyError?.("Failed to load profile");
+      console.error("loadProfile failed:", e);
     }
-  }, [accessToken]);
+  }, [accessToken, notifyError]);
 
   const updateProfile = useCallback(
     async (data: { email?: string; display_name?: string; avatar_url?: string }) => {
@@ -80,10 +81,11 @@ export function useSessions(
         const d = await r.json();
         setSessions(d.items || []);
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      notifyError?.("Failed to load sessions");
+      console.error("loadSessions failed:", e);
     }
-  }, [accessToken]);
+  }, [accessToken, notifyError]);
 
   const revokeSession = useCallback(
     async (sessionId: string) => {
@@ -114,8 +116,8 @@ export function useLoginHistory(accessToken?: string) {
         const d = await r.json();
         setLoginHistory(d.items || []);
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      console.error("loadLoginHistory failed:", e);
     }
   }, [accessToken]);
 
@@ -139,10 +141,11 @@ export function useTotp(
         const d = await r.json();
         setTotpEnabled(d.enabled === true);
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      notifyError?.("Failed to check TOTP status");
+      console.error("checkTotpStatus failed:", e);
     }
-  }, []);
+  }, [notifyError]);
 
   const setupTotp = useCallback(async () => {
     setTotpBusy(true);
@@ -218,8 +221,8 @@ export function usePreferences(
         const d = await r.json();
         setPrefs(d.preferences || {});
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      console.error("loadPreferences failed:", e);
     }
   }, [accessToken]);
 
@@ -235,8 +238,8 @@ export function usePreferences(
           setPrefs(d.preferences || {});
           notifySucc?.("Preferences saved");
         }
-      } catch {
-        /* ignore */
+      } catch (e) {
+        console.error("savePreferences failed:", e);
       }
     },
     [accessToken, notifySucc],

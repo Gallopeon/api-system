@@ -137,8 +137,9 @@ export function usePlayground(
             ),
           );
         }
-      } catch {
+      } catch (e) {
         fail++;
+        console.error("batch transform entry failed:", e);
         setPgEntries((prev) =>
           prev.map((en) =>
             en.id === entry.id ? { ...en, busy: false } : en,

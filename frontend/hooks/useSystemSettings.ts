@@ -25,8 +25,9 @@ export function useSystemSettings(
         const d = await r.json();
         setSettings(d.items || []);
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      notifyError?.("Failed to load system settings");
+      console.error("loadSettings failed:", e);
     } finally {
       setBusy(false);
     }

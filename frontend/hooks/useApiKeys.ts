@@ -23,10 +23,11 @@ export function useApiKeys(
         const d = (await r.json()) as ApiKeyListResponse;
         setApiKeys(d.items || []);
       }
-    } catch {
-      /* ignore */
+    } catch (e) {
+      notifyError("Failed to load API keys");
+      console.error("loadApiKeys failed:", e);
     }
-  }, []);
+  }, [notifyError]);
 
   const createApiKey = useCallback(async () => {
     if (!akName.trim()) {
