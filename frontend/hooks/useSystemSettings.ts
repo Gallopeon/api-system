@@ -17,7 +17,7 @@ export function useSystemSettings(
 ) {
   const [busy, setBusy] = useState(false);
 
-  const { data: settings = [], mutate } = useSWR<SystemSettingItem[]>(
+  const { data, mutate } = useSWR<{ items: SystemSettingItem[] }>(
     "/admin/v1/system/settings",
     swrFetcher,
     {
@@ -28,6 +28,7 @@ export function useSystemSettings(
       },
     },
   );
+  const settings: SystemSettingItem[] = data?.items ?? [];
 
   const updateSetting = useCallback(
     async (key: string, value: string) => {
