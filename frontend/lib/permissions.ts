@@ -59,7 +59,6 @@ function rolePermissions(role: Role): Set<Permission> {
         PERMISSIONS.MetricsRead,
         PERMISSIONS.AuditRead,
         PERMISSIONS.LlmRoute,
-        PERMISSIONS.LlmManage,
         PERMISSIONS.ProductsRead,
         PERMISSIONS.CircuitBreakersRead,
         PERMISSIONS.ProtocolsRead,
@@ -86,6 +85,7 @@ function rolePermissions(role: Role): Set<Permission> {
         PERMISSIONS.MetricsRead,
         PERMISSIONS.AuditRead,
         PERMISSIONS.LlmRoute,
+        PERMISSIONS.LlmManage,
         PERMISSIONS.ProductsRead,
         PERMISSIONS.ProductsWrite,
         PERMISSIONS.CircuitBreakersRead,
@@ -143,20 +143,26 @@ export function canAccessMenu(role: Role | undefined | null, menuId: string): bo
     playground: [PERMISSIONS.TransformPreview],
     "api-builder": [PERMISSIONS.RuleWrite],
     openapi: [PERMISSIONS.OpenApiRead],
-    apikeys: [PERMISSIONS.ApiKeyRead],
+    apikeys: [PERMISSIONS.ApiKeyWrite],
     approvals: [PERMISSIONS.ApprovalRead],
     analytics: [PERMISSIONS.MetricsRead],
-    ratelimits: [PERMISSIONS.RateLimitRead],
+    ratelimits: [PERMISSIONS.RateLimitWrite],
     audit: [PERMISSIONS.AuditRead],
     llmgateway: [PERMISSIONS.LlmRoute],
-    advanced: [PERMISSIONS.ProductsRead],
+    advanced: [
+      PERMISSIONS.ProductsWrite,
+      PERMISSIONS.CircuitBreakersWrite,
+      PERMISSIONS.ProtocolsWrite,
+      PERMISSIONS.ClassificationsWrite,
+      PERMISSIONS.PluginsWrite,
+    ],
     portal: [PERMISSIONS.OpenApiRead],
     manual: [],
     "user-center": [PERMISSIONS.UserSelf],
-    "user-management": [PERMISSIONS.UserRead],
-    "system-settings": [PERMISSIONS.SystemRead],
+    "user-management": [PERMISSIONS.UserManage],
+    "system-settings": [PERMISSIONS.SystemWrite],
   };
   const required = map[menuId];
   if (!required || required.length === 0) return true;
-  return required.every((p) => hasPermission(role, p));
+  return required.some((p) => hasPermission(role, p));
 }
