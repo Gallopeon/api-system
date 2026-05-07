@@ -51,7 +51,11 @@ pub async fn run() -> anyhow::Result<()> {
 
     // Spawn metrics background flusher
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(false);
-    let flusher_handle = tokio::spawn(handlers::run_metrics_flusher(pool, redis, shutdown_rx));
+    let flusher_handle = tokio::spawn(engine::run_metrics_flusher(pool.clone(), redis.clone(), shutdown_rx));
+
+    // Spawn metrics hourly aggregator
+    let (agg_shutdown_tx, agg_shutdown_rx) = tokio::sync::watch::channel(false);
+    let aggregator_handle = tokio::spawn(engine::run_metrics_aggregator(pool.clone(), agg_shutdown_rx));
 
     let admin_router = Router::new()
         .route("/admin/v1/rules", post(create_rule).get(list_rules))
@@ -149,10 +153,14 @@ pub async fn run() -> anyhow::Result<()> {
         })
         .await?;
 
-    // Signal metrics flusher to shut down and wait for final flush
+    // Signal background tasks to shut down
     let _ = shutdown_tx.send(true);
     let _ = flusher_handle.await;
     info!("metrics flusher stopped");
+
+    let _ = agg_shutdown_tx.send(true);
+    let _ = aggregator_handle.await;
+    info!("metrics aggregator stopped");
     Ok(())
 }
 

@@ -5,6 +5,7 @@ pub mod diff;
 pub mod validation;
 pub mod openapi;
 pub mod crypto;
+pub mod metrics;
 
 pub use transform::*;
 pub use expression::*;
@@ -13,3 +14,4 @@ pub use diff::*;
 pub use validation::*;
 pub use openapi::*;
 pub use crypto::*;
+pub use metrics::*;

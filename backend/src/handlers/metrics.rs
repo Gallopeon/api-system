@@ -8,10 +8,9 @@ use sqlx::Row;
 use crate::AppState;
 use crate::types::*;
 use crate::auth::*;
+use crate::engine::*;
 
 const METRICS_BUFFER_KEY: &str = "metrics:buffer";
-const METRICS_FLUSH_BATCH: usize = 1000;
-const METRICS_FLUSH_INTERVAL_SECS: u64 = 30;
 
 pub async fn ingest_metrics(
     State(state): State<Arc<AppState>>,
@@ -27,87 +26,6 @@ pub async fn ingest_metrics(
     Ok(Json(json!({"ingested": true})))
 }
 
-/// Background task: periodically flush metrics from Redis buffer to MySQL.
-pub async fn run_metrics_flusher(pool: sqlx::MySqlPool, redis: redis::Client, mut shutdown: tokio::sync::watch::Receiver<bool>) {
-    let mut interval = tokio::time::interval(std::time::Duration::from_secs(METRICS_FLUSH_INTERVAL_SECS));
-    loop {
-        tokio::select! {
-            _ = interval.tick() => {
-                if let Err(e) = flush_metrics_buffer(&pool, &redis).await {
-                    tracing::warn!(error = %e, "metrics flush failed");
-                }
-            }
-            _ = shutdown.changed() => {
-                tracing::info!("metrics flusher shutting down, final flush...");
-                if let Err(e) = flush_metrics_buffer(&pool, &redis).await {
-                    tracing::warn!(error = %e, "final metrics flush failed");
-                }
-                break;
-            }
-        }
-    }
-}
-
-async fn flush_metrics_buffer(pool: &sqlx::MySqlPool, redis: &redis::Client) -> Result<(), AppError> {
-    let mut conn = redis.get_multiplexed_async_connection().await?;
-
-    // Atomically pop a batch from the buffer
-    let items: Vec<String> = redis::cmd("LRANGE")
-        .arg(METRICS_BUFFER_KEY)
-        .arg(0)
-        .arg(METRICS_FLUSH_BATCH as i64 - 1)
-        .query_async(&mut conn)
-        .await?;
-
-    if items.is_empty() {
-        return Ok(());
-    }
-
-    // Trim the buffer (remove the items we just read)
-    let _: () = redis::cmd("LTRIM")
-        .arg(METRICS_BUFFER_KEY)
-        .arg(items.len() as i64)
-        .arg(-1)
-        .query_async(&mut conn)
-        .await?;
-
-    let mut batch = Vec::with_capacity(items.len());
-    for item in items {
-        if let Ok(req) = serde_json::from_str::<IngestMetricsRequest>(&item) {
-            batch.push(req);
-        }
-    }
-
-    if batch.is_empty() {
-        return Ok(());
-    }
-
-    // Build batch INSERT: VALUES (?, ?, ...), (?, ?, ...), ...
-    let mut query_str = String::from(
-        "INSERT INTO metrics_ingest (api_path, method, status_code, latency_ms, client_ip, api_key_id, timestamp) VALUES "
-    );
-    let mut first = true;
-    for _ in &batch {
-        if !first { query_str.push_str(", "); }
-        query_str.push_str("(?, ?, ?, ?, ?, ?, NOW())");
-        first = false;
-    }
-
-    let mut q = sqlx::query(&query_str);
-    for req in &batch {
-        q = q.bind(&req.api_path)
-            .bind(&req.method)
-            .bind(req.status_code)
-            .bind(req.latency_ms)
-            .bind(&req.client_ip)
-            .bind(&req.api_key_id);
-    }
-
-    q.execute(pool).await?;
-    tracing::info!(count = batch.len(), "metrics batch inserted");
-    Ok(())
-}
-
 pub async fn get_analytics(
     State(state): State<Arc<AppState>>,
     Extension(auth): Extension<AuthContext>,
@@ -116,7 +34,11 @@ pub async fn get_analytics(
     ensure_permission(&auth, Permission::MetricsRead)?;
     let hours = query.hours.unwrap_or(24);
 
-    // Parallel queries: aggregated stats, hourly breakdown, status distribution
+    // Try cache first
+    if let Ok(Some(cached)) = get_cached_analytics(&state.redis, hours).await {
+        return Ok(Json(cached));
+    }
+
     let (agg_row, hourly_rows, status_rows) = tokio::try_join!(
         sqlx::query(
             "SELECT COUNT(*) as total, COALESCE(AVG(latency_ms), 0) as avg_latency, \
@@ -139,13 +61,8 @@ pub async fn get_analytics(
     let avg_latency: f64 = agg_row.try_get("avg_latency").unwrap_or(0.0);
     let error_rate: f64 = agg_row.try_get("error_rate").unwrap_or(0.0);
 
-    // Compute P95 / P99 using offset-based percentile queries
     let (p95, p99) = if total > 0 {
-        let p95_offset = ((total as f64) * 0.95).floor() as i64;
-        let p99_offset = ((total as f64) * 0.99).floor() as i64;
-        let p95_offset = p95_offset.max(0).min(total - 1);
-        let p99_offset = p99_offset.max(0).min(total - 1);
-
+        let (p95_offset, p99_offset) = compute_p95_p99_offsets(total);
         let (p95_res, p99_res) = tokio::try_join!(
             sqlx::query_scalar::<_, i32>(
                 "SELECT latency_ms FROM metrics_ingest \
@@ -175,7 +92,7 @@ pub async fn get_analytics(
         count: r.try_get("count").unwrap_or(0),
     }).collect();
 
-    Ok(Json(AnalyticsResponse {
+    let response = AnalyticsResponse {
         total_requests: total,
         avg_latency_ms: avg_latency,
         p95_latency_ms: p95,
@@ -184,7 +101,12 @@ pub async fn get_analytics(
         requests_by_hour,
         top_apis: vec![],
         status_distribution,
-    }))
+    };
+
+    // Write to cache (best-effort)
+    let _ = cache_analytics(&state.redis, hours, &response).await;
+
+    Ok(Json(response))
 }
 
 pub async fn get_top_apis(
@@ -249,7 +171,6 @@ pub async fn get_metrics_overview(
     }))
 }
 
-// Aggregated dashboard endpoint: returns analytics + top_apis + api_key_stats in one request
 pub async fn get_dashboard(
     State(state): State<Arc<AppState>>,
     Extension(auth): Extension<AuthContext>,
@@ -258,7 +179,6 @@ pub async fn get_dashboard(
     ensure_permission(&auth, Permission::MetricsRead)?;
     let hours = query.hours.unwrap_or(24);
 
-    // Parallel execution of all three data sources
     let (analytics, top_apis, api_key_stats) = tokio::try_join!(
         analytics_inner(&state, hours),
         top_apis_inner(&state, hours),
@@ -272,7 +192,6 @@ pub async fn get_dashboard(
     }))
 }
 
-// Internal helper: analytics logic without auth check (assumes already authorized)
 async fn analytics_inner(
     state: &AppState,
     hours: u32,
@@ -300,11 +219,7 @@ async fn analytics_inner(
     let error_rate: f64 = agg_row.try_get("error_rate").unwrap_or(0.0);
 
     let (p95, p99) = if total > 0 {
-        let p95_offset = ((total as f64) * 0.95).floor() as i64;
-        let p99_offset = ((total as f64) * 0.99).floor() as i64;
-        let p95_offset = p95_offset.max(0).min(total - 1);
-        let p99_offset = p99_offset.max(0).min(total - 1);
-
+        let (p95_offset, p99_offset) = compute_p95_p99_offsets(total);
         let (p95_res, p99_res) = tokio::try_join!(
             sqlx::query_scalar::<_, i32>(
                 "SELECT latency_ms FROM metrics_ingest \

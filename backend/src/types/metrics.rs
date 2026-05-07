@@ -43,7 +43,7 @@ pub struct AnalyticsQuery {
     pub api_path: Option<String>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AnalyticsResponse {
     pub total_requests: i64,
     pub avg_latency_ms: f64,
@@ -55,21 +55,21 @@ pub struct AnalyticsResponse {
     pub status_distribution: Vec<StatusBucket>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct HourlyBucket {
     pub hour: String,
     pub count: i64,
     pub avg_latency: f64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TopApiItem {
     pub api_path: String,
     pub count: i64,
     pub avg_latency: f64,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StatusBucket {
     pub status_code: i32,
     pub count: i64,
