@@ -25,7 +25,7 @@ export default function UserCenterPanel({
     useUserProfile(accessToken, notifyError, notifySucc);
   const { sessions, loadSessions, revokeSession } = useSessions(accessToken, notifyError, notifySucc);
   const { loginHistory, loadLoginHistory } = useLoginHistory(accessToken);
-  const { totpBusy, totpSecret, totpEnabled, setupTotp, verifyTotp, disableTotp, checkTotpStatus } =
+  const { totpBusy, totpSecret, totpQrUrl, totpEnabled, setupTotp, verifyTotp, disableTotp, checkTotpStatus } =
     useTotp(accessToken, notifyError, notifySucc);
   const { prefs, loadPreferences, savePreferences } = usePreferences(accessToken, notifySucc);
 
@@ -172,6 +172,7 @@ export default function UserCenterPanel({
         <UserTotpTab
           totpEnabled={totpEnabled}
           totpSecret={totpSecret}
+          totpQrUrl={totpQrUrl}
           totpBusy={totpBusy}
           totpCode={totpCode}
           setTotpCode={setTotpCode}

@@ -6,6 +6,7 @@ import { cardClass, inputClass, btnPrimary } from "@/lib/constants";
 interface Props {
   totpEnabled: boolean;
   totpSecret: string | null;
+  totpQrUrl: string | null;
   totpBusy: boolean;
   totpCode: string;
   setTotpCode: (v: string) => void;
@@ -16,7 +17,7 @@ interface Props {
 }
 
 export default function UserTotpTab({
-  totpEnabled, totpSecret, totpBusy, totpCode, setTotpCode,
+  totpEnabled, totpSecret, totpQrUrl, totpBusy, totpCode, setTotpCode,
   setupTotp, verifyTotp, disableTotp, t,
 }: Props) {
   return (
@@ -40,11 +41,15 @@ export default function UserTotpTab({
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
               {t("Scan this QR code with your authenticator app:", "使用认证器 App 扫描此二维码：")}
             </p>
-            <div className="w-45 h-45 border rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
-              <p className="text-xs text-gray-500 text-center p-4">
-                {t("Open your authenticator app and enter the secret key manually.", "打开认证器 App 并手动输入下方密钥。")}
-              </p>
-            </div>
+            {totpQrUrl ? (
+              <img src={totpQrUrl} alt="TOTP QR Code" className="w-48 h-48 rounded-lg border" />
+            ) : (
+              <div className="w-48 h-48 border rounded-lg bg-gray-100 dark:bg-gray-800 flex items-center justify-center">
+                <p className="text-xs text-gray-500 text-center p-4">
+                  {t("Loading QR code...", "正在加载二维码...")}
+                </p>
+              </div>
+            )}
             <p className="text-xs text-gray-400 mt-2 break-all font-mono">
               {t("Secret key:", "密钥：")} {totpSecret}
             </p>
