@@ -39,69 +39,7 @@ pub async fn get_analytics(
         return Ok(Json(cached));
     }
 
-    let (agg_row, hourly_rows, status_rows) = tokio::try_join!(
-        sqlx::query(
-            "SELECT COUNT(*) as total, COALESCE(AVG(latency_ms), 0) as avg_latency, \
-             COALESCE(SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) * 1.0 / NULLIF(COUNT(*), 0), 0) as error_rate \
-             FROM metrics_ingest WHERE timestamp >= (NOW() - INTERVAL ? HOUR)"
-        ).bind(hours).fetch_one(&state.pool),
-        sqlx::query(
-            "SELECT HOUR(timestamp) as hour, COUNT(*) as count, COALESCE(AVG(latency_ms), 0) as avg_latency \
-             FROM metrics_ingest WHERE timestamp >= (NOW() - INTERVAL ? HOUR) \
-             GROUP BY HOUR(timestamp) ORDER BY hour"
-        ).bind(hours).fetch_all(&state.pool),
-        sqlx::query(
-            "SELECT status_code, COUNT(*) as count \
-             FROM metrics_ingest WHERE timestamp >= (NOW() - INTERVAL ? HOUR) \
-             GROUP BY status_code ORDER BY count DESC"
-        ).bind(hours).fetch_all(&state.pool),
-    ).map_err(|e: sqlx::Error| AppError::Internal(format!("analytics query failed: {}", e)))?;
-
-    let total: i64 = agg_row.try_get("total").unwrap_or(0);
-    let avg_latency: f64 = agg_row.try_get("avg_latency").unwrap_or(0.0);
-    let error_rate: f64 = agg_row.try_get("error_rate").unwrap_or(0.0);
-
-    let (p95, p99) = if total > 0 {
-        let (p95_offset, p99_offset) = compute_p95_p99_offsets(total);
-        let (p95_res, p99_res) = tokio::try_join!(
-            sqlx::query_scalar::<_, i32>(
-                "SELECT latency_ms FROM metrics_ingest \
-                 WHERE timestamp >= (NOW() - INTERVAL ? HOUR) \
-                 ORDER BY latency_ms LIMIT 1 OFFSET ?"
-            ).bind(hours).bind(p95_offset).fetch_optional(&state.pool),
-            sqlx::query_scalar::<_, i32>(
-                "SELECT latency_ms FROM metrics_ingest \
-                 WHERE timestamp >= (NOW() - INTERVAL ? HOUR) \
-                 ORDER BY latency_ms LIMIT 1 OFFSET ?"
-            ).bind(hours).bind(p99_offset).fetch_optional(&state.pool),
-        ).map_err(|e: sqlx::Error| AppError::Internal(format!("percentile query failed: {}", e)))?;
-
-        (p95_res.unwrap_or(0) as i64, p99_res.unwrap_or(0) as i64)
-    } else {
-        (0, 0)
-    };
-
-    let requests_by_hour: Vec<HourlyBucket> = hourly_rows.iter().map(|r| HourlyBucket {
-        hour: format!("{:02}:00", r.try_get::<u8, _>("hour").unwrap_or(0)),
-        count: r.try_get("count").unwrap_or(0),
-        avg_latency: r.try_get("avg_latency").unwrap_or(0.0),
-    }).collect();
-
-    let status_distribution: Vec<StatusBucket> = status_rows.iter().map(|r| StatusBucket {
-        status_code: r.try_get("status_code").unwrap_or(0),
-        count: r.try_get("count").unwrap_or(0),
-    }).collect();
-
-    let response = AnalyticsResponse {
-        total_requests: total,
-        avg_latency_ms: avg_latency,
-        p95_latency_ms: p95,
-        p99_latency_ms: p99,
-        error_rate,
-        requests_by_hour,
-        top_apis: vec![],
-        status_distribution,
-    };
+    let response = analytics_inner(&state, hours).await?;
 
     // Write to cache (best-effort)
     let _ = cache_analytics(&state.redis, hours, &response).await;
@@ -196,27 +134,72 @@ async fn analytics_inner(
     state: &AppState,
     hours: u32,
 ) -> Result<AnalyticsResponse, AppError> {
-    let (agg_row, hourly_rows, status_rows) = tokio::try_join!(
-        sqlx::query(
-            "SELECT COUNT(*) as total, COALESCE(AVG(latency_ms), 0) as avg_latency, \
-             COALESCE(SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) * 1.0 / NULLIF(COUNT(*), 0), 0) as error_rate \
-             FROM metrics_ingest WHERE timestamp >= (NOW() - INTERVAL ? HOUR)"
-        ).bind(hours).fetch_one(&state.pool),
-        sqlx::query(
-            "SELECT HOUR(timestamp) as hour, COUNT(*) as count, COALESCE(AVG(latency_ms), 0) as avg_latency \
-             FROM metrics_ingest WHERE timestamp >= (NOW() - INTERVAL ? HOUR) \
-             GROUP BY HOUR(timestamp) ORDER BY hour"
-        ).bind(hours).fetch_all(&state.pool),
-        sqlx::query(
-            "SELECT status_code, COUNT(*) as count \
-             FROM metrics_ingest WHERE timestamp >= (NOW() - INTERVAL ? HOUR) \
-             GROUP BY status_code ORDER BY count DESC"
-        ).bind(hours).fetch_all(&state.pool),
-    ).map_err(|e: sqlx::Error| AppError::Internal(format!("analytics query failed: {}", e)))?;
+    // Single merged query using pre-aggregated summary table + current hour raw data.
+    // Replaces 3 separate parallel queries (agg, hourly, status) with one round-trip.
+    let rows = sqlx::query(
+        "SELECT \
+           HOUR(hour_bucket) as hour, \
+           SUM(request_count) as scnt, \
+           SUM(request_count * avg_latency_ms) as weighted_lat, \
+           status_code, \
+           SUM(error_count) as errs \
+         FROM metrics_hourly_summary \
+         WHERE hour_bucket >= DATE_FORMAT(NOW() - INTERVAL ? HOUR, '%Y-%m-%d %H:00:00') \
+           AND hour_bucket < DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00') \
+         GROUP BY hour_bucket, status_code \
+         UNION ALL \
+         SELECT \
+           HOUR(timestamp) as hour, \
+           COUNT(*) as scnt, \
+           SUM(latency_ms) as weighted_lat, \
+           status_code, \
+           SUM(CASE WHEN status_code >= 400 THEN 1 ELSE 0 END) as errs \
+         FROM metrics_ingest \
+         WHERE timestamp >= DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00') \
+         GROUP BY DATE_FORMAT(timestamp, '%Y-%m-%d %H'), status_code \
+         ORDER BY hour, scnt DESC"
+    ).bind(hours).fetch_all(&state.pool).await
+    .map_err(|e: sqlx::Error| AppError::Internal(format!("analytics query failed: {}", e)))?;
 
-    let total: i64 = agg_row.try_get("total").unwrap_or(0);
-    let avg_latency: f64 = agg_row.try_get("avg_latency").unwrap_or(0.0);
-    let error_rate: f64 = agg_row.try_get("error_rate").unwrap_or(0.0);
+    // Compute aggregates, hourly breakdown, and status distribution in Rust
+    let mut total = 0i64;
+    let mut weighted_lat_sum = 0f64;
+    let mut total_errs = 0i64;
+    let mut hourly_map: std::collections::BTreeMap<String, (i64, f64)> = std::collections::BTreeMap::new();
+    let mut status_map: std::collections::BTreeMap<i32, i64> = std::collections::BTreeMap::new();
+
+    for row in &rows {
+        let wlat: f64 = row.try_get("weighted_lat").unwrap_or(0.0);
+        let sc: i32 = row.try_get("status_code").unwrap_or(0);
+        let scnt: i64 = row.try_get("scnt").unwrap_or(0);
+        let errs: i64 = row.try_get("errs").unwrap_or(0);
+        let hour: u8 = row.try_get("hour").unwrap_or(0);
+
+        total += scnt;
+        weighted_lat_sum += wlat;
+        total_errs += errs;
+
+        let hkey = format!("{:02}:00", hour);
+        let entry = hourly_map.entry(hkey).or_default();
+        entry.0 += scnt;
+        entry.1 += wlat;
+
+        *status_map.entry(sc).or_default() += scnt;
+    }
+
+    let avg_latency = if total > 0 { weighted_lat_sum / total as f64 } else { 0.0 };
+    let error_rate = if total > 0 { total_errs as f64 / total as f64 } else { 0.0 };
+
+    let requests_by_hour: Vec<HourlyBucket> = hourly_map.into_iter().map(|(hour, (count, wlat))| HourlyBucket {
+        count,
+        avg_latency: if count > 0 { wlat / count as f64 } else { 0.0 },
+        hour,
+    }).collect();
+
+    let status_distribution: Vec<StatusBucket> = status_map.into_iter().map(|(code, count)| StatusBucket {
+        status_code: code,
+        count,
+    }).collect();
 
     let (p95, p99) = if total > 0 {
         let (p95_offset, p99_offset) = compute_p95_p99_offsets(total);
@@ -237,17 +220,6 @@ async fn analytics_inner(
     } else {
         (0, 0)
     };
-
-    let requests_by_hour: Vec<HourlyBucket> = hourly_rows.iter().map(|r| HourlyBucket {
-        hour: format!("{:02}:00", r.try_get::<u8, _>("hour").unwrap_or(0)),
-        count: r.try_get("count").unwrap_or(0),
-        avg_latency: r.try_get("avg_latency").unwrap_or(0.0),
-    }).collect();
-
-    let status_distribution: Vec<StatusBucket> = status_rows.iter().map(|r| StatusBucket {
-        status_code: r.try_get("status_code").unwrap_or(0),
-        count: r.try_get("count").unwrap_or(0),
-    }).collect();
 
     Ok(AnalyticsResponse {
         total_requests: total,
