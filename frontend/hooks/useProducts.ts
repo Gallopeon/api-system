@@ -18,7 +18,7 @@ export function useProducts(
         const d = await r.json();
         setProducts((d as { items?: ApiProduct[] }).items || []);
       }
-    } catch { /* ignore */ }
+    } catch (e) { notifyError?.("Failed to load products"); console.error("loadProducts failed:", e); }
   }, [accessToken]);
 
   const createProduct = useCallback(async (data: Record<string, unknown>) => {

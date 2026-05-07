@@ -50,12 +50,12 @@ export function useApiBuilder(
     try {
       const saved = localStorage.getItem(AB_STORAGE);
       if (saved) setAbPresets(JSON.parse(saved));
-    } catch { /* ignore */ }
+    } catch (e) { console.error("Failed to load presets from localStorage:", e); }
   }, []);
 
   // Auto-save to localStorage
   useEffect(() => {
-    try { localStorage.setItem(AB_STORAGE, JSON.stringify(abPresets)); } catch { /* ignore */ }
+    try { localStorage.setItem(AB_STORAGE, JSON.stringify(abPresets)); } catch (e) { console.error("Failed to save presets to localStorage:", e); }
   }, [abPresets, AB_STORAGE]);
 
   const resetAbCrud = useCallback(() => {
@@ -198,7 +198,7 @@ export function useApiBuilder(
           setAbEntries((prev) => prev.map((en) => en.id === entry.id ? { ...en, output: JSON.stringify(d, null, 2), busy: false } : en));
           ok++;
         } else { fail++; setAbEntries((prev) => prev.map((en) => en.id === entry.id ? { ...en, busy: false } : en)); }
-      } catch { fail++; setAbEntries((prev) => prev.map((en) => en.id === entry.id ? { ...en, busy: false } : en)); }
+      } catch (e) { fail++; setAbEntries((prev) => prev.map((en) => en.id === entry.id ? { ...en, busy: false } : en)); console.error("batch transform entry failed:", e); }
     }
     if (fail === 0) notifySucc(t(`All ${ok} entries OK`, `全部 ${ok} 个条目成功`));
     else notifyError(t(`${ok} ok, ${fail} failed`, `${ok} 成功, ${fail} 失败`));

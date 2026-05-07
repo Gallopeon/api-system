@@ -20,8 +20,8 @@ export function useSubscriptions(
         const d = await r.json();
         setSubscriptions((d as { items?: Subscription[] }).items || []);
       }
-    } catch { /* ignore */ }
-  }, [accessToken]);
+    } catch (e) { notifyError?.("Failed to load subscriptions"); console.error("loadSubscriptions failed:", e); }
+  }, [accessToken, notifyError]);
 
   const loadApiKeys = useCallback(async () => {
     try {
@@ -30,8 +30,8 @@ export function useSubscriptions(
         const d = await r.json();
         setApiKeys((d as { items?: ApiKeyItem[] }).items || []);
       }
-    } catch { /* ignore */ }
-  }, [accessToken]);
+    } catch (e) { notifyError?.("Failed to load API keys"); console.error("loadApiKeys failed:", e); }
+  }, [accessToken, notifyError]);
 
   const loadProducts = useCallback(async () => {
     try {
@@ -40,8 +40,8 @@ export function useSubscriptions(
         const d = await r.json();
         setProductsList((d as { items?: ApiProduct[] }).items || []);
       }
-    } catch { /* ignore */ }
-  }, [accessToken]);
+    } catch (e) { notifyError?.("Failed to load products"); console.error("loadProducts failed:", e); }
+  }, [accessToken, notifyError]);
 
   const createSubscription = useCallback(async (data: Record<string, unknown>) => {
     if (!(data.api_key_id as string)?.trim() || !(data.product_id as string)?.trim()) {
@@ -110,7 +110,7 @@ export function useSubscriptions(
         setUsageMap((prev) => ({ ...prev, [id]: d }));
         return d;
       }
-    } catch { /* ignore */ }
+    } catch (e) { notifyError?.("Failed to load usage"); console.error("getUsage failed:", e); }
     return null;
   }, [accessToken]);
 

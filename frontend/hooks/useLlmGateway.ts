@@ -52,15 +52,15 @@ export function useLlmGateway(
     try {
       const r = await apiFetch("/admin/v1/llm/providers", {}, accessToken);
       if (r.ok) { const d = await r.json(); setProviders(d.items || []); }
-    } catch { /* ignore */ }
-  }, [accessToken]);
+    } catch (e) { notifyError("Failed to load providers"); console.error("loadProviders failed:", e); }
+  }, [accessToken, notifyError]);
 
   const loadTemplates = useCallback(async () => {
     try {
       const r = await apiFetch("/admin/v1/llm/prompt-templates", {}, accessToken);
       if (r.ok) { const d = await r.json(); setTemplates(d.items || []); }
-    } catch { /* ignore */ }
-  }, [accessToken]);
+    } catch (e) { notifyError("Failed to load templates"); console.error("loadTemplates failed:", e); }
+  }, [accessToken, notifyError]);
 
   const saveProvider = useCallback(async () => {
     if (!pName.trim() || !pEndpoint.trim() || !pModel.trim()) {
