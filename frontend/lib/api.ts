@@ -8,6 +8,10 @@
 
 const inFlight = new Map<string, Promise<Response>>();
 
+/** GET response cache with TTL (default 30s). Invalidated on mutation. */
+const cache = new Map<string, { response: Response; ts: number }>();
+const CACHE_TTL_MS = 30_000;
+
 function dedupKey(path: string, init: RequestInit): string {
   const method = init.method || "GET";
   const body = typeof init.body === "string" ? init.body : "";
@@ -29,6 +33,26 @@ export async function apiFetch(
   }
 
   const key = dedupKey(path, init);
+  const method = init.method || "GET";
+
+  // Invalidate cache entries for this path on mutations
+  if (method !== "GET") {
+    for (const [k, v] of cache) {
+      if (k.includes(path.split("?")[0])) {
+        cache.delete(k);
+      }
+    }
+  }
+
+  // Serve from cache for GET requests
+  if (method === "GET") {
+    const cached = cache.get(key);
+    if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+      return cached.response.clone();
+    }
+  }
+
+  // In-flight dedup (all methods)
   const existing = inFlight.get(key);
   if (existing) {
     return existing.then((r) => r.clone());
@@ -37,11 +61,25 @@ export async function apiFetch(
   const promise = fetch(endpoint(path), { ...init, headers });
   inFlight.set(key, promise);
 
-  promise.finally(() => {
+  promise.then((r) => {
+    inFlight.delete(key);
+    // Cache successful GET responses
+    if (method === "GET" && r.ok) {
+      // Only cache if the response is cloneable (not consumed)
+      try {
+        cache.set(key, { response: r.clone(), ts: Date.now() });
+      } catch { /* some responses can't be cloned */ }
+    }
+  }).catch(() => {
     inFlight.delete(key);
   });
 
   return promise;
+}
+
+/** Clear all cached GET responses. Call after mutations for aggressive invalidation. */
+export function clearApiCache(): void {
+  cache.clear();
 }
 
 /** @deprecated JWT is no longer exposed to the client. Returns undefined. */

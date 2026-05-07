@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Settings, Lock, Edit3, X, Check } from "lucide-react";
 import { cardClass, inputClass, labelClass, btnPrimary, btnSecondary } from "@/lib/constants";
 import { useSystemSettings, type SystemSettingItem } from "@/hooks/useSystemSettings";
@@ -31,15 +31,10 @@ export default function SystemSettingsPanel({
   notifySucc,
   t,
 }: SystemSettingsPanelProps) {
-  const { settings, busy, loadSettings, updateSetting } =
+  const { settings, busy, updateSetting, mutate } =
     useSystemSettings(accessToken, notifyError, notifySucc);
   const [editKey, setEditKey] = useState("");
   const [editVal, setEditVal] = useState("");
-
-  useEffect(() => {
-    loadSettings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const startEdit = (s: SystemSettingItem) => {
     setEditKey(s.key);
@@ -71,7 +66,7 @@ export default function SystemSettingsPanel({
             )}
           </p>
         </div>
-        <button onClick={loadSettings} className={btnSecondary} disabled={busy}>
+        <button onClick={() => mutate()} className={btnSecondary} disabled={busy}>
           {t("Refresh", "刷新")}
         </button>
       </div>
