@@ -154,3 +154,48 @@ pub async fn cache_analytics(redis: &redis::Client, hours: u32, data: &Analytics
     let _: () = conn.set_ex(&key, payload, ANALYTICS_CACHE_TTL).await?;
     Ok(())
 }
+
+const RETENTION_DAYS: u32 = 30;
+const RETENTION_BATCH_SIZE: u64 = 5000;
+const RETENTION_INTERVAL_HOURS: u64 = 6;
+
+/// Background task that periodically deletes old metrics rows to prevent
+/// unbounded table growth. Runs every 6 hours, removes data older than 30 days
+/// in batches to avoid long table locks.
+pub async fn run_metrics_retention(pool: sqlx::MySqlPool, mut shutdown: tokio::sync::watch::Receiver<bool>) {
+    let mut interval = tokio::time::interval(std::time::Duration::from_secs(RETENTION_INTERVAL_HOURS * 3600));
+    loop {
+        tokio::select! {
+            _ = interval.tick() => {
+                if let Err(e) = purge_old_metrics(&pool).await {
+                    tracing::warn!(error = %e, "metrics retention purge failed");
+                }
+            }
+            _ = shutdown.changed() => {
+                tracing::info!("metrics retention shutting down");
+                break;
+            }
+        }
+    }
+}
+
+async fn purge_old_metrics(pool: &sqlx::MySqlPool) -> Result<(), AppError> {
+    let mut total_deleted = 0u64;
+    loop {
+        let result = sqlx::query(
+            "DELETE FROM metrics_ingest WHERE timestamp < (NOW() - INTERVAL ? DAY) LIMIT ?"
+        ).bind(RETENTION_DAYS).bind(RETENTION_BATCH_SIZE).execute(pool).await?;
+
+        let affected = result.rows_affected();
+        if affected == 0 {
+            break;
+        }
+        total_deleted += affected;
+        // Brief pause between batches to let other queries breathe
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    if total_deleted > 0 {
+        tracing::info!(deleted = total_deleted, retention_days = RETENTION_DAYS, "metrics retention purge completed");
+    }
+    Ok(())
+}
