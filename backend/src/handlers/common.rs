@@ -98,6 +98,33 @@ pub async fn invalidate_all_rules_cache(redis: &redis::Client) -> Result<(), App
     Ok(())
 }
 
+pub const RULES_META_KEY: &str = "rules:meta";
+
+/// Store one rule's metadata in the Redis Hash.
+pub async fn cache_rule_meta(redis: &redis::Client, item: &RuleSummary) -> Result<(), AppError> {
+    let mut conn = redis.get_multiplexed_async_connection().await?;
+    let payload = serde_json::to_string(item)?;
+    let _: () = conn.hset(RULES_META_KEY, &item.id, payload).await?;
+    Ok(())
+}
+
+/// Remove one rule's metadata from the Redis Hash.
+pub async fn invalidate_rule_meta(redis: &redis::Client, id: &str) -> Result<(), AppError> {
+    let mut conn = redis.get_multiplexed_async_connection().await?;
+    let _: () = conn.hdel(RULES_META_KEY, id).await?;
+    Ok(())
+}
+
+/// Get all rules metadata from the Redis Hash. Returns empty Vec if key doesn't exist.
+pub async fn get_all_rules_meta(redis: &redis::Client) -> Result<Vec<RuleSummary>, AppError> {
+    let mut conn = redis.get_multiplexed_async_connection().await?;
+    let raw: Vec<(String, String)> = conn.hgetall(RULES_META_KEY).await.unwrap_or_default();
+    let items: Vec<RuleSummary> = raw.into_iter()
+        .filter_map(|(_, json)| serde_json::from_str(&json).ok())
+        .collect();
+    Ok(items)
+}
+
 pub async fn load_rule_config_by_id(pool: &MySqlPool, rule_id: &str) -> Result<TransformRule, AppError> {
     let row = sqlx::query(
         "SELECT v.config_text, c.status FROM rule_versions v JOIN rule_configs c ON v.rule_id = c.id WHERE v.rule_id = ? AND c.status = 'published' ORDER BY v.version DESC LIMIT 1"

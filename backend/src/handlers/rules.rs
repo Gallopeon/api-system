@@ -45,9 +45,14 @@ pub async fn create_rule(
     if let Err(e) = cache_rule(&state.redis, state.cache_ttl_seconds, &detail).await {
         warn!(error = %e, rule_id = %id, "cache write failed");
     }
-    // Invalidate full list cache so next list_rules sees the new rule
-    if let Err(e) = invalidate_all_rules_cache(&state.redis).await {
-        warn!(error = %e, "all-rules cache invalidate failed");
+    // Add to Redis Hash metadata cache
+    let meta = RuleSummary {
+        id: id.clone(), name: payload.name.clone(), api_path: payload.api_path.clone(),
+        current_version: 1, status: status.clone(),
+        updated_at: Utc::now().to_rfc3339(),
+    };
+    if let Err(e) = cache_rule_meta(&state.redis, &meta).await {
+        warn!(error = %e, "rule meta cache write failed");
     }
     write_audit_log(&state.pool, AuditEntry {
         rule_id: Some(id.clone()), action: "rule_create".to_string(), actor,
@@ -102,8 +107,14 @@ pub async fn update_rule(
     if let Err(e) = cache_rule(&state.redis, state.cache_ttl_seconds, &detail).await {
         warn!(error = %e, rule_id = %id, "cache write failed");
     }
-    if let Err(e) = invalidate_all_rules_cache(&state.redis).await {
-        warn!(error = %e, "all-rules cache invalidate failed");
+    // Update Redis Hash metadata cache in-place
+    let meta = RuleSummary {
+        id: id.clone(), name: detail.name.clone(), api_path: detail.api_path.clone(),
+        current_version: new_ver, status: detail.status.clone(),
+        updated_at: detail.updated_at.clone(),
+    };
+    if let Err(e) = cache_rule_meta(&state.redis, &meta).await {
+        warn!(error = %e, "rule meta cache update failed");
     }
     write_audit_log(&state.pool, AuditEntry {
         rule_id: Some(id.clone()), action: "rule_update".to_string(), actor,
@@ -161,8 +172,8 @@ pub async fn delete_rule(
     sqlx::query("DELETE FROM rule_configs WHERE id = ?").bind(&id).execute(&mut *tx).await?;
     tx.commit().await?;
     invalidate_cache(&state.redis, &id).await.unwrap_or_else(|e| warn!(error = %e, "cache invalidate failed"));
-    if let Err(e) = invalidate_all_rules_cache(&state.redis).await {
-        warn!(error = %e, "all-rules cache invalidate failed");
+    if let Err(e) = invalidate_rule_meta(&state.redis, &id).await {
+        warn!(error = %e, "rule meta cache delete failed");
     }
     let actor = resolve_actor(&auth, None);
     write_audit_log(&state.pool, AuditEntry {
@@ -183,14 +194,22 @@ pub async fn list_rules(
     let status_filter = query.status.unwrap_or_default();
     let name_filter = query.name.unwrap_or_default();
     let api_path_filter = query.api_path.unwrap_or_default();
-
     let has_filters = !status_filter.is_empty() || !name_filter.is_empty() || !api_path_filter.is_empty();
 
-    // Cache only unfiltered full list (most common case)
-    if !has_filters {
-        if let Ok(Some(cached)) = get_cached_all_rules(&state.redis).await {
-            let total = cached.len() as i64;
-            let items: Vec<RuleSummary> = cached.into_iter()
+    // Try Redis Hash metadata cache first
+    if let Ok(cached) = get_all_rules_meta(&state.redis).await {
+        if !cached.is_empty() {
+            let filtered: Vec<RuleSummary> = if has_filters {
+                cached.into_iter().filter(|r| {
+                    (status_filter.is_empty() || r.status == status_filter)
+                    && (name_filter.is_empty() || r.name.to_lowercase().contains(&name_filter.to_lowercase()))
+                    && (api_path_filter.is_empty() || r.api_path.to_lowercase().contains(&api_path_filter.to_lowercase()))
+                }).collect()
+            } else {
+                cached
+            };
+            let total = filtered.len() as i64;
+            let items: Vec<RuleSummary> = filtered.into_iter()
                 .skip(offset as usize)
                 .take(limit as usize)
                 .collect();
@@ -198,6 +217,7 @@ pub async fn list_rules(
         }
     }
 
+    // Fallback to MySQL on cache miss
     let like_name = format!("%{}%", &name_filter);
     let like_path = format!("%{}%", &api_path_filter);
 
@@ -235,9 +255,12 @@ pub async fn list_rules(
         updated_at: r.try_get::<DateTime<Utc>, _>("updated_at").map(|d| d.to_rfc3339()).unwrap_or_default(),
     }).collect();
 
-    // Cache the unfiltered full list for subsequent cache hits
-    if !has_filters {
-        let all_items: Vec<RuleSummary> = rows.into_iter().map(|r| RuleSummary {
+    // Rebuild Redis Hash metadata cache with ALL rules (not just the current page)
+    let all_rows = sqlx::query(
+        "SELECT id, name, api_path, current_version, status, updated_at FROM rule_configs ORDER BY updated_at DESC"
+    ).fetch_all(&state.pool).await;
+    if let Ok(all) = all_rows {
+        let all_items: Vec<RuleSummary> = all.iter().map(|r| RuleSummary {
             id: r.try_get("id").unwrap_or_default(),
             name: r.try_get("name").unwrap_or_default(),
             api_path: r.try_get("api_path").unwrap_or_default(),
@@ -245,9 +268,12 @@ pub async fn list_rules(
             status: r.try_get("status").unwrap_or_default(),
             updated_at: r.try_get::<DateTime<Utc>, _>("updated_at").map(|d| d.to_rfc3339()).unwrap_or_default(),
         }).collect();
-        let ttl = state.cache_ttl_seconds.min(60); // cap list cache at 60s
-        if let Err(e) = cache_all_rules(&state.redis, ttl, &all_items).await {
-            warn!(error = %e, "all-rules cache write failed");
+        for item in &all_items {
+            let _ = cache_rule_meta(&state.redis, item).await;
+        }
+        // Set TTL on the Hash key
+        if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
+            let _: Result<(), _> = redis::cmd("EXPIRE").arg(RULES_META_KEY).arg(state.cache_ttl_seconds.min(60)).query_async(&mut conn).await;
         }
     }
 
