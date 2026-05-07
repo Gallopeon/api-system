@@ -14,6 +14,7 @@ export type RuleListResponse = {
   limit: number;
   offset: number;
   total: number;
+  next_cursor?: string;
 };
 
 export type TransformRuleConfig = {

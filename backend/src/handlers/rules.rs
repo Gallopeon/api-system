@@ -195,11 +195,23 @@ pub async fn list_rules(
     let name_filter = query.name.unwrap_or_default();
     let api_path_filter = query.api_path.unwrap_or_default();
     let has_filters = !status_filter.is_empty() || !name_filter.is_empty() || !api_path_filter.is_empty();
+    let use_cursor = query.cursor.as_deref().filter(|c| !c.is_empty()).is_some();
+
+    // Decode cursor if provided: format is "updated_at|id"
+    let (cursor_ts, cursor_id) = if let Some(ref c) = query.cursor {
+        if let Some(pos) = c.rfind('|') {
+            (Some(c[..pos].to_string()), Some(c[pos+1..].to_string()))
+        } else {
+            (None, None)
+        }
+    } else {
+        (None, None)
+    };
 
     // Try Redis Hash metadata cache first
     if let Ok(cached) = get_all_rules_meta(&state.redis).await {
         if !cached.is_empty() {
-            let filtered: Vec<RuleSummary> = if has_filters {
+            let mut filtered: Vec<RuleSummary> = if has_filters {
                 cached.into_iter().filter(|r| {
                     (status_filter.is_empty() || r.status == status_filter)
                     && (name_filter.is_empty() || r.name.to_lowercase().contains(&name_filter.to_lowercase()))
@@ -208,12 +220,28 @@ pub async fn list_rules(
             } else {
                 cached
             };
+            // Sort by updated_at DESC, id DESC for consistent cursor ordering
+            filtered.sort_by(|a, b| b.updated_at.cmp(&a.updated_at).then_with(|| b.id.cmp(&a.id)));
             let total = filtered.len() as i64;
-            let items: Vec<RuleSummary> = filtered.into_iter()
-                .skip(offset as usize)
-                .take(limit as usize)
-                .collect();
-            return Ok(Json(RuleListResponse { items, limit, offset, total }));
+
+            let start = if use_cursor {
+                let ts = cursor_ts.as_deref().unwrap_or("");
+                let cid = cursor_id.as_deref().unwrap_or("");
+                filtered.iter().position(|r| {
+                    (r.updated_at.as_str() < ts) || (r.updated_at.as_str() == ts && r.id.as_str() < cid)
+                }).unwrap_or(0)
+            } else {
+                offset as usize
+            };
+
+            let items: Vec<RuleSummary> = filtered.iter().skip(start).take(limit as usize).cloned().collect();
+            let next_cursor = if start + items.len() < filtered.len() {
+                items.last().map(|r| format!("{}|{}", r.updated_at, r.id))
+            } else {
+                None
+            };
+
+            return Ok(Json(RuleListResponse { items, limit, offset, total, next_cursor }));
         }
     }
 
@@ -221,30 +249,61 @@ pub async fn list_rules(
     let like_name = format!("%{}%", &name_filter);
     let like_path = format!("%{}%", &api_path_filter);
 
-    let (rows, total) = tokio::try_join!(
-        sqlx::query(
-            "SELECT id, name, api_path, current_version, status, updated_at FROM rule_configs \
-             WHERE (status = ? OR ? = '') \
-             AND (name LIKE ? OR ? = '') \
-             AND (api_path LIKE ? OR ? = '') \
-             ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+    let (rows, total) = if use_cursor {
+        let ts = cursor_ts.unwrap_or_default();
+        let id = cursor_id.unwrap_or_default();
+        tokio::try_join!(
+            sqlx::query(
+                "SELECT id, name, api_path, current_version, status, updated_at FROM rule_configs \
+                 WHERE ((updated_at < ?) OR (updated_at = ? AND id < ?)) \
+                 AND (status = ? OR ? = '') \
+                 AND (name LIKE ? OR ? = '') \
+                 AND (api_path LIKE ? OR ? = '') \
+                 ORDER BY updated_at DESC, id DESC LIMIT ?"
+            )
+            .bind(&ts).bind(&ts).bind(&id)
+            .bind(&status_filter).bind(&status_filter)
+            .bind(&like_name).bind(&name_filter)
+            .bind(&like_path).bind(&api_path_filter)
+            .bind(limit)
+            .fetch_all(&state.pool),
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM rule_configs \
+                 WHERE (status = ? OR ? = '') \
+                 AND (name LIKE ? OR ? = '') \
+                 AND (api_path LIKE ? OR ? = '')"
+            )
+            .bind(&status_filter).bind(&status_filter)
+            .bind(&like_name).bind(&name_filter)
+            .bind(&like_path).bind(&api_path_filter)
+            .fetch_one(&state.pool),
         )
-        .bind(&status_filter).bind(&status_filter)
-        .bind(&like_name).bind(&name_filter)
-        .bind(&like_path).bind(&api_path_filter)
-        .bind(limit).bind(offset)
-        .fetch_all(&state.pool),
-        sqlx::query_scalar::<_, i64>(
-            "SELECT COUNT(*) FROM rule_configs \
-             WHERE (status = ? OR ? = '') \
-             AND (name LIKE ? OR ? = '') \
-             AND (api_path LIKE ? OR ? = '')"
+    } else {
+        tokio::try_join!(
+            sqlx::query(
+                "SELECT id, name, api_path, current_version, status, updated_at FROM rule_configs \
+                 WHERE (status = ? OR ? = '') \
+                 AND (name LIKE ? OR ? = '') \
+                 AND (api_path LIKE ? OR ? = '') \
+                 ORDER BY updated_at DESC LIMIT ? OFFSET ?"
+            )
+            .bind(&status_filter).bind(&status_filter)
+            .bind(&like_name).bind(&name_filter)
+            .bind(&like_path).bind(&api_path_filter)
+            .bind(limit).bind(offset)
+            .fetch_all(&state.pool),
+            sqlx::query_scalar::<_, i64>(
+                "SELECT COUNT(*) FROM rule_configs \
+                 WHERE (status = ? OR ? = '') \
+                 AND (name LIKE ? OR ? = '') \
+                 AND (api_path LIKE ? OR ? = '')"
+            )
+            .bind(&status_filter).bind(&status_filter)
+            .bind(&like_name).bind(&name_filter)
+            .bind(&like_path).bind(&api_path_filter)
+            .fetch_one(&state.pool),
         )
-        .bind(&status_filter).bind(&status_filter)
-        .bind(&like_name).bind(&name_filter)
-        .bind(&like_path).bind(&api_path_filter)
-        .fetch_one(&state.pool),
-    ).map_err(|e: sqlx::Error| AppError::Internal(format!("list rules query failed: {}", e)))?;
+    }.map_err(|e: sqlx::Error| AppError::Internal(format!("list rules query failed: {}", e)))?;
 
     let items: Vec<RuleSummary> = rows.iter().map(|r| RuleSummary {
         id: r.try_get("id").unwrap_or_default(),
@@ -254,6 +313,12 @@ pub async fn list_rules(
         status: r.try_get("status").unwrap_or_default(),
         updated_at: r.try_get::<DateTime<Utc>, _>("updated_at").map(|d| d.to_rfc3339()).unwrap_or_default(),
     }).collect();
+
+    let next_cursor = if use_cursor {
+        items.last().map(|r| format!("{}|{}", r.updated_at, r.id))
+    } else {
+        None
+    };
 
     // Rebuild Redis Hash metadata cache with ALL rules (not just the current page)
     let all_rows = sqlx::query(
@@ -271,11 +336,10 @@ pub async fn list_rules(
         for item in &all_items {
             let _ = cache_rule_meta(&state.redis, item).await;
         }
-        // Set TTL on the Hash key
         if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
             let _: Result<(), _> = redis::cmd("EXPIRE").arg(RULES_META_KEY).arg(state.cache_ttl_seconds.min(60)).query_async(&mut conn).await;
         }
     }
 
-    Ok(Json(RuleListResponse { items, limit, offset, total }))
+    Ok(Json(RuleListResponse { items, limit, offset, total, next_cursor }))
 }

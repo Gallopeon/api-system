@@ -209,6 +209,8 @@ pub struct ListRulesQuery {
     #[serde(default)]
     pub offset: Option<u32>,
     #[serde(default)]
+    pub cursor: Option<String>,
+    #[serde(default)]
     pub status: Option<String>,
     #[serde(default)]
     pub name: Option<String>,
@@ -254,7 +256,7 @@ pub struct AuditListQuery {
     pub offset: Option<u32>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RuleSummary {
     pub id: String,
     pub name: String,
@@ -320,6 +322,8 @@ pub struct RuleListResponse {
     pub limit: u32,
     pub offset: u32,
     pub total: i64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub next_cursor: Option<String>,
 }
 
 #[derive(Debug, Serialize)]
