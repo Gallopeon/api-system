@@ -410,16 +410,16 @@ backend/src/
 │   ├── llm.rs           ← LLM Gateway types + defaulters (87 lines).
 │   ├── user.rs          ← Login, User, Session, LoginHistory, TOTP, Preferences types (161 lines).
 │   └── system.rs        ← SystemSettingItem, UpdateSettingRequest (17 lines).
-├── engine/              ← Pure business logic. Zero HTTP/DB dependencies. Unit-testable.
+├── engine/              ← Business logic + infrastructure orchestration tasks.
 │   ├── mod.rs
-│   ├── transform.rs     ← apply_transform, transform_payload, transform_object, apply_conditional_rules, mask_value
-│   ├── expression.rs    ← eval_expression, validate_expression_syntax, parse_compare_predicate, get_value_by_path
-│   ├── gray_release.rs  ← resolve_effective_rule, choose_variant, stable_bucket, apply_gray_overrides
-│   ├── diff.rs          ← diff_value (recursive JSON diff)
-│   ├── validation.rs    ← validate_json, validate_rule_request, validate_transform_rule
-│   ├── openapi.rs       ← build_openapi_spec, build_overlay_spec, derive_schemas_from_rule
-│   ├── crypto.rs        ← generate_api_key, key_hash
-│   └── metrics.rs       ← Metrics engine: run_metrics_flusher, run_metrics_aggregator, cache_analytics, compute_p95_p99_offsets
+│   ├── transform.rs     ← apply_transform, transform_payload, transform_object, apply_conditional_rules, mask_value (zero deps)
+│   ├── expression.rs    ← eval_expression, validate_expression_syntax, parse_compare_predicate, get_value_by_path (zero deps)
+│   ├── gray_release.rs  ← resolve_effective_rule, choose_variant, stable_bucket, apply_gray_overrides (zero deps)
+│   ├── diff.rs          ← diff_value (recursive JSON diff) (zero deps)
+│   ├── validation.rs    ← validate_json, validate_rule_request, validate_transform_rule (zero deps)
+│   ├── openapi.rs       ← build_openapi_spec, build_overlay_spec, derive_schemas_from_rule (zero deps)
+│   ├── crypto.rs        ← generate_api_key, key_hash (zero deps)
+│   └── metrics.rs       ← run_metrics_flusher, run_metrics_aggregator, run_metrics_retention, cache_analytics, get_cached_analytics (has DB/Redis deps)
 └── handlers/             ← HTTP handlers, one file per domain entity
     ├── mod.rs
     ├── common.rs         ← Shared: write_audit_log, load_rule_detail, cache_rule, row_to_json, crud_handlers! macro
@@ -447,11 +447,22 @@ backend/src/
 
 ### Engine module
 
-The `engine/` module contains pure business logic functions extracted from `handlers.rs`. These functions:
+The `engine/` module contains business logic functions extracted from `handlers.rs`:
+
+| File | Contents |
+|------|----------|
+| `transform.rs` | apply_transform, mask_value (zero deps) |
+| `expression.rs` | eval_expression, validate_expression_syntax (zero deps) |
+| `gray_release.rs` | resolve_effective_rule, choose_variant, stable_bucket (zero deps) |
+| `diff.rs` | diff_value recursive JSON diff (zero deps) |
+| `validation.rs` | validate_json, validate_rule_request (zero deps) |
+| `openapi.rs` | build_openapi_spec (zero deps) |
+| `crypto.rs` | generate_api_key, key_hash (zero deps) |
+| `metrics.rs` | Background tasks: `run_metrics_flusher` (Redis→MySQL), `run_metrics_aggregator` (hourly rollup), `run_metrics_retention` (30-day purge), `get_cached_analytics`/`cache_analytics` (Redis). Has DB/Redis deps — these are infrastructure orchestration, not business logic. |
+
+Pure logic files (transform, expression, gray_release, diff, validation, openapi, crypto):
 - Have ZERO dependencies on HTTP (axum), database (sqlx), or Redis
-- Only depend on `serde_json`, `std`, and crate types
 - Can be unit-tested without mocking any infrastructure
-- Are imported via `use crate::engine::*;`
 
 When adding new transform/validation/expression logic, add it to the appropriate engine file, NOT to handlers.
 
@@ -473,7 +484,7 @@ When adding new transform/validation/expression logic, add it to the appropriate
 **Frontend role gating**: The frontend implements role-based UI hiding via `lib/permissions.ts`. `canAccessMenu(role, menuId)` filters the Sidebar, and individual panels receive `canManage` / `canWrite` props to hide action buttons. Non-admin users never see buttons for operations they cannot perform. This prevents the poor UX of clickable buttons that result in 403 errors.
 - **Database**: MySQL tables auto-created on startup in `db::bootstrap_schema()`: `rule_configs`, `rule_versions`, `audit_logs`, `api_keys`, `rate_limit_configs`, `metrics_ingest`, `metrics_hourly_summary`, `approvals`, `llm_providers`, `prompt_templates`, `llm_usage_logs`, `api_products`, `subscriptions`, `circuit_breakers`, `protocol_configs`, `data_classifications`, `plugin_configs`, `users`, `user_sessions`, `login_history`, `user_totp`, `system_settings`. Redis caches: rule detail reads (prefix `rule:`, TTL 300s), rules metadata Hash `rules:meta` (HGETALL for list_rules), analytics aggregates (prefix `analytics:agg`, TTL 300s), metrics buffer list `metrics:buffer`.
 - **Error handling**: `AppError` enum in `auth.rs` implements `IntoResponse`, mapped to appropriate HTTP status codes.
-- **Audit**: All mutating operations write to `audit_logs` table via `write_audit_log()`.
+- **Audit**: All mutating operations write to `audit_logs` table via fire-and-forget `spawn_audit_log()` (wraps `write_audit_log()` in `tokio::spawn` to avoid adding I/O latency to the critical path).
 
 ### Handler reference by domain
 
