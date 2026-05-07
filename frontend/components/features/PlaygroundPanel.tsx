@@ -23,6 +23,7 @@ interface PlaygroundPanelProps {
   setExprIn: (v: string) => void;
   onTestExpr: () => void;
   onTransformEntry: (entry: PlaygroundEntry, idx: number) => Promise<void>;
+  canExecute: boolean;
   notifyError: (m: string) => void;
   notifySucc: (m: string) => void;
   t: <T>(en: T, zh: T) => T;
@@ -34,7 +35,7 @@ export default function PlaygroundPanel({
   setPgEntries, setForceVar, setSelectedRuleId,
   addEntry, removeEntry, onBatchTransform, onTransformEntry,
   setExpr, setExprIn, onTestExpr,
-  notifyError, notifySucc, t,
+  canExecute, notifyError, notifySucc, t,
 }: PlaygroundPanelProps) {
 
   return (
@@ -99,11 +100,13 @@ export default function PlaygroundPanel({
               <div>
                 <label className={labelClass}>{t("Force Variant", "强制变体")}</label>
                 <input className={inputClass} value={forceVar} onChange={(e) => setForceVar(e.target.value)} placeholder="e.g. expA" />
+                {canExecute && (
                 <button onClick={() => onTransformEntry(entry, idx)} disabled={entry.busy}
                   className={`${btnPrimary} bg-emerald-600 hover:bg-emerald-700 w-full mt-2`}>
                   <Play className="w-4 h-4 mr-2" />
                   {entry.busy ? t("Running...", "执行中...") : t("Transform", "转换")}
                 </button>
+                )}
               </div>
             </div>
             {entry.output && (
@@ -116,7 +119,7 @@ export default function PlaygroundPanel({
         ))}
       </div>
 
-      {pgEntries.length > 1 && (
+      {canExecute && pgEntries.length > 1 && (
         <div className="flex justify-end">
           <button onClick={onBatchTransform} disabled={busy} className={btnPrimary}>
             <RotateCcw className={`w-4 h-4 mr-2 ${busy ? "animate-spin" : ""}`} />

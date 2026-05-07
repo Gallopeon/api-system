@@ -20,6 +20,7 @@ interface PortalPanelProps {
   onSelectRule: (id: string) => void;
   setOpenApiFilter: (v: string) => void;
   getDefaultExpiry: (hours?: number) => string;
+  canRequestKey: boolean;
   notifySucc: (msg: string) => void;
   t: <T>(en: T, zh: T) => T;
 }
@@ -28,7 +29,7 @@ export default function PortalPanel({
   rules, akName, akScopes, akExpires, akBusy, akCreatedKey,
   setAkName, setAkScopes, setAkExpires, setAkCreatedKey,
   onCreateApiKey, setActiveMenu, onSelectRule, setOpenApiFilter,
-  getDefaultExpiry, notifySucc, t,
+  getDefaultExpiry, canRequestKey, notifySucc, t,
 }: PortalPanelProps) {
   const expiryBtnClass = (h: number) =>
     `text-xs px-2.5 py-2 rounded-lg border transition font-medium flex-1 ${
@@ -80,6 +81,7 @@ export default function PortalPanel({
       </div>
 
       {/* Self-Service API Key Request */}
+      {canRequestKey && (
       <div className={`${cardClass} border-l-4 border-l-green-500`}>
         <h2 className="text-lg font-bold mb-2 flex items-center gap-2"><Key className="w-5 h-5 text-green-500" /> {t("Request API Access", "申请 API 访问权限")}</h2>
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-5">{t("Fill in the form below to generate an API key for accessing our APIs. Keys can be scoped to specific API paths.", "填写以下表单即可生成用于访问我们 API 的密钥。密钥可以限定到特定的 API 路径范围。")}</p>
@@ -113,6 +115,7 @@ export default function PortalPanel({
           </div>
         )}
       </div>
+      )}
 
       {/* Quick Start Guide */}
       <div className={cardClass}>

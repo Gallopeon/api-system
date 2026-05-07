@@ -33,6 +33,8 @@ interface RulesPanelProps {
   setGray: (v: string) => void;
   setRemoveNulls: (v: boolean) => void;
   setChangeKind: (v: string) => void;
+  canWrite: boolean;
+  canPublish: boolean;
   t: <T>(en: T, zh: T) => T;
 }
 
@@ -42,7 +44,7 @@ export default function RulesPanel({
   onRuleSelect, onCreateBlank, onSaveRule, onDeleteRule,
   setRuleName, setApiPath, setRuleStatus, setWhitelist, setRenames,
   setMasked, setComputed, setConditional, setGray, setRemoveNulls, setChangeKind,
-  t,
+  canWrite, canPublish, t,
 }: RulesPanelProps) {
   return (
     <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-8 animate-in fade-in duration-300">
@@ -52,12 +54,14 @@ export default function RulesPanel({
         </div>
         <div className={`${cardClass} p-2 flex flex-col overflow-hidden max-h-[70vh]`}>
           <div className="space-y-1 overflow-y-auto">
+            {canWrite && (
             <button
               className="w-full text-left p-3 rounded-md border border-dashed border-gray-300 hover:border-blue-400 hover:bg-blue-50 text-sm font-medium text-blue-600"
               onClick={onCreateBlank}
             >
               {t("+ Create Blank Rule", "+ 创建空白规则")}
             </button>
+            )}
             {rules.map((r) => (
               <button
                 key={r.id}
@@ -96,7 +100,7 @@ export default function RulesPanel({
             <label className={labelClass}>{t("API Path Route", "API 路径路由")}</label>
             <input className={inputClass} value={apiPath} onChange={(e) => setApiPath(e.target.value)} />
           </div>
-          {selectedRuleId && (
+          {selectedRuleId && canPublish && (
             <div>
               <label className={labelClass}>{t("Status", "状态")}</label>
               <select className={inputClass} value={ruleStatus} onChange={(e) => setRuleStatus(e.target.value)}>
@@ -153,6 +157,7 @@ export default function RulesPanel({
           </div>
         </div>
 
+        {canWrite && (
         <div className="mt-6 flex justify-end space-x-3 pt-4 border-t border-gray-100 dark:border-gray-800">
           {selectedRuleId && (
             <button
@@ -175,6 +180,7 @@ export default function RulesPanel({
                 : t("Create New Rule", "创建新规则")}
           </button>
         </div>
+        )}
       </div>
     </div>
   );

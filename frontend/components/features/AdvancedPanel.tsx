@@ -18,6 +18,11 @@ interface AdvancedPanelProps {
   accessToken?: string;
   notifyError: (msg: string) => void;
   notifySucc: (msg: string) => void;
+  canWriteProducts: boolean;
+  canWriteCircuitBreakers: boolean;
+  canWriteProtocols: boolean;
+  canWriteClassifications: boolean;
+  canWritePlugins: boolean;
   t: <T>(en: T, zh: T) => T;
 }
 
@@ -30,7 +35,7 @@ const tabs = [
   { id: "plugins", icon: Settings, en: "Plugins", zh: "插件系统" },
 ];
 
-export default function AdvancedPanel({ accessToken, notifyError, notifySucc, t }: AdvancedPanelProps) {
+export default function AdvancedPanel({ accessToken, notifyError, notifySucc, canWriteProducts, canWriteCircuitBreakers, canWriteProtocols, canWriteClassifications, canWritePlugins, t }: AdvancedPanelProps) {
   const [activeTab, setActiveTab] = useState("products");
 
   const prod = useProducts(accessToken, notifyError, notifySucc);
@@ -73,22 +78,22 @@ export default function AdvancedPanel({ accessToken, notifyError, notifySucc, t 
       </div>
 
       {activeTab === "products" && (
-        <AdvancedProductsTab products={prod.products} busy={prod.busy} createProduct={prod.createProduct} updateProduct={prod.updateProduct} toggleProductStatus={prod.toggleProductStatus} deleteProduct={prod.deleteProduct} loadProducts={prod.loadProducts} notifyError={notifyError} t={t} />
+        <AdvancedProductsTab products={prod.products} busy={prod.busy} createProduct={prod.createProduct} updateProduct={prod.updateProduct} toggleProductStatus={prod.toggleProductStatus} deleteProduct={prod.deleteProduct} loadProducts={prod.loadProducts} canWrite={canWriteProducts} notifyError={notifyError} t={t} />
       )}
       {activeTab === "subscriptions" && (
-        <AdvancedSubscriptionsTab subscriptions={sub.subscriptions} busy={sub.busy} apiKeys={sub.apiKeys} productsList={sub.products} usageMap={sub.usageMap} loadSubscriptions={sub.loadSubscriptions} loadApiKeys={sub.loadApiKeys} loadProductsList={sub.loadProductsList} createSubscription={sub.createSubscription} updateSubscription={sub.updateSubscription} upgradeSubscription={sub.upgradeSubscription} cancelSubscription={sub.cancelSubscription} renewSubscription={sub.renewSubscription} getSubscriptionUsage={sub.getSubscriptionUsage} deleteSubscription={sub.deleteSubscription} notifyError={notifyError} t={t} />
+        <AdvancedSubscriptionsTab subscriptions={sub.subscriptions} busy={sub.busy} apiKeys={sub.apiKeys} productsList={sub.products} usageMap={sub.usageMap} loadSubscriptions={sub.loadSubscriptions} loadApiKeys={sub.loadApiKeys} loadProductsList={sub.loadProductsList} createSubscription={sub.createSubscription} updateSubscription={sub.updateSubscription} upgradeSubscription={sub.upgradeSubscription} cancelSubscription={sub.cancelSubscription} renewSubscription={sub.renewSubscription} getSubscriptionUsage={sub.getSubscriptionUsage} deleteSubscription={sub.deleteSubscription} canWrite={canWriteProducts} notifyError={notifyError} t={t} />
       )}
       {activeTab === "circuit-breakers" && (
-        <AdvancedCircuitBreakersTab cbs={cb.cbs} busy={cb.busy} createCB={cb.createCB} updateCB={cb.updateCB} deleteCB={cb.deleteCB} notifyError={notifyError} t={t} />
+        <AdvancedCircuitBreakersTab cbs={cb.cbs} busy={cb.busy} createCB={cb.createCB} updateCB={cb.updateCB} deleteCB={cb.deleteCB} canWrite={canWriteCircuitBreakers} notifyError={notifyError} t={t} />
       )}
       {activeTab === "protocols" && (
-        <AdvancedProtocolsTab protocols={proto.protocols} busy={proto.busy} createProtocol={proto.createProtocol} updateProtocol={proto.updateProtocol} deleteProtocol={proto.deleteProtocol} notifyError={notifyError} t={t} />
+        <AdvancedProtocolsTab protocols={proto.protocols} busy={proto.busy} createProtocol={proto.createProtocol} updateProtocol={proto.updateProtocol} deleteProtocol={proto.deleteProtocol} canWrite={canWriteProtocols} notifyError={notifyError} t={t} />
       )}
       {activeTab === "classifications" && (
-        <AdvancedClassificationsTab classifications={cls.classifications} busy={cls.busy} createClassification={cls.createClassification} updateClassification={cls.updateClassification} deleteClassification={cls.deleteClassification} notifyError={notifyError} t={t} />
+        <AdvancedClassificationsTab classifications={cls.classifications} busy={cls.busy} createClassification={cls.createClassification} updateClassification={cls.updateClassification} deleteClassification={cls.deleteClassification} canWrite={canWriteClassifications} notifyError={notifyError} t={t} />
       )}
       {activeTab === "plugins" && (
-        <AdvancedPluginsTab plugins={plg.plugins} busy={plg.busy} createPlugin={plg.createPlugin} updatePlugin={plg.updatePlugin} deletePlugin={plg.deletePlugin} notifyError={notifyError} t={t} />
+        <AdvancedPluginsTab plugins={plg.plugins} busy={plg.busy} createPlugin={plg.createPlugin} updatePlugin={plg.updatePlugin} deletePlugin={plg.deletePlugin} canWrite={canWritePlugins} notifyError={notifyError} t={t} />
       )}
     </div>
   );

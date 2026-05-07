@@ -19,12 +19,13 @@ interface OpenApiPanelProps {
     setSelectedRuleId: (v: string) => void;
     setActiveMenu: (v: string) => void;
   };
+  canWrite: boolean;
   notifyError: (msg: string) => void;
   notifySucc: (msg: string) => void;
   t: <T>(en: T, zh: T) => T;
 }
 
-export default function OpenApiPanel({ ruleForImport, notifyError, notifySucc, t }: OpenApiPanelProps) {
+export default function OpenApiPanel({ ruleForImport, canWrite, notifyError, notifySucc, t }: OpenApiPanelProps) {
   const {
     openApiFilter, openApiOverlay, openApiSpec, openApiBusy,
     importSpec, importBusy,
@@ -69,6 +70,7 @@ export default function OpenApiPanel({ ruleForImport, notifyError, notifySucc, t
       </div>
 
       {/* Import Section */}
+      {canWrite && (
       <div className={`${cardClass} border-l-4 border-l-emerald-500`}>
         <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
           <Upload className="w-5 h-5 text-emerald-500" />
@@ -85,6 +87,7 @@ export default function OpenApiPanel({ ruleForImport, notifyError, notifySucc, t
           </button>
         </div>
       </div>
+      )}
     </div>
   );
 }

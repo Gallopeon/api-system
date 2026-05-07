@@ -11,6 +11,7 @@ interface Props {
   createCB: (data: Record<string, unknown>) => Promise<void>;
   updateCB: (id: string, data: Record<string, unknown>) => Promise<void>;
   deleteCB: (id: string) => Promise<void>;
+  canWrite: boolean;
   notifyError: (m: string) => void;
   t: <T>(en: T, zh: T) => T;
 }
@@ -24,7 +25,7 @@ const statusBadge = (s: string, t: Props["t"]) => (
 const th = (t: string) => <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t}</th>;
 const td = (c: React.ReactNode, cls = "") => <td className={`px-4 py-3 ${cls}`}>{c}</td>;
 
-export default function AdvancedCircuitBreakersTab({ cbs, busy, createCB, updateCB, deleteCB, notifyError, t }: Props) {
+export default function AdvancedCircuitBreakersTab({ cbs, busy, createCB, updateCB, deleteCB, canWrite, notifyError, t }: Props) {
   const [show, setShow] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [path, setPath] = useState(""); const [fail, setFail] = useState("5"); const [rec, setRec] = useState("30");
@@ -53,9 +54,9 @@ export default function AdvancedCircuitBreakersTab({ cbs, busy, createCB, update
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div><h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t("Circuit Breakers", "熔断器")}</h2><p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t("Configure failure thresholds, recovery timeouts, and retry policies per API path.", "按 API 路径配置故障阈值、恢复超时和重试策略。")}</p></div>
-        <button className={btnPrimary} onClick={() => setShow(!show)} disabled={busy}><Plus className="w-4 h-4 mr-1" />{t("Create", "创建")}</button>
+        {canWrite && <button className={btnPrimary} onClick={() => setShow(!show)} disabled={busy}><Plus className="w-4 h-4 mr-1" />{t("Create", "创建")}</button>}
       </div>
-      {show && (
+      {canWrite && show && (
         <div className={`${cardClass} space-y-4`}>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <div><label className={labelClass}>{t("API Path", "API 路径")} <span className="text-red-500">*</span></label><input className={inputClass} value={path} onChange={e => setPath(e.target.value)} placeholder="/admin/v1/users" /></div>
@@ -73,14 +74,14 @@ export default function AdvancedCircuitBreakersTab({ cbs, busy, createCB, update
         <div className={`${cardClass} text-center py-10 text-gray-400`}><AlertTriangle className="w-10 h-10 mx-auto mb-3 opacity-40" /><p className="text-sm">{t("No items found", "暂无数据")}</p></div>
       ) : (
         <div className={`${cardClass} p-0 overflow-hidden`}>
-          <table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800"><tr>{[t("API Path", "API 路径"), t("Fail Thr.", "故障阈值"), t("Recovery", "恢复"), t("Retries", "重试"), t("Timeout", "超时"), t("Status", "状态"), t("Actions", "操作")].map(h => th(h))}</tr></thead>
+          <table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800"><tr>{[t("API Path", "API 路径"), t("Fail Thr.", "故障阈值"), t("Recovery", "恢复"), t("Retries", "重试"), t("Timeout", "超时"), t("Status", "状态"), ...(canWrite ? [t("Actions", "操作")] : [])].map(h => th(h))}</tr></thead>
           <tbody className="divide-y dark:divide-gray-800">
             {cbs.map(c => (
               <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition">
                 {editId === c.id ? (
                   <>{td(<input className={inputClass} value={ePath} onChange={e => setEPath(e.target.value)} />)}{td(<input className={inputClass} type="number" value={eFail} onChange={e => setEFail(e.target.value)} />)}{td(<input className={inputClass} type="number" value={eRec} onChange={e => setERec(e.target.value)} />)}{td(<input className={inputClass} type="number" value={eRetry} onChange={e => setERetry(e.target.value)} />)}{td(<input className={inputClass} type="number" value={eTo} onChange={e => setETo(e.target.value)} />)}{td(statusBadge(c.status, t))}{td(<div className="flex gap-1"><button className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg" onClick={saveEdit}><Check className="w-3.5 h-3.5" /></button><button className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" onClick={() => setEditId(null)}><X className="w-3.5 h-3.5" /></button></div>)}</>
                 ) : (
-                  <>{td(<span className="font-mono text-xs text-gray-900 dark:text-gray-100">{c.api_path}</span>)}{td(<span className="font-semibold">{c.failure_threshold}</span>)}{td(<span className="text-gray-600 dark:text-gray-400">{c.recovery_timeout_sec}s</span>)}{td(<span className="text-gray-600 dark:text-gray-400">{c.retry_count} × {c.retry_delay_ms}ms</span>)}{td(<span className="text-gray-600 dark:text-gray-400">{c.timeout_ms}ms</span>)}{td(statusBadge(c.status, t))}{td(<div className="flex items-center gap-1"><button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(c)}><Edit3 className="w-3.5 h-3.5" /></button><button className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" onClick={() => deleteCB(c.id)} disabled={busy}><Trash2 className="w-3.5 h-3.5" /></button></div>)}</>
+                  <>{td(<span className="font-mono text-xs text-gray-900 dark:text-gray-100">{c.api_path}</span>)}{td(<span className="font-semibold">{c.failure_threshold}</span>)}{td(<span className="text-gray-600 dark:text-gray-400">{c.recovery_timeout_sec}s</span>)}{td(<span className="text-gray-600 dark:text-gray-400">{c.retry_count} × {c.retry_delay_ms}ms</span>)}{td(<span className="text-gray-600 dark:text-gray-400">{c.timeout_ms}ms</span>)}{td(statusBadge(c.status, t))}{canWrite && td(<div className="flex items-center gap-1"><button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(c)}><Edit3 className="w-3.5 h-3.5" /></button><button className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" onClick={() => deleteCB(c.id)} disabled={busy}><Trash2 className="w-3.5 h-3.5" /></button></div>)}</>
                 )}
               </tr>
             ))}

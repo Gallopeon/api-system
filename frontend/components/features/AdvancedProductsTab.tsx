@@ -13,6 +13,7 @@ interface Props {
   toggleProductStatus: (id: string, currentStatus: string) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   loadProducts: (search?: string) => Promise<void>;
+  canWrite: boolean;
   notifyError: (m: string) => void;
   t: <T>(en: T, zh: T) => T;
 }
@@ -26,7 +27,7 @@ const statusBadge = (s: string, t: Props["t"]) => (
 const th = (t: string) => <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t}</th>;
 const td = (c: React.ReactNode, cls = "") => <td className={`px-3 py-3 ${cls}`}>{c}</td>;
 
-export default function AdvancedProductsTab({ products, busy, createProduct, updateProduct, toggleProductStatus, deleteProduct, loadProducts, notifyError, t }: Props) {
+export default function AdvancedProductsTab({ products, busy, createProduct, updateProduct, toggleProductStatus, deleteProduct, loadProducts, canWrite, notifyError, t }: Props) {
   const [show, setShow] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -85,11 +86,11 @@ export default function AdvancedProductsTab({ products, busy, createProduct, upd
             <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-400" />
             <input className={`${inputClass} pl-8 w-48`} placeholder={t("Search products…", "搜索产品…")} value={search} onChange={e => handleSearch(e.target.value)} />
           </div>
-          <button className={btnPrimary} onClick={() => setShow(!show)} disabled={busy}><Plus className="w-4 h-4 mr-1" />{t("Create", "创建")}</button>
+          {canWrite && <button className={btnPrimary} onClick={() => setShow(!show)} disabled={busy}><Plus className="w-4 h-4 mr-1" />{t("Create", "创建")}</button>}
         </div>
       </div>
 
-      {show && (
+      {canWrite && show && (
         <div className={`${cardClass} space-y-4`}>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><label className={labelClass}>{t("Product Name", "产品名称")} <span className="text-red-500">*</span></label><input className={inputClass} value={name} onChange={e => setName(e.target.value)} placeholder={t("e.g. Enterprise Plan", "例如：企业版套餐")} /></div>
@@ -108,7 +109,7 @@ export default function AdvancedProductsTab({ products, busy, createProduct, upd
         <div className={`${cardClass} p-0 overflow-x-auto`}>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800">
-              <tr>{[t("Name", "名称"), t("Tags", "标签"), t("Rules", "规则"), t("Status", "状态"), t("Owner", "负责人"), t("Updated", "更新时间"), t("Actions", "操作")].map(h => th(h))}</tr>
+              <tr>{[t("Name", "名称"), t("Tags", "标签"), t("Rules", "规则"), t("Status", "状态"), t("Owner", "负责人"), t("Updated", "更新时间"), ...(canWrite ? [t("Actions", "操作")] : [])].map(h => th(h))}</tr>
             </thead>
             <tbody className="divide-y dark:divide-gray-800">
               {products.map(p => (
@@ -131,7 +132,7 @@ export default function AdvancedProductsTab({ products, busy, createProduct, upd
                       {td(statusBadge(p.status, t))}
                       {td(<span className="text-xs text-gray-500">{p.owner || "—"}</span>)}
                       {td(<span className="text-gray-500 text-xs">{new Date(p.updated_at || p.created_at).toLocaleDateString()}</span>)}
-                      {td(<div className="flex items-center gap-1">
+                      {canWrite && td(<div className="flex items-center gap-1">
                         <button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(p)} title={t("Edit", "编辑")}><Edit3 className="w-3.5 h-3.5" /></button>
                         <button className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition" onClick={() => toggleProductStatus(p.id, p.status)} title={p.status === "active" ? t("Deactivate", "停用") : t("Activate", "激活")} disabled={busy}>
                           {p.status === "active" ? <PowerOff className="w-3.5 h-3.5 text-amber-500" /> : <Power className="w-3.5 h-3.5 text-emerald-500" />}

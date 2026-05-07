@@ -39,6 +39,7 @@ interface ApiKeysPanelProps {
   onDeleteApiKey: (id: string) => void;
   onRefresh: () => void;
   fmtExpiry: (v: string | null) => { text: string; expired: boolean };
+  canWrite: boolean;
   notifySucc: (m: string) => void;
   t: <T>(en: T, zh: T) => T;
 }
@@ -46,7 +47,7 @@ interface ApiKeysPanelProps {
 export default function ApiKeysPanel({
   apiKeys, akName, akScopes, akExpires, akMaxCalls, akCreatedKey, akBusy,
   setAkName, setAkScopes, setAkExpires, setAkMaxCalls, setAkCreatedKey,
-  onCreateApiKey, onToggleApiKey, onDeleteApiKey, onRefresh, fmtExpiry, notifySucc, t,
+  onCreateApiKey, onToggleApiKey, onDeleteApiKey, onRefresh, fmtExpiry, canWrite, notifySucc, t,
 }: ApiKeysPanelProps) {
   const now = new Date();
   const todayStr = toLocalDate(now);
@@ -173,6 +174,7 @@ export default function ApiKeysPanel({
       )}
 
       {/* ── Create form ── */}
+      {canWrite && (
       <div className={`${cardClass} border-l-4 border-l-blue-500`}>
         <h2 className="text-lg font-bold mb-6 flex items-center gap-2">
           <Key className="w-5 h-5 text-blue-500" />
@@ -269,6 +271,7 @@ export default function ApiKeysPanel({
           {akBusy ? t("Creating...", "创建中...") : <><Key className="w-4 h-4 mr-2" />{t("Generate API Key", "生成 API 密钥")}</>}
         </button>
       </div>
+      )}
 
       {/* ── Key list ── */}
       {apiKeys.length > 0 && (
@@ -304,6 +307,7 @@ export default function ApiKeysPanel({
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-right">
+                        {canWrite ? (
                         <div className="flex items-center justify-end gap-1.5 opacity-70 group-hover:opacity-100 transition">
                           <button onClick={() => onToggleApiKey(k.id, k.status)} className={`p-2 rounded-lg transition ${act ? "text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20" : "text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"}`} title={act ? t("Disable", "禁用") : t("Enable", "启用")}>
                             {act ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
@@ -312,6 +316,9 @@ export default function ApiKeysPanel({
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">{t("Read-only", "只读")}</span>
+                        )}
                       </td>
                     </tr>
                   );

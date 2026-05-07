@@ -18,13 +18,14 @@ interface VersionsPanelProps {
   setFromVer: (v: string) => void;
   setToVer: (v: string) => void;
   setRollbackVer: (v: string) => void;
+  canPublish: boolean;
   t: <T>(en: T, zh: T) => T;
 }
 
 export default function VersionsPanel({
   selectedRuleId, rules, versions, fromVer, toVer, rollbackVer, diffJson,
   onSelectRule, onRollback, onComputeDiff,
-  setFromVer, setToVer, setRollbackVer, t,
+  setFromVer, setToVer, setRollbackVer, canPublish, t,
 }: VersionsPanelProps) {
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
@@ -57,9 +58,11 @@ export default function VersionsPanel({
                   </option>
                 ))}
               </select>
+              {canPublish && (
               <button onClick={onRollback} className={`${btnPrimary} bg-red-600 hover:bg-red-700 shrink-0 whitespace-nowrap`}>
                 <RotateCcw className="w-4 h-4 mr-2" /> {t("Revert", "回退")}
               </button>
+              )}
             </div>
             <ul className="space-y-2">
               {versions.slice(0, 5).map((v) => (

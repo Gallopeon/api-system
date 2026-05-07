@@ -32,6 +32,7 @@ interface ApiBuilderRuleSectionProps {
   abSaveRule: (isCreate: boolean) => Promise<void>;
   abDeleteRule: () => Promise<void>;
   setAbEntries: (v: AbEntry[] | ((prev: AbEntry[]) => AbEntry[])) => void;
+  canWrite: boolean;
   notifySucc: (msg: string) => void;
   t: <T>(en: T, zh: T) => T;
 }
@@ -42,7 +43,7 @@ export default function ApiBuilderRuleSection(props: ApiBuilderRuleSectionProps)
     abWhitelist, abRenamesList, abMasked, abRemoveNulls, abChangeKind,
     setAbRuleId, setAbRuleFields, setAbName, setAbApiPath, setAbStatus,
     setAbWhitelist, setAbRenamesList, setAbMasked, setAbRemoveNulls, setAbChangeKind,
-    loadAbRuleFields, resetAbCrud, abSaveRule, abDeleteRule, setAbEntries, notifySucc, t,
+    loadAbRuleFields, resetAbCrud, abSaveRule, abDeleteRule, setAbEntries, canWrite, notifySucc, t,
   } = props;
 
   return (
@@ -165,6 +166,7 @@ export default function ApiBuilderRuleSection(props: ApiBuilderRuleSectionProps)
           </div>
         </div>
 
+        {canWrite && (
         <div className="flex justify-end space-x-3 pt-4 border-t border-gray-100 dark:border-gray-800">
           {abRuleId && (
             <button onClick={abDeleteRule} className="inline-flex items-center justify-center rounded-lg px-4 py-2 font-medium text-red-600 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 border border-transparent hover:border-red-200 transition" disabled={!!abRuleId && !abName}>
@@ -175,6 +177,7 @@ export default function ApiBuilderRuleSection(props: ApiBuilderRuleSectionProps)
             {abRuleId ? <><Check className="w-4 h-4 mr-2" />{t("Update Rule", "更新规则")}</> : <><Check className="w-4 h-4 mr-2" />{t("Create New Rule", "创建新规则")}</>}
           </button>
         </div>
+        )}
       </div>
     </div>
   );

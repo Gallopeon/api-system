@@ -29,6 +29,7 @@ interface RateLimitsPanelProps {
   onToggle: (id: string, status: string) => void;
   onDelete: (id: string) => void;
   onRefresh: () => void;
+  canWrite: boolean;
   t: <T>(en: T, zh: T) => T;
 }
 
@@ -37,7 +38,7 @@ export default function RateLimitsPanel({
   rlQuotaDaily, rlQuotaMonthly, rlPerKey, rlPerIp, rlBusy,
   setRlName, setRlApiPath, setRlWindow, setRlMaxReq, setRlBurst,
   setRlQuotaDaily, setRlQuotaMonthly, setRlPerKey, setRlPerIp,
-  onCreate, onToggle, onDelete, onRefresh, t,
+  onCreate, onToggle, onDelete, onRefresh, canWrite, t,
 }: RateLimitsPanelProps) {
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
@@ -46,6 +47,7 @@ export default function RateLimitsPanel({
         <button onClick={onRefresh} className={`${btnSecondary} whitespace-nowrap shrink-0`}><RotateCcw className="w-4 h-4 mr-2" /> {t("Refresh", "刷新")}</button>
       </div>
 
+      {canWrite && (
       <div className={`${cardClass} border-l-4 border-l-purple-500`}>
         <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Activity className="w-5 h-5 text-purple-500" /> {t("Create Rate Limit", "创建限流规则")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
@@ -63,6 +65,7 @@ export default function RateLimitsPanel({
         </div>
         <button onClick={onCreate} disabled={rlBusy || !rlName.trim() || !rlApiPath.trim()} className={btnPrimary}>{rlBusy ? t("Creating...", "创建中...") : t("Create Rate Limit", "创建限流规则")}</button>
       </div>
+      )}
 
       <div className={`${cardClass} p-0 overflow-hidden`}>
         <table className="w-full text-sm text-left">
@@ -72,7 +75,7 @@ export default function RateLimitsPanel({
               <th className="px-4 py-3">{t("Window", "窗口")}</th>
               <th className="px-4 py-3">{t("Rate (max+burst)", "速率 (最大+突发)")}</th>
               <th className="px-4 py-3">{t("Status", "状态")}</th>
-              <th className="px-4 py-3 text-right">{t("Actions", "操作")}</th>
+              {canWrite && <th className="px-4 py-3 text-right">{t("Actions", "操作")}</th>}
             </tr>
           </thead>
           <tbody className="divide-y dark:divide-gray-800">
@@ -82,6 +85,7 @@ export default function RateLimitsPanel({
                 <td className="px-4 py-3 font-mono text-xs">{rl.window_seconds}s</td>
                 <td className="px-4 py-3 font-mono text-xs">{rl.max_requests} + {rl.burst_size}</td>
                 <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded font-semibold ${rl.status === "active" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"}`}>{rl.status}</span></td>
+                {canWrite && (
                 <td className="px-4 py-3 text-right">
                   <div className="flex items-center justify-end gap-1">
                     <button onClick={() => onToggle(rl.id, rl.status)} className={`p-1.5 rounded-lg transition ${rl.status === "active" ? "text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20" : "text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"}`}>
@@ -90,10 +94,11 @@ export default function RateLimitsPanel({
                     <button onClick={() => onDelete(rl.id)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition"><Trash2 className="w-4 h-4" /></button>
                   </div>
                 </td>
+                )}
               </tr>
             ))}
             {rateLimits.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-8 text-center text-gray-500">{t("No rate limits configured yet.", "暂无配置限流规则。")}</td></tr>
+              <tr><td colSpan={canWrite ? 5 : 4} className="px-4 py-8 text-center text-gray-500">{t("No rate limits configured yet.", "暂无配置限流规则。")}</td></tr>
             )}
           </tbody>
         </table>

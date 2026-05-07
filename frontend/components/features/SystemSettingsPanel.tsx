@@ -7,6 +7,7 @@ import { useSystemSettings, type SystemSettingItem } from "@/hooks/useSystemSett
 
 interface SystemSettingsPanelProps {
   accessToken?: string;
+  canWrite: boolean;
   notifyError: (msg: string) => void;
   notifySucc: (msg: string) => void;
   t: <T>(en: T, zh: T) => T;
@@ -27,6 +28,7 @@ const LABELS: Record<string, { en: string; zh: string }> = {
 
 export default function SystemSettingsPanel({
   accessToken,
+  canWrite,
   notifyError,
   notifySucc,
   t,
@@ -79,7 +81,7 @@ export default function SystemSettingsPanel({
                 <th className="py-3 pr-4 font-medium text-gray-500">{t("Setting", "配置项")}</th>
                 <th className="py-3 pr-4 font-medium text-gray-500">{t("Value", "值")}</th>
                 <th className="py-3 pr-4 font-medium text-gray-500">{t("Description", "说明")}</th>
-                <th className="py-3 font-medium text-gray-500 w-24">{t("Actions", "操作")}</th>
+                {canWrite && <th className="py-3 font-medium text-gray-500 w-24">{t("Actions", "操作")}</th>}
               </tr>
             </thead>
             <tbody>
@@ -110,6 +112,7 @@ export default function SystemSettingsPanel({
                       )}
                     </td>
                     <td className="py-3 pr-4 text-xs text-gray-500">{s.description || "—"}</td>
+                    {canWrite && (
                     <td className="py-3">
                       {!s.editable ? (
                         <span className="text-xs text-gray-400">{t("Env-only", "环境变量")}</span>
@@ -128,12 +131,13 @@ export default function SystemSettingsPanel({
                         </button>
                       )}
                     </td>
+                    )}
                   </tr>
                 );
               })}
               {settings.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="py-8 text-center text-gray-400">
+                  <td colSpan={canWrite ? 4 : 3} className="py-8 text-center text-gray-400">
                     <Settings className="w-8 h-8 mx-auto mb-2 opacity-50" />
                     {t("No settings found", "未找到配置项")}
                   </td>

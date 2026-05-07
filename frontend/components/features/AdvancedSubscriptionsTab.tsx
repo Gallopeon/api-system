@@ -21,6 +21,7 @@ interface Props {
   renewSubscription: (id: string, expiresAt: string) => Promise<void>;
   getSubscriptionUsage: (id: string) => Promise<SubscriptionUsage | null>;
   deleteSubscription: (id: string) => Promise<void>;
+  canWrite: boolean;
   notifyError: (m: string) => void;
   t: <T>(en: T, zh: T) => T;
 }
@@ -41,7 +42,7 @@ const th = (t: string) => <th className="px-3 py-2.5 text-left text-xs font-semi
 const td = (c: React.ReactNode, cls = "") => <td className={`px-3 py-3 ${cls}`}>{c}</td>;
 
 export default function AdvancedSubscriptionsTab(props: Props) {
-  const { subscriptions, busy, apiKeys, productsList, usageMap, loadSubscriptions, loadApiKeys, loadProductsList, createSubscription, updateSubscription, upgradeSubscription, cancelSubscription, renewSubscription, getSubscriptionUsage, deleteSubscription, notifyError, t } = props;
+  const { subscriptions, busy, apiKeys, productsList, usageMap, loadSubscriptions, loadApiKeys, loadProductsList, createSubscription, updateSubscription, upgradeSubscription, cancelSubscription, renewSubscription, getSubscriptionUsage, deleteSubscription, canWrite, notifyError, t } = props;
   const [show, setShow] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [showRenew, setShowRenew] = useState<string | null>(null);
@@ -116,10 +117,10 @@ export default function AdvancedSubscriptionsTab(props: Props) {
           <h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t("Subscriptions", "订阅管理")}</h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t("Manage API product subscriptions with tiered plans, quotas, and lifecycle controls.", "管理 API 产品订阅，支持分层套餐、配额和生命周期控制。")}</p>
         </div>
-        <button className={btnPrimary} onClick={() => setShow(!show)} disabled={busy}><Plus className="w-4 h-4 mr-1" />{t("Create", "创建")}</button>
+        {canWrite && <button className={btnPrimary} onClick={() => setShow(!show)} disabled={busy}><Plus className="w-4 h-4 mr-1" />{t("Create", "创建")}</button>}
       </div>
 
-      {show && (
+      {canWrite && show && (
         <div className={`${cardClass} space-y-4`}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
@@ -151,7 +152,7 @@ export default function AdvancedSubscriptionsTab(props: Props) {
         <div className={`${cardClass} p-0 overflow-x-auto`}>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800">
-              <tr>{[t("API Key", "API Key"), t("Product", "产品"), t("Plan", "套餐"), t("Rate/QoS", "速率/配额"), t("Usage", "用量"), t("Expires", "过期"), t("Status", "状态"), t("Actions", "操作")].map(h => th(h))}</tr>
+              <tr>{[t("API Key", "API Key"), t("Product", "产品"), t("Plan", "套餐"), t("Rate/QoS", "速率/配额"), t("Usage", "用量"), t("Expires", "过期"), t("Status", "状态"), ...(canWrite ? [t("Actions", "操作")] : [])].map(h => th(h))}</tr>
             </thead>
             <tbody className="divide-y dark:divide-gray-800">
               {subscriptions.map(s => (
@@ -176,7 +177,7 @@ export default function AdvancedSubscriptionsTab(props: Props) {
                       {td(renderUsage(s))}
                       {td(<span className={`text-xs ${s.expires_at && new Date(s.expires_at) < new Date() ? "text-red-500 font-medium" : "text-gray-500"}`}>{s.expires_at ? new Date(s.expires_at).toLocaleDateString() : <span className="text-gray-400">{t("Never", "无限制")}</span>}</span>)}
                       {td(statusBadge(s.status, t))}
-                      {td(
+                      {canWrite && td(
                         <div className="flex items-center gap-0.5">
                           {/* Usage lookup */}
                           <button className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => getSubscriptionUsage(s.id)} title={t("Check Usage", "查看用量")}><BarChart3 className="w-3.5 h-3.5" /></button>

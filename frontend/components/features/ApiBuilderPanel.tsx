@@ -43,6 +43,7 @@ interface ApiBuilderPanelProps {
   transformAbEntry: (entry: AbEntry, idx: number) => Promise<void>;
   batchTransformAb: () => Promise<void>;
   abEntryToJson: (entry: AbEntry) => string;
+  canWrite: boolean;
   notifySucc: (msg: string) => void;
   notifyError: (msg: string) => void;
   t: <T>(en: T, zh: T) => T;
@@ -57,7 +58,7 @@ export default function ApiBuilderPanel(props: ApiBuilderPanelProps) {
     setAbWhitelist, setAbRenamesList, setAbMasked, setAbRemoveNulls, setAbChangeKind,
     resetAbCrud, saveAbPreset, loadAbPreset, deleteAbPreset,
     abSaveRule, abDeleteRule, transformAbEntry, batchTransformAb, abEntryToJson,
-    notifySucc, t,
+    canWrite, notifySucc, t,
   } = props;
 
   return (
@@ -80,7 +81,7 @@ export default function ApiBuilderPanel(props: ApiBuilderPanelProps) {
         setAbMasked={setAbMasked} setAbRemoveNulls={setAbRemoveNulls} setAbChangeKind={setAbChangeKind}
         loadAbRuleFields={loadAbRuleFields} resetAbCrud={resetAbCrud}
         abSaveRule={abSaveRule} abDeleteRule={abDeleteRule}
-        setAbEntries={setAbEntries} notifySucc={notifySucc} t={t}
+        setAbEntries={setAbEntries} canWrite={canWrite} notifySucc={notifySucc} t={t}
       />
 
       <ApiBuilderEntriesSection

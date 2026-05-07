@@ -26,10 +26,14 @@ export default function UserLoginHistoryTab({ loginHistory, t }: Props) {
               </tr>
             </thead>
             <tbody>
-              {loginHistory.map((h) => (
+              {loginHistory.map((h) => {
+                const date = new Date(h.created_at);
+                const dateString = isNaN(date.getTime()) ? h.created_at : date.toLocaleString();
+
+                return (
                 <tr key={h.id} className="border-b border-gray-100 dark:border-gray-800">
                   <td className="py-2 pr-4 text-gray-600 dark:text-gray-400 whitespace-nowrap">
-                    {new Date(h.created_at).toLocaleString()}
+                    {dateString}
                   </td>
                   <td className="py-2 pr-4">{h.username_attempt}</td>
                   <td className="py-2 pr-4">
@@ -43,7 +47,7 @@ export default function UserLoginHistoryTab({ loginHistory, t }: Props) {
                   </td>
                   <td className="py-2 text-gray-500 text-xs">{h.failure_reason || "—"}</td>
                 </tr>
-              ))}
+              )})}
             </tbody>
           </table>
         </div>

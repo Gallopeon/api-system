@@ -32,6 +32,7 @@ interface ApprovalsPanelProps {
   onRefresh: () => void;
   onLoadMyRequests: () => void;
   onLoadMyPending: () => void;
+  canReview: boolean;
   t: <T>(en: T, zh: T) => T;
 }
 
@@ -46,7 +47,7 @@ export default function ApprovalsPanel({
   approvalRuleId, approvalComment, approvalReviewer, rules,
   onSetApprovalFilter, onSetApprovalTab,
   onSetApprovalRuleId, onSetApprovalComment, onSetApprovalReviewer,
-  onCreateApproval, onReviewApproval, onRefresh, onLoadMyRequests, onLoadMyPending, t,
+  onCreateApproval, onReviewApproval, onRefresh, onLoadMyRequests, onLoadMyPending, canReview, t,
 }: ApprovalsPanelProps) {
   const displayData = approvalTab === "my-requests" ? myApprovals : approvalTab === "my-pending" ? myPending : approvals;
 
@@ -191,7 +192,7 @@ export default function ApprovalsPanel({
                     <td className="px-5 py-3.5">{statusBadge(a.status)}</td>
                     <td className="px-5 py-3.5 text-xs text-gray-500 max-w-xs truncate">{a.comment || "—"}</td>
                     <td className="px-5 py-3.5 text-right">
-                      {a.status === "pending" ? (
+                      {a.status === "pending" && canReview ? (
                         <div className="flex items-center justify-end gap-1.5 opacity-70 group-hover:opacity-100 transition">
                           <button onClick={() => onReviewApproval(a.id, "approve")} disabled={apprBusy}
                             className="px-3 py-1.5 rounded-lg text-xs font-medium text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"

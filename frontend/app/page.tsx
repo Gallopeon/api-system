@@ -24,25 +24,27 @@ import Sidebar from "@/components/layout/Sidebar";
 import Toast from "@/components/ui/Toast";
 import ErrorBoundary from "@/components/ui/ErrorBoundary";
 
-// ---- Feature Panels ----
-import DashboardPanel from "@/components/features/DashboardPanel";
-import RulesPanel from "@/components/features/RulesPanel";
-import VersionsPanel from "@/components/features/VersionsPanel";
-import PlaygroundPanel from "@/components/features/PlaygroundPanel";
-import ApiKeysPanel from "@/components/features/ApiKeysPanel";
-import RateLimitsPanel from "@/components/features/RateLimitsPanel";
-import ApprovalsPanel from "@/components/features/ApprovalsPanel";
-import AnalyticsPanel from "@/components/features/AnalyticsPanel";
-import AuditLogPanel from "@/components/features/AuditLogPanel";
-import ManualPanel from "@/components/features/ManualPanel";
-import ApiBuilderPanel from "@/components/features/ApiBuilderPanel";
-import OpenApiPanel from "@/components/features/OpenApiPanel";
-import LlmGatewayPanel from "@/components/features/LlmGatewayPanel";
-import AdvancedPanel from "@/components/features/AdvancedPanel";
-import PortalPanel from "@/components/features/PortalPanel";
-import UserCenterPanel from "@/components/features/UserCenterPanel";
-import UserManagementPanel from "@/components/features/UserManagementPanel";
-import SystemSettingsPanel from "@/components/features/SystemSettingsPanel";
+// ---- Feature Panels (Dynamic Imports) ----
+import dynamic from "next/dynamic";
+
+const DashboardPanel = dynamic(() => import("@/components/features/DashboardPanel"), { ssr: false });
+const RulesPanel = dynamic(() => import("@/components/features/RulesPanel"), { ssr: false });
+const VersionsPanel = dynamic(() => import("@/components/features/VersionsPanel"), { ssr: false });
+const PlaygroundPanel = dynamic(() => import("@/components/features/PlaygroundPanel"), { ssr: false });
+const ApiKeysPanel = dynamic(() => import("@/components/features/ApiKeysPanel"), { ssr: false });
+const RateLimitsPanel = dynamic(() => import("@/components/features/RateLimitsPanel"), { ssr: false });
+const ApprovalsPanel = dynamic(() => import("@/components/features/ApprovalsPanel"), { ssr: false });
+const AnalyticsPanel = dynamic(() => import("@/components/features/AnalyticsPanel"), { ssr: false });
+const AuditLogPanel = dynamic(() => import("@/components/features/AuditLogPanel"), { ssr: false });
+const ManualPanel = dynamic(() => import("@/components/features/ManualPanel"), { ssr: false });
+const ApiBuilderPanel = dynamic(() => import("@/components/features/ApiBuilderPanel"), { ssr: false });
+const OpenApiPanel = dynamic(() => import("@/components/features/OpenApiPanel"), { ssr: false });
+const LlmGatewayPanel = dynamic(() => import("@/components/features/LlmGatewayPanel"), { ssr: false });
+const AdvancedPanel = dynamic(() => import("@/components/features/AdvancedPanel"), { ssr: false });
+const PortalPanel = dynamic(() => import("@/components/features/PortalPanel"), { ssr: false });
+const UserCenterPanel = dynamic(() => import("@/components/features/UserCenterPanel"), { ssr: false });
+const UserManagementPanel = dynamic(() => import("@/components/features/UserManagementPanel"), { ssr: false });
+const SystemSettingsPanel = dynamic(() => import("@/components/features/SystemSettingsPanel"), { ssr: false });
 
 // ================================================================
 export default function APIControlCenter() {
@@ -51,6 +53,24 @@ export default function APIControlCenter() {
   const { data: session, status } = useSession();
   const userRole = (session?.user?.role as Role) || null;
   const [activeMenu, setActiveMenu] = useState("dashboard");
+
+  // Permission flags for role-based UI gating
+  const can = {
+    writeRule: hasPermission(userRole, PERMISSIONS.RuleWrite),
+    publishRule: hasPermission(userRole, PERMISSIONS.RulePublish),
+    executeTransform: hasPermission(userRole, PERMISSIONS.TransformExecute),
+    writeApiKey: hasPermission(userRole, PERMISSIONS.ApiKeyWrite),
+    writeRateLimit: hasPermission(userRole, PERMISSIONS.RateLimitWrite),
+    reviewApproval: hasPermission(userRole, PERMISSIONS.ApprovalReview),
+    manageLlm: hasPermission(userRole, PERMISSIONS.LlmManage),
+    writeProducts: hasPermission(userRole, PERMISSIONS.ProductsWrite),
+    writeCircuitBreakers: hasPermission(userRole, PERMISSIONS.CircuitBreakersWrite),
+    writeProtocols: hasPermission(userRole, PERMISSIONS.ProtocolsWrite),
+    writeClassifications: hasPermission(userRole, PERMISSIONS.ClassificationsWrite),
+    writePlugins: hasPermission(userRole, PERMISSIONS.PluginsWrite),
+    writeSystem: hasPermission(userRole, PERMISSIONS.SystemWrite),
+    manageUsers: hasPermission(userRole, PERMISSIONS.UserManage),
+  };
 
   // Cross-tab state
   const [openApiFilter, setOpenApiFilter] = useState("");
@@ -151,6 +171,7 @@ export default function APIControlCenter() {
               setWhitelist={rulesHook.setWhitelist} setRenames={rulesHook.setRenames} setMasked={rulesHook.setMasked}
               setComputed={rulesHook.setComputed} setConditional={rulesHook.setConditional} setGray={rulesHook.setGray}
               setRemoveNulls={rulesHook.setRemoveNulls} setChangeKind={rulesHook.setChangeKind}
+              canWrite={can.writeRule} canPublish={can.publishRule}
               t={t}
             />
           )}
@@ -162,7 +183,7 @@ export default function APIControlCenter() {
               rollbackVer={rulesHook.rollbackVer} diffJson={rulesHook.diffJson}
               onSelectRule={rulesHook.selectRule} onRollback={rulesHook.rollback} onComputeDiff={rulesHook.computeDiff}
               setFromVer={rulesHook.setFromVer} setToVer={rulesHook.setToVer} setRollbackVer={rulesHook.setRollbackVer}
-              t={t}
+              canPublish={can.publishRule} t={t}
             />
           )}
 
@@ -181,7 +202,7 @@ export default function APIControlCenter() {
                 const result = await playgroundHook.evalExpression(expr, exprIn);
                 setExprOut(result);
               }}
-              notifyError={notifyError} notifySucc={notifySucc} t={t}
+              canExecute={can.executeTransform} notifyError={notifyError} notifySucc={notifySucc} t={t}
             />
           )}
 
@@ -209,6 +230,7 @@ export default function APIControlCenter() {
               transformAbEntry={apiBuilderHook.transformAbEntry}
               batchTransformAb={apiBuilderHook.batchTransformAb}
               abEntryToJson={apiBuilderHook.abEntryToJson}
+              canWrite={can.writeRule}
               notifySucc={notifySucc} notifyError={notifyError}
               t={t}
             />
@@ -230,6 +252,7 @@ export default function APIControlCenter() {
                 setSelectedRuleId: rulesHook.setSelectedRuleId,
                 setActiveMenu,
               }}
+              canWrite={can.writeRule}
               notifyError={notifyError} notifySucc={notifySucc} t={t}
             />
           )}
@@ -245,7 +268,7 @@ export default function APIControlCenter() {
               onCreateApiKey={apiKeysHook.createApiKey}
               onToggleApiKey={apiKeysHook.toggleApiKey} onDeleteApiKey={apiKeysHook.deleteApiKey}
               onRefresh={apiKeysHook.loadApiKeys} fmtExpiry={apiKeysHook.fmtRelativeExpiry}
-              notifySucc={notifySucc} t={t}
+              canWrite={can.writeApiKey} notifySucc={notifySucc} t={t}
             />
           )}
 
@@ -264,7 +287,7 @@ export default function APIControlCenter() {
               setRlPerKey={rateLimitsHook.setRlPerKey} setRlPerIp={rateLimitsHook.setRlPerIp}
               onCreate={rateLimitsHook.createRateLimit} onToggle={rateLimitsHook.toggleRateLimit}
               onDelete={rateLimitsHook.deleteRateLimit} onRefresh={rateLimitsHook.loadRateLimits}
-              t={t}
+              canWrite={can.writeRateLimit} t={t}
             />
           )}
 
@@ -281,7 +304,7 @@ export default function APIControlCenter() {
               onCreateApproval={handleCreateApproval}
               onReviewApproval={handleReviewApproval}
               onRefresh={loadApprovals} onLoadMyRequests={loadMyRequests} onLoadMyPending={loadMyPending}
-              t={t}
+              canReview={can.reviewApproval} t={t}
             />
           )}
 
@@ -300,7 +323,7 @@ export default function APIControlCenter() {
 
           {activeMenu === "llmgateway" && (
             <LlmGatewayPanel
-              canManage={hasPermission(userRole, PERMISSIONS.LlmManage)}
+              canManage={can.manageLlm}
               notifyError={notifyError}
               notifySucc={notifySucc}
               t={t}
@@ -311,6 +334,11 @@ export default function APIControlCenter() {
             <AdvancedPanel
               notifyError={notifyError}
               notifySucc={notifySucc}
+              canWriteProducts={can.writeProducts}
+              canWriteCircuitBreakers={can.writeCircuitBreakers}
+              canWriteProtocols={can.writeProtocols}
+              canWriteClassifications={can.writeClassifications}
+              canWritePlugins={can.writePlugins}
               t={t}
             />
           )}
@@ -328,6 +356,7 @@ export default function APIControlCenter() {
               onSelectRule={rulesHook.selectRule}
               setOpenApiFilter={setOpenApiFilter}
               getDefaultExpiry={getDefaultExpiry}
+              canRequestKey={can.writeApiKey}
               notifySucc={notifySucc}
               t={t}
             />
@@ -345,7 +374,7 @@ export default function APIControlCenter() {
 
           {activeMenu === "user-management" && (
             <UserManagementPanel
-              canManage={hasPermission(userRole, PERMISSIONS.UserManage)}
+              canManage={can.manageUsers}
               notifyError={notifyError}
               notifySucc={notifySucc}
               t={t}
@@ -354,6 +383,7 @@ export default function APIControlCenter() {
 
           {activeMenu === "system-settings" && (
             <SystemSettingsPanel
+              canWrite={can.writeSystem}
               notifyError={notifyError}
               notifySucc={notifySucc}
               t={t}

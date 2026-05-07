@@ -11,6 +11,7 @@ interface Props {
   createPlugin: (data: Record<string, unknown>) => Promise<void>;
   updatePlugin: (id: string, data: Record<string, unknown>) => Promise<void>;
   deletePlugin: (id: string) => Promise<void>;
+  canWrite: boolean;
   notifyError: (m: string) => void;
   t: <T>(en: T, zh: T) => T;
 }
@@ -23,7 +24,7 @@ const statusBadge = (s: string, t: Props["t"]) => (
 const th = (t: string) => <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t}</th>;
 const td = (c: React.ReactNode, cls = "") => <td className={`px-4 py-3 ${cls}`}>{c}</td>;
 
-export default function AdvancedPluginsTab({ plugins, busy, createPlugin, updatePlugin, deletePlugin, notifyError, t }: Props) {
+export default function AdvancedPluginsTab({ plugins, busy, createPlugin, updatePlugin, deletePlugin, canWrite, notifyError, t }: Props) {
   const [show, setShow] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [name, setName] = useState(""); const [type, setType] = useState("lua"); const [hook, setHook] = useState("pre_transform");
@@ -47,9 +48,9 @@ export default function AdvancedPluginsTab({ plugins, busy, createPlugin, update
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div><h2 className="text-xl font-bold text-gray-900 dark:text-gray-100">{t("Plugins", "插件系统")}</h2><p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t("Register custom plugins at hook points in the transform pipeline.", "在转换管线的钩子点注册自定义插件。")}</p></div>
-        <button className={btnPrimary} onClick={() => setShow(!show)} disabled={busy}><Plus className="w-4 h-4 mr-1" />{t("Create", "创建")}</button>
+        {canWrite && <button className={btnPrimary} onClick={() => setShow(!show)} disabled={busy}><Plus className="w-4 h-4 mr-1" />{t("Create", "创建")}</button>}
       </div>
-      {show && (
+      {canWrite && show && (
         <div className={`${cardClass} space-y-4`}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div><label className={labelClass}>{t("Name", "名称")} <span className="text-red-500">*</span></label><input className={inputClass} value={name} onChange={e => setName(e.target.value)} placeholder={t("My Plugin", "插件名称")} /></div>
@@ -65,14 +66,14 @@ export default function AdvancedPluginsTab({ plugins, busy, createPlugin, update
         <div className={`${cardClass} text-center py-10 text-gray-400`}><Settings className="w-10 h-10 mx-auto mb-3 opacity-40" /><p className="text-sm">{t("No items found", "暂无数据")}</p></div>
       ) : (
         <div className={`${cardClass} p-0 overflow-hidden`}>
-          <table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800"><tr>{[t("Name", "名称"), t("Type", "类型"), t("Hook Point", "钩子点"), t("Priority", "优先级"), t("Status", "状态"), t("Actions", "操作")].map(h => th(h))}</tr></thead>
+          <table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800"><tr>{[t("Name", "名称"), t("Type", "类型"), t("Hook Point", "钩子点"), t("Priority", "优先级"), t("Status", "状态"), ...(canWrite ? [t("Actions", "操作")] : [])].map(h => th(h))}</tr></thead>
           <tbody className="divide-y dark:divide-gray-800">
             {plugins.map(p => (
               <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition">
                 {editId === p.id ? (
-                  <>{td(<input className={inputClass} value={eName} onChange={e => setEName(e.target.value)} />)}{td(<input className={inputClass} value={eType} onChange={e => setEType(e.target.value)} />)}{td(<select className={inputClass} value={eHook} onChange={e => setEHook(e.target.value)}><option value="pre_transform">pre_transform</option><option value="post_transform">post_transform</option><option value="pre_auth">pre_auth</option><option value="post_auth">post_auth</option><option value="pre_cache">pre_cache</option><option value="post_cache">post_cache</option></select>)}{td(<input className={inputClass} type="number" value={ePrio} onChange={e => setEPrio(e.target.value)} />)}{td(statusBadge(p.status, t))}{td(<div className="flex gap-1"><button className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg" onClick={saveEdit}><Check className="w-3.5 h-3.5" /></button><button className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" onClick={() => setEditId(null)}><X className="w-3.5 h-3.5" /></button></div>)}</>
+                  <>{td(<input className={inputClass} value={eName} onChange={e => setEName(e.target.value)} />)}{td(<input className={inputClass} value={eType} onChange={e => setEType(e.target.value)} />)}{td(<select className={inputClass} value={eHook} onChange={e => setEHook(e.target.value)}><option value="pre_transform">pre_transform</option><option value="post_transform">post_transform</option><option value="pre_auth">pre_auth</option><option value="post_auth">post_auth</option><option value="pre_cache">pre_cache</option><option value="post_cache">post_cache</option></select>)}{td(<input className={inputClass} type="number" value={ePrio} onChange={e => setEPrio(e.target.value)} />)}{td(statusBadge(p.status, t))}{canWrite && td(<div className="flex gap-1"><button className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg" onClick={saveEdit}><Check className="w-3.5 h-3.5" /></button><button className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" onClick={() => setEditId(null)}><X className="w-3.5 h-3.5" /></button></div>)}</>
                 ) : (
-                  <>{td(<span className="font-semibold text-gray-900 dark:text-gray-100">{p.name}</span>)}{td(<span className="text-xs px-2 py-0.5 rounded-full font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400 uppercase">{p.plugin_type}</span>)}{td(<span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400">{p.hook_point}</span>)}{td(<span className="font-semibold">{p.priority}</span>)}{td(statusBadge(p.status, t))}{td(<div className="flex items-center gap-1"><button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(p)}><Edit3 className="w-3.5 h-3.5" /></button><button className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" onClick={() => deletePlugin(p.id)} disabled={busy}><Trash2 className="w-3.5 h-3.5" /></button></div>)}</>
+                  <>{td(<span className="font-semibold text-gray-900 dark:text-gray-100">{p.name}</span>)}{td(<span className="text-xs px-2 py-0.5 rounded-full font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400 uppercase">{p.plugin_type}</span>)}{td(<span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400">{p.hook_point}</span>)}{td(<span className="font-semibold">{p.priority}</span>)}{td(statusBadge(p.status, t))}{canWrite && td(<div className="flex items-center gap-1"><button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(p)}><Edit3 className="w-3.5 h-3.5" /></button><button className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" onClick={() => deletePlugin(p.id)} disabled={busy}><Trash2 className="w-3.5 h-3.5" /></button></div>)}</>
                 )}
               </tr>
             ))}
