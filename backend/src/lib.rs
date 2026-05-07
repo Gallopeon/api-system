@@ -202,6 +202,7 @@ async fn data_plane_middleware(
         subject: "anonymous".to_string(),
         role: Role::Viewer,
         tenant_id: None,
+        jti: None,
     });
     next.run(request).await
 }

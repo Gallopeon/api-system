@@ -1,9 +1,9 @@
 use std::sync::Arc;
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::{Extension, Json};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration, Utc};
 use serde_json::{json, Value};
 use sqlx::Row;
 use uuid::Uuid;
@@ -14,7 +14,7 @@ use crate::auth::*;
 
 // ==================== Auth / User ====================
 
-pub async fn login(State(state): State<Arc<AppState>>, Json(payload): Json<LoginRequest>) -> Result<impl IntoResponse, AppError> {
+pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(payload): Json<LoginRequest>) -> Result<impl IntoResponse, AppError> {
     let row = sqlx::query(
         "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, failed_login_attempts, locked_until, last_login_at, created_at, updated_at FROM users WHERE username = ?"
     ).bind(&payload.username).fetch_optional(&state.pool).await?
@@ -69,7 +69,7 @@ pub async fn login(State(state): State<Arc<AppState>>, Json(payload): Json<Login
     let role_str: String = row.try_get("role").unwrap_or_else(|_| "viewer".to_string());
     let role = parse_role(&role_str);
 
-    let token = create_jwt(&payload.username, role, None, &state.auth.jwt_secret, 86400)?;
+    let (token, jti) = create_jwt(&payload.username, role, None, &state.auth.jwt_secret, 86400)?;
 
     // Reset failed attempts on success, update last login, record successful login
     sqlx::query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE id = ?")
@@ -77,6 +77,18 @@ pub async fn login(State(state): State<Arc<AppState>>, Json(payload): Json<Login
     let _ = sqlx::query(
         "INSERT INTO login_history (user_id, username_attempt, success) VALUES (?, ?, 1)"
     ).bind(&user_id).bind(&payload.username).execute(&state.pool).await;
+
+    // Record active session
+    let client_ip = headers.get("x-forwarded-for")
+        .or_else(|| headers.get("x-real-ip"))
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("unknown");
+    let user_agent = headers.get("user-agent").and_then(|v| v.to_str().ok());
+    let session_id = Uuid::new_v4().to_string();
+    let expires_at = (Utc::now() + Duration::seconds(86400)).naive_utc();
+    let _ = sqlx::query(
+        "INSERT INTO user_sessions (id, user_id, token_jti, token_expires_at, client_ip, user_agent) VALUES (?, ?, ?, ?, ?, ?)"
+    ).bind(&session_id).bind(&user_id).bind(&jti).bind(expires_at).bind(client_ip).bind(user_agent).execute(&state.pool).await;
 
     Ok(Json(LoginResponse { token, user: row_to_user(&row) }))
 }
@@ -157,15 +169,21 @@ pub async fn change_my_password(State(state): State<Arc<AppState>>, Extension(au
 
 pub async fn list_my_sessions(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserSelf)?;
+    let current_jti = auth.jti.clone();
     let rows = sqlx::query("SELECT id, token_jti, token_expires_at, client_ip, user_agent, revoked, created_at FROM user_sessions WHERE user_id = (SELECT id FROM users WHERE username = ?) AND revoked = 0 AND token_expires_at > NOW()")
         .bind(&auth.subject).fetch_all(&state.pool).await?;
-    let items: Vec<Value> = rows.iter().map(|r| json!({
-        "id": r.try_get::<String,_>("id").unwrap_or_default(),
-        "client_ip": r.try_get::<String,_>("client_ip").unwrap_or_default(),
-        "user_agent": r.try_get::<String,_>("user_agent").unwrap_or_default(),
-        "expires_at": r.try_get::<String,_>("token_expires_at").unwrap_or_default(),
-        "current": false,
-    })).collect();
+    let items: Vec<Value> = rows.iter().map(|r| {
+        let jti: Option<String> = r.try_get("token_jti").ok().flatten();
+        let is_current = current_jti.as_ref().and_then(|c| jti.as_ref().map(|j| c == j)).unwrap_or(false);
+        json!({
+            "id": r.try_get::<String,_>("id").unwrap_or_default(),
+            "client_ip": r.try_get::<String,_>("client_ip").unwrap_or_default(),
+            "user_agent": r.try_get::<String,_>("user_agent").unwrap_or_default(),
+            "expires_at": r.try_get::<String,_>("token_expires_at").unwrap_or_default(),
+            "created_at": r.try_get::<String,_>("created_at").unwrap_or_default(),
+            "current": is_current,
+        })
+    }).collect();
     Ok(Json(json!({"items": items})))
 }
 

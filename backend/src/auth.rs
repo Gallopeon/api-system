@@ -49,6 +49,7 @@ pub struct AuthContext {
     pub subject: String,
     pub role: Role,
     pub tenant_id: Option<String>,
+    pub jti: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -171,7 +172,6 @@ pub fn role_has_permission(role: Role, permission: Permission) -> bool {
                 | Permission::MetricsRead
                 | Permission::AuditRead
                 | Permission::LlmRoute
-                | Permission::LlmManage
                 | Permission::ProductsRead
                 | Permission::CircuitBreakersRead
                 | Permission::ProtocolsRead
@@ -197,6 +197,7 @@ pub fn role_has_permission(role: Role, permission: Permission) -> bool {
                 | Permission::MetricsRead
                 | Permission::AuditRead
                 | Permission::LlmRoute
+                | Permission::LlmManage
                 | Permission::ProductsRead
                 | Permission::ProductsWrite
                 | Permission::CircuitBreakersRead
@@ -263,7 +264,7 @@ pub fn create_jwt(
     tenant_id: Option<&str>,
     secret: &str,
     ttl_seconds: i64,
-) -> Result<String, AppError> {
+) -> Result<(String, String), AppError> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map_err(|_| AppError::BadRequest("system clock error".to_string()))?
@@ -277,12 +278,13 @@ pub fn create_jwt(
         "jti": jti,
         "tenant_id": tenant_id,
     });
-    encode(
+    let token = encode(
         &Header::new(Algorithm::HS256),
         &claims,
         &EncodingKey::from_secret(secret.as_bytes()),
     )
-    .map_err(|e| AppError::BadRequest(format!("token creation failed: {}", e)))
+    .map_err(|e| AppError::BadRequest(format!("token creation failed: {}", e)))?;
+    Ok((token, jti))
 }
 
 pub fn validate_password_strength(password: &str) -> Result<(), AppError> {
@@ -378,6 +380,7 @@ async fn try_authenticate(state: &AppState, headers: &HeaderMap) -> Option<AuthC
         subject: claims.sub,
         role,
         tenant_id: claims.tenant_id,
+        jti: claims.jti,
     })
 }
 

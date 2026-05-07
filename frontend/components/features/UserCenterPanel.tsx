@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { UserCircle, Shield, Monitor, History, QrCode, Settings } from "lucide-react";
 import { useUserProfile, useSessions, useLoginHistory, useTotp, usePreferences } from "@/hooks/useUserProfile";
+import { useTheme } from "@/app/theme";
 import UserProfileTab from "./UserProfileTab";
 import UserSecurityTab from "./UserSecurityTab";
 import UserTotpTab from "./UserTotpTab";
@@ -28,6 +29,7 @@ export default function UserCenterPanel({
   const { totpBusy, totpSecret, totpQrUrl, totpEnabled, setupTotp, verifyTotp, disableTotp, checkTotpStatus } =
     useTotp(accessToken, notifyError, notifySucc);
   const { prefs, loadPreferences, savePreferences } = usePreferences(accessToken, notifySucc);
+  const { setTheme } = useTheme();
 
   const [editEmail, setEditEmail] = useState("");
   const [editDisplayName, setEditDisplayName] = useState("");
@@ -61,7 +63,7 @@ export default function UserCenterPanel({
   }, [profile]);
 
   useEffect(() => {
-    if (prefs.theme) setPrefTheme(prefs.theme);
+    if (prefs.theme) { setPrefTheme(prefs.theme); setTheme(prefs.theme as "system" | "light" | "dark"); }
     if (prefs.lang) setPrefLang(prefs.lang);
     if (prefs.notifications?.email) {
       setPrefEmailRuleChanges(prefs.notifications.email.rule_changes);
@@ -71,7 +73,7 @@ export default function UserCenterPanel({
       setPrefInAppApprovals(prefs.notifications.in_app.approvals);
       setPrefInAppAudit(prefs.notifications.in_app.audit);
     }
-  }, [prefs]);
+  }, [prefs, setTheme]);
 
   const handleUpdateProfile = async () => {
     await updateProfile({
@@ -202,7 +204,7 @@ export default function UserCenterPanel({
           prefInAppApprovals={prefInAppApprovals}
           prefInAppAudit={prefInAppAudit}
           onPreferenceChange={handlePreferenceChange}
-          onSaveThemeLang={(theme, lang) => savePreferences({ theme, lang })}
+          onSaveThemeLang={(theme, lang) => { savePreferences({ theme, lang }); setTheme(theme as "system" | "light" | "dark"); }}
           t={t}
         />
       )}
