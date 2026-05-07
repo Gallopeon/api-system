@@ -154,9 +154,3 @@ pub async fn cache_analytics(redis: &redis::Client, hours: u32, data: &Analytics
     let _: () = conn.set_ex(&key, payload, ANALYTICS_CACHE_TTL).await?;
     Ok(())
 }
-
-pub fn compute_p95_p99_offsets(total: i64) -> (i64, i64) {
-    let p95_offset = ((total as f64) * 0.95).floor() as i64;
-    let p99_offset = ((total as f64) * 0.99).floor() as i64;
-    (p95_offset.max(0).min(total - 1), p99_offset.max(0).min(total - 1))
-}

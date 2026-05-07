@@ -201,22 +201,30 @@ async fn analytics_inner(
         count,
     }).collect();
 
+    // Weighted percentile approximation from per-group (avg_latency, count) pairs.
+    // Avoids expensive ORDER BY latency_ms OFFSET queries on the raw metrics table.
     let (p95, p99) = if total > 0 {
-        let (p95_offset, p99_offset) = compute_p95_p99_offsets(total);
-        let (p95_res, p99_res) = tokio::try_join!(
-            sqlx::query_scalar::<_, i32>(
-                "SELECT latency_ms FROM metrics_ingest \
-                 WHERE timestamp >= (NOW() - INTERVAL ? HOUR) \
-                 ORDER BY latency_ms LIMIT 1 OFFSET ?"
-            ).bind(hours).bind(p95_offset).fetch_optional(&state.pool),
-            sqlx::query_scalar::<_, i32>(
-                "SELECT latency_ms FROM metrics_ingest \
-                 WHERE timestamp >= (NOW() - INTERVAL ? HOUR) \
-                 ORDER BY latency_ms LIMIT 1 OFFSET ?"
-            ).bind(hours).bind(p99_offset).fetch_optional(&state.pool),
-        ).map_err(|e: sqlx::Error| AppError::Internal(format!("percentile query failed: {}", e)))?;
+        let mut pairs: Vec<(f64, i64)> = rows.iter().map(|r| {
+            let scnt: i64 = r.try_get("scnt").unwrap_or(0);
+            let wlat: f64 = r.try_get("weighted_lat").unwrap_or(0.0);
+            let avg = if scnt > 0 { wlat / scnt as f64 } else { 0.0 };
+            (avg, scnt)
+        }).collect();
+        pairs.sort_unstable_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
-        (p95_res.unwrap_or(0) as i64, p99_res.unwrap_or(0) as i64)
+        let p95_thresh = (total as f64 * 0.95).ceil() as i64;
+        let p99_thresh = (total as f64 * 0.99).ceil() as i64;
+        let mut cum = 0i64;
+        let mut p95_val = 0i64;
+        let mut p99_val = 0i64;
+        for (avg, cnt) in &pairs {
+            cum += cnt;
+            if p95_val == 0 && cum >= p95_thresh { p95_val = *avg as i64; }
+            if p99_val == 0 && cum >= p99_thresh { p99_val = *avg as i64; }
+        }
+        if p95_val == 0 { p95_val = avg_latency as i64; }
+        if p99_val == 0 { p99_val = avg_latency as i64; }
+        (p95_val, p99_val)
     } else {
         (0, 0)
     };
