@@ -9,7 +9,7 @@ use sqlx::Row;
 use uuid::Uuid;
 use crate::AppState;
 use crate::auth::*;
-use crate::handlers::common::write_audit_log;
+use crate::handlers::common::spawn_audit_log;
 use crate::types::AuditEntry;
 
 // ─── Subscriptions CRUD ────────────────────────────────────────────────────────
@@ -35,7 +35,7 @@ pub async fn create_subscription(
     .bind(rate_limit_rps).bind(quota_daily).bind(expires_at)
     .execute(&state.pool).await?;
 
-    let _ = write_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.create".into(), actor: auth.subject.clone(), success: true, message: Some(format!("subscribed key {} to product {} plan {}", api_key_id, product_id, plan)), detail: None }).await;
+    spawn_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.create".into(), actor: auth.subject.clone(), success: true, message: Some(format!("subscribed key {} to product {} plan {}", api_key_id, product_id, plan)), detail: None });
     Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
 }
 
@@ -106,7 +106,7 @@ pub async fn update_subscription(
     for v in &bind_values { q = q.bind(v); }
     q.execute(&state.pool).await?;
 
-    let _ = write_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.update".into(), actor: auth.subject.clone(), success: true, message: Some("updated subscription".into()), detail: None }).await;
+    spawn_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.update".into(), actor: auth.subject.clone(), success: true, message: Some("updated subscription".into()), detail: None });
     Ok(Json(json!({"updated": true})))
 }
 
@@ -117,7 +117,7 @@ pub async fn delete_subscription(
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsWrite)?;
     sqlx::query("DELETE FROM subscriptions WHERE id = ?").bind(&id).execute(&state.pool).await?;
-    let _ = write_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.delete".into(), actor: auth.subject.clone(), success: true, message: Some("deleted subscription".into()), detail: None }).await;
+    spawn_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.delete".into(), actor: auth.subject.clone(), success: true, message: Some("deleted subscription".into()), detail: None });
     Ok(Json(json!({"deleted": true})))
 }
 
@@ -188,7 +188,7 @@ pub async fn upgrade_subscription(
         .bind(new_plan).bind(rps).bind(quota).bind(&id)
         .execute(&state.pool).await?;
 
-    let _ = write_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.upgrade".into(), actor: auth.subject.clone(), success: true, message: Some(format!("plan {} -> {}", old_plan, new_plan)), detail: None }).await;
+    spawn_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.upgrade".into(), actor: auth.subject.clone(), success: true, message: Some(format!("plan {} -> {}", old_plan, new_plan)), detail: None });
     Ok(Json(json!({"updated": true, "plan": new_plan, "rate_limit_rps": rps, "quota_daily": quota})))
 }
 
@@ -203,7 +203,7 @@ pub async fn cancel_subscription(
     if affected.rows_affected() == 0 {
         return Err(AppError::NotFound("subscription not found or already cancelled".into()));
     }
-    let _ = write_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.cancel".into(), actor: auth.subject.clone(), success: true, message: Some("cancelled subscription".into()), detail: None }).await;
+    spawn_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.cancel".into(), actor: auth.subject.clone(), success: true, message: Some("cancelled subscription".into()), detail: None });
     Ok(Json(json!({"cancelled": true})))
 }
 
@@ -220,7 +220,7 @@ pub async fn renew_subscription(
     }
     sqlx::query("UPDATE subscriptions SET status = 'active', expires_at = ? WHERE id = ?")
         .bind(new_expiry).bind(&id).execute(&state.pool).await?;
-    let _ = write_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.renew".into(), actor: auth.subject.clone(), success: true, message: Some(format!("renewed until {}", new_expiry)), detail: None }).await;
+    spawn_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.renew".into(), actor: auth.subject.clone(), success: true, message: Some(format!("renewed until {}", new_expiry)), detail: None });
     Ok(Json(json!({"renewed": true, "expires_at": new_expiry})))
 }
 

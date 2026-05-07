@@ -8,7 +8,6 @@ use serde_json::json;
 use sqlx::Row;
 use uuid::Uuid;
 
-use tracing::warn;
 use crate::AppState;
 use crate::types::*;
 use crate::auth::*;
@@ -27,10 +26,10 @@ pub async fn create_approval(
         "INSERT INTO approvals (id, rule_id, version, requestor, reviewer, status, comment) VALUES (?, ?, ?, ?, ?, 'pending', ?)"
     ).bind(&id).bind(&payload.rule_id).bind(payload.version as i32).bind(&actor).bind(reviewer).bind(&payload.comment)
      .execute(&state.pool).await?;
-    write_audit_log(&state.pool, AuditEntry {
+    spawn_audit_log(&state.pool, AuditEntry {
         rule_id: Some(payload.rule_id.clone()), action: "approval_create".to_string(), actor,
         success: true, message: Some("Approval request created".to_string()), detail: None,
-    }).await.unwrap_or_else(|e| warn!(error = %e, "audit write failed"));
+    });
     Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
 }
 
@@ -124,9 +123,9 @@ pub async fn review_approval(
     let new_status = if payload.action == "approve" { "approved" } else { "rejected" };
     sqlx::query("UPDATE approvals SET status = ?, reviewer = COALESCE(NULLIF(?, ''), reviewer), reviewed_at = NOW() WHERE id = ?")
         .bind(new_status).bind(&actor).bind(&id).execute(&state.pool).await?;
-    write_audit_log(&state.pool, AuditEntry {
+    spawn_audit_log(&state.pool, AuditEntry {
         rule_id: None, action: format!("approval_{}", new_status), actor,
         success: true, message: Some(format!("Approval {} {}", id, new_status)), detail: None,
-    }).await.unwrap_or_else(|e| warn!(error = %e, "audit write failed"));
+    });
     Ok(Json(json!({"id": id, "status": new_status})))
 }

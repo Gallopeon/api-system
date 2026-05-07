@@ -49,6 +49,17 @@ pub async fn write_audit_log(pool: &MySqlPool, entry: AuditEntry) -> Result<(), 
     Ok(())
 }
 
+/// Fire-and-forget audit log write. Spawns a background task so audit I/O
+/// does not add latency to the API response.
+pub fn spawn_audit_log(pool: &MySqlPool, entry: AuditEntry) {
+    let pool = pool.clone();
+    tokio::spawn(async move {
+        if let Err(e) = write_audit_log(&pool, entry).await {
+            tracing::warn!(error = %e, "async audit write failed");
+        }
+    });
+}
+
 pub async fn get_cached_rule(redis: &redis::Client, id: &str) -> Result<Option<RuleDetail>, AppError> {
     let mut conn = redis.get_multiplexed_async_connection().await?;
     let key = format!("rule:{}", id);

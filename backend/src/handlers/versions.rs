@@ -66,10 +66,10 @@ pub async fn rollback_rule_version(
         .bind(&rule_id).bind(new_ver).bind(&config_text).bind(&payload.note).execute(&mut *txn).await?;
     txn.commit().await?;
     invalidate_cache(&state.redis, &rule_id).await.unwrap_or_else(|e| warn!(error = %e, "cache invalidate failed"));
-    write_audit_log(&state.pool, AuditEntry {
+    spawn_audit_log(&state.pool, AuditEntry {
         rule_id: Some(rule_id.clone()), action: "rule_rollback".to_string(), actor,
         success: true, message: payload.note,
         detail: Some(json!({"from_version": current_ver, "to_version": payload.version, "new_version": new_ver})),
-    }).await.unwrap_or_else(|e| warn!(error = %e, "audit write failed"));
+    });
     Ok(Json(json!({"rule_id": rule_id, "version": new_ver, "rolled_back": true})))
 }

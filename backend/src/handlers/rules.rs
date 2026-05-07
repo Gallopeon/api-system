@@ -54,11 +54,11 @@ pub async fn create_rule(
     if let Err(e) = cache_rule_meta(&state.redis, &meta).await {
         warn!(error = %e, "rule meta cache write failed");
     }
-    write_audit_log(&state.pool, AuditEntry {
+    spawn_audit_log(&state.pool, AuditEntry {
         rule_id: Some(id.clone()), action: "rule_create".to_string(), actor,
         success: true, message: payload.note,
         detail: Some(json!({"name": payload.name, "api_path": payload.api_path, "status": status})),
-    }).await.unwrap_or_else(|e| warn!(error = %e, "audit write failed"));
+    });
 
     Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
 }
@@ -116,11 +116,11 @@ pub async fn update_rule(
     if let Err(e) = cache_rule_meta(&state.redis, &meta).await {
         warn!(error = %e, "rule meta cache update failed");
     }
-    write_audit_log(&state.pool, AuditEntry {
+    spawn_audit_log(&state.pool, AuditEntry {
         rule_id: Some(id.clone()), action: "rule_update".to_string(), actor,
         success: true, message: payload.note,
         detail: Some(json!({"new_version": new_ver})),
-    }).await.unwrap_or_else(|e| warn!(error = %e, "audit write failed"));
+    });
 
     Ok(Json(json!({"id": id, "version": new_ver, "updated": true})))
 }
@@ -176,10 +176,10 @@ pub async fn delete_rule(
         warn!(error = %e, "rule meta cache delete failed");
     }
     let actor = resolve_actor(&auth, None);
-    write_audit_log(&state.pool, AuditEntry {
+    spawn_audit_log(&state.pool, AuditEntry {
         rule_id: Some(id.clone()), action: "rule_delete".to_string(), actor,
         success: true, message: None, detail: Some(json!({"rule_id": id})),
-    }).await.unwrap_or_else(|e| warn!(error = %e, "audit write failed"));
+    });
     Ok(Json(json!({"deleted": true})))
 }
 

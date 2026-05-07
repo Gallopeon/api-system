@@ -3,7 +3,6 @@ use axum::extract::State;
 use axum::response::IntoResponse;
 use axum::{Extension, Json};
 use serde_json::json;
-use tracing::warn;
 
 use crate::AppState;
 use crate::types::*;
@@ -29,11 +28,11 @@ pub async fn execute_transform(
     let rule = load_rule_config_by_id(&state.pool, &payload.rule_id).await?;
     let (effective, selected_variant) = resolve_effective_rule(&rule, payload.traffic_context.as_ref(), payload.force_variant.as_deref())?;
     let output = apply_transform(&payload.input, &effective);
-    write_audit_log(&state.pool, AuditEntry {
+    spawn_audit_log(&state.pool, AuditEntry {
         rule_id: Some(payload.rule_id.clone()), action: "transform_execute".to_string(),
         actor: resolve_actor(&auth, payload.actor.as_deref()), success: true, message: None,
         detail: Some(json!({"selected_variant": selected_variant})),
-    }).await.unwrap_or_else(|e| warn!(error = %e, "audit write failed"));
+    });
     Ok(Json(ExecuteResponse { rule_id: payload.rule_id, selected_variant, output }))
 }
 
@@ -51,10 +50,10 @@ pub async fn preview_transform(
         (TransformRule::default(), None)
     };
     let output = apply_transform(&payload.input, &effective);
-    write_audit_log(&state.pool, AuditEntry {
+    spawn_audit_log(&state.pool, AuditEntry {
         rule_id: Some(preview_rule_id), action: "transform_preview".to_string(),
         actor: resolve_actor(&auth, payload.actor.as_deref()), success: true, message: None,
         detail: Some(json!({"selected_variant": selected_variant})),
-    }).await.unwrap_or_else(|e| warn!(error = %e, "audit write failed"));
+    });
     Ok(Json(PreviewResponse { output, selected_variant }))
 }

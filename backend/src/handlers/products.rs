@@ -9,7 +9,7 @@ use sqlx::Row;
 use uuid::Uuid;
 use crate::AppState;
 use crate::auth::*;
-use crate::handlers::common::write_audit_log;
+use crate::handlers::common::spawn_audit_log;
 use crate::types::AuditEntry;
 
 // ─── Products ──────────────────────────────────────────────────────────────────
@@ -39,10 +39,10 @@ pub async fn create_product(
     .bind(&tags).bind(doc_url).bind(&pricing).bind(&owner)
     .execute(&state.pool).await?;
 
-    let _ = write_audit_log(&state.pool, AuditEntry {
+    spawn_audit_log(&state.pool, AuditEntry {
         rule_id: Some(id.clone()), action: "product.create".into(), actor: owner.clone(), success: true,
         message: Some(format!("created product {}", name)), detail: None,
-    }).await;
+    });
     Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
 }
 
@@ -127,7 +127,7 @@ pub async fn update_product(
     for v in &bind_values { q = q.bind(v); }
     q.execute(&state.pool).await?;
 
-    let _ = write_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "product.update".into(), actor: auth.subject.clone(), success: true, message: Some("updated product".into()), detail: None }).await;
+    spawn_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "product.update".into(), actor: auth.subject.clone(), success: true, message: Some("updated product".into()), detail: None });
     Ok(Json(json!({"updated": true})))
 }
 
@@ -140,7 +140,7 @@ pub async fn delete_product(
     sqlx::query("UPDATE subscriptions SET status = 'cancelled' WHERE product_id = ? AND status = 'active'")
         .bind(&id).execute(&state.pool).await?;
     sqlx::query("DELETE FROM api_products WHERE id = ?").bind(&id).execute(&state.pool).await?;
-    let _ = write_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "product.delete".into(), actor: auth.subject.clone(), success: true, message: Some("deleted product and cancelled subscriptions".into()), detail: None }).await;
+    spawn_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "product.delete".into(), actor: auth.subject.clone(), success: true, message: Some("deleted product and cancelled subscriptions".into()), detail: None });
     Ok(Json(json!({"deleted": true})))
 }
 
