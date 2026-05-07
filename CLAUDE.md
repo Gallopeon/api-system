@@ -315,7 +315,8 @@ frontend/
 │   ├── globals.css
 │   └── api/auth/[...nextauth]/route.ts
 ├── lib/
-│   ├── api.ts                      ← endpoint(), apiFetch(), getApiToken()
+│   ├── api.ts                      ← endpoint(), apiFetch(), getApiToken(), GET response TTL cache + in-flight dedup
+│   ├── swr.ts                      ← swrFetcher(), swrConfig, swrTTL() helpers
 │   ├── constants.ts                ← cardClass, inputClass, btnPrimary, etc.
 │   ├── types.ts                    ← All shared TypeScript interfaces
 │   ├── permissions.ts              ← Role/Permission enums, hasPermission(), canAccessMenu(). Mirrors backend auth.rs.
@@ -349,7 +350,10 @@ frontend/
 │       ├── RulesPanel.tsx          ← Rule library + editor form (181 lines)
 │       ├── VersionsPanel.tsx       ← Rollback + diff visualizer (106 lines)
 │       ├── PlaygroundPanel.tsx     ← Data entries + batch transform + expr eval (176 lines)
-│       ├── ApiBuilderPanel.tsx     ← No-code rule CRUD + data entries (354 lines)
+│       ├── ApiBuilderPanel.tsx     ← No-code rule CRUD + data entries assembler (~80 lines)
+│       ├── ApiBuilderPresetsBar.tsx     ← Saved preset tags (~30 lines)
+│       ├── ApiBuilderRuleSection.tsx    ← Rule selector + CRUD form (~130 lines)
+│       ├── ApiBuilderEntriesSection.tsx ← Data entries + transform (~170 lines)
 │       ├── ApiKeysPanel.tsx        ← API key create/list/toggle/delete (326 lines)
 │       ├── RateLimitsPanel.tsx     ← Rate limit create/list/toggle/delete (103 lines)
 │       ├── ApprovalsPanel.tsx      ← Approval workflow (172 lines)
@@ -378,7 +382,8 @@ frontend/
 
 ### Frontend patterns
 
-- **API calls**: `lib/api.ts` exports `apiFetch(path, init, accessToken?)` and `endpoint(path)`. All hooks use these; components never call fetch directly.
+- **API calls**: `lib/api.ts` exports `apiFetch(path, init, accessToken?)` and `endpoint(path)`. All hooks use these; components never call fetch directly. Successful GET responses are cached in-memory for 30s; cache is invalidated when a mutation (POST/PUT/DELETE) hits the same path prefix. In-flight request deduplication prevents duplicate concurrent requests.
+- **SWR**: `lib/swr.ts` provides `swrFetcher<T>()`, `swrConfig`, and `swrTTL(seconds)` helpers wrapping the `swr` package. Use `useSWR(key, swrFetcher, config)` in hooks for automatic caching and revalidation. `useSystemSettings` is the reference implementation.
 - **i18n**: `useI18n()` hook from `app/i18n.tsx`. The `t(en, zh)` helper returns the value matching current language. Every user-facing string uses it.
 - **Auth**: NextAuth credentials provider with JWT sessions. `useSession()` hook gates the dashboard. Login form renders when unauthenticated.
 - **Types**: All TypeScript interfaces in `lib/types.ts`. Mirrors backend Rust serialization structs exactly.
@@ -392,7 +397,7 @@ backend/src/
 ├── main.rs              ← 4 lines. #[tokio::main] entry point.
 ├── lib.rs               ← 174 lines. Module declarations, pub use, run(), router assembly, health checks.
 ├── config.rs            ← 85 lines. AppState, Settings, AuthSettings, env parsing, CORS, tracing.
-├── db.rs                ← 248 lines. MySQL pool init, bootstrap_schema(), seed_settings(), seed_admin().
+├── db.rs                ← ~260 lines. MySQL pool init, bootstrap_schema(), seed_settings(), seed_admin().
 ├── auth.rs              ← 438 lines. AuthContext, middleware, JWT, RBAC, permissions. Also defines AppError.
 ├── types/               ← Request/response structs, split by domain. All under 500 lines.
 │   ├── mod.rs           ← Re-exports all sub-modules.
@@ -400,7 +405,7 @@ backend/src/
 │   ├── api_key.rs       ← API key types (80 lines).
 │   ├── validation.rs    ← ValidateRequest, ValidationResult, ValidationErrorDetail (29 lines).
 │   ├── rate_limit.rs    ← Rate limit types + defaulters (106 lines).
-│   ├── metrics.rs       ← IngestMetrics, Analytics, TopApi, MetricsOverview types (91 lines).
+│   ├── metrics.rs       ← IngestMetrics, Analytics, TopApi, MetricsOverview types (~99 lines).
 │   ├── approval.rs      ← Approval types (60 lines).
 │   ├── llm.rs           ← LLM Gateway types + defaulters (87 lines).
 │   ├── user.rs          ← Login, User, Session, LoginHistory, TOTP, Preferences types (161 lines).
@@ -413,7 +418,8 @@ backend/src/
 │   ├── diff.rs          ← diff_value (recursive JSON diff)
 │   ├── validation.rs    ← validate_json, validate_rule_request, validate_transform_rule
 │   ├── openapi.rs       ← build_openapi_spec, build_overlay_spec, derive_schemas_from_rule
-│   └── crypto.rs        ← generate_api_key, key_hash
+│   ├── crypto.rs        ← generate_api_key, key_hash
+│   └── metrics.rs       ← Metrics engine: run_metrics_flusher, run_metrics_aggregator, cache_analytics, compute_p95_p99_offsets
 └── handlers/             ← HTTP handlers, one file per domain entity
     ├── mod.rs
     ├── common.rs         ← Shared: write_audit_log, load_rule_detail, cache_rule, row_to_json, crud_handlers! macro
@@ -465,7 +471,7 @@ When adding new transform/validation/expression logic, add it to the appropriate
 **New permission**: `UserRead` (`user:read`) — allows viewing the user directory without the ability to create, edit, or delete users. This separates "seeing who is on the team" from "managing accounts". All authenticated roles now have `UserRead`; only Admin has `UserManage`.
 
 **Frontend role gating**: The frontend implements role-based UI hiding via `lib/permissions.ts`. `canAccessMenu(role, menuId)` filters the Sidebar, and individual panels receive `canManage` / `canWrite` props to hide action buttons. Non-admin users never see buttons for operations they cannot perform. This prevents the poor UX of clickable buttons that result in 403 errors.
-- **Database**: MySQL tables auto-created on startup in `db::bootstrap_schema()`: `rule_configs`, `rule_versions`, `audit_logs`, `api_keys`, `rate_limit_configs`, `metrics_ingest`, `approvals`, `llm_providers`, `prompt_templates`, `llm_usage_logs`, `api_products`, `subscriptions`, `circuit_breakers`, `protocol_configs`, `data_classifications`, `plugin_configs`, `users`, `user_sessions`, `login_history`, `user_totp`, `system_settings`. Redis caches rule detail reads (prefix `rule:`, TTL 300s default).
+- **Database**: MySQL tables auto-created on startup in `db::bootstrap_schema()`: `rule_configs`, `rule_versions`, `audit_logs`, `api_keys`, `rate_limit_configs`, `metrics_ingest`, `metrics_hourly_summary`, `approvals`, `llm_providers`, `prompt_templates`, `llm_usage_logs`, `api_products`, `subscriptions`, `circuit_breakers`, `protocol_configs`, `data_classifications`, `plugin_configs`, `users`, `user_sessions`, `login_history`, `user_totp`, `system_settings`. Redis caches: rule detail reads (prefix `rule:`, TTL 300s), rules metadata Hash `rules:meta` (HGETALL for list_rules), analytics aggregates (prefix `analytics:agg`, TTL 300s), metrics buffer list `metrics:buffer`.
 - **Error handling**: `AppError` enum in `auth.rs` implements `IntoResponse`, mapped to appropriate HTTP status codes.
 - **Audit**: All mutating operations write to `audit_logs` table via `write_audit_log()`.
 
@@ -475,13 +481,13 @@ The old `handlers.rs` monolith (~4600 lines) has been split into per-domain file
 
 | Domain | File | Key handlers |
 |--------|------|-------------|
-| Rules | `handlers/rules.rs` | create_rule, update_rule, get_rule, delete_rule, list_rules |
+| Rules | `handlers/rules.rs` | create_rule, update_rule, get_rule, delete_rule, list_rules (supports cursor-based pagination + status/name/api_path filtering + Redis Hash metadata cache) |
 | Versions | `handlers/versions.rs` | list_rule_versions, get_rule_diff, rollback_rule_version |
 | Transform | `handlers/transform_handlers.rs` | preview_transform, execute_transform, eval_expression_handler |
 | API Keys | `handlers/api_keys.rs` | create/list/get/update/delete/validate_api_key |
 | Rate Limits | `handlers/rate_limits.rs` | create/list/update/delete/check_rate_limit |
 | Approvals | `handlers/approvals.rs` | create/list/get/review_approval |
-| Metrics | `handlers/metrics.rs` | ingest_metrics, get_analytics, get_top_apis, get_api_key_stats, get_metrics_overview, get_dashboard |
+| Metrics | `handlers/metrics.rs` | ingest_metrics (Redis buffer), get_analytics (single UNION query using metrics_hourly_summary + current hour raw data), get_top_apis, get_api_key_stats, get_metrics_overview (parallel COUNTs), get_dashboard (aggregate endpoint) |
 | Audit | `handlers/audit.rs` | list_audit_logs |
 | Auth & Users | `handlers/auth_user.rs` | login, list_users (with filters), CRUD users, profile, password, sessions, login history, TOTP (setup/verify/disable/status), preferences |
 | Products | `handlers/products.rs` | products CRUD, product subscriptions list |
@@ -494,7 +500,7 @@ The old `handlers.rs` monolith (~4600 lines) has been split into per-domain file
 | OpenAPI | `handlers/openapi.rs` | get_openapi_spec |
 | Validation | `handlers/validation_handlers.rs` | validate_request, validate_response |
 | System | `handlers/system.rs` | list_system_settings, update_system_setting |
-| Common | `handlers/common.rs` | write_audit_log, load_rule_detail, cache_rule, row_to_json, crud_handlers! macro |
+| Common | `handlers/common.rs` | write_audit_log, load_rule_detail, cache_rule/get_cached_rule, cache_rule_meta/invalidate_rule_meta/get_all_rules_meta (Redis Hash `rules:meta`), row_to_json, crud_handlers! macro |
 
 ### Transform rule configuration model
 
