@@ -47,8 +47,8 @@ export function useApiKeys(
         body: JSON.stringify(body),
       });
       if (!r.ok) throw new Error((await r.json())?.message || `HTTP ${r.status}`);
-      const d = (await r.json()) as ApiKeyItem;
-      setAkCreatedKey(d.key || "");
+      const d = (await r.json()) as { api_key: string; id: string; created: boolean };
+      setAkCreatedKey(d.api_key || "");
       notifySucc("API Key created! Copy it now — it won't be shown again.");
       setAkName("");
       setAkScopes("");
