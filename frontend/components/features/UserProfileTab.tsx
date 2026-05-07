@@ -36,7 +36,7 @@ export default function UserProfileTab({
           ) : (
             <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
               <span className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                {(profile.display_name || profile.username).charAt(0).toUpperCase()}
+                {(profile.display_name || profile.username || "U").charAt(0).toUpperCase()}
               </span>
             </div>
           )}

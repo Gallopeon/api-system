@@ -133,7 +133,11 @@ pub async fn update_my_profile(State(state): State<Arc<AppState>>, Extension(aut
     if let Some(avatar_url) = payload.get("avatar_url").and_then(|v| v.as_str()) {
         sqlx::query("UPDATE users SET avatar_url = ? WHERE username = ?").bind(avatar_url).bind(&auth.subject).execute(&state.pool).await?;
     }
-    Ok(Json(json!({"updated": true})))
+    let row = sqlx::query(
+        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, last_login_at, created_at, updated_at FROM users WHERE username = ?"
+    ).bind(&auth.subject).fetch_optional(&state.pool).await?
+    .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
+    Ok(Json(row_to_user(&row)))
 }
 
 pub async fn change_my_password(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<ChangePasswordRequest>) -> Result<impl IntoResponse, AppError> {
