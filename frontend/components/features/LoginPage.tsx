@@ -11,14 +11,29 @@ interface LoginPageProps {
 export default function LoginPage({ t }: LoginPageProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [totpCode, setTotpCode] = useState("");
+  const [requireTotp, setRequireTotp] = useState(false);
   const [loginError, setLoginError] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
-    const res = await signIn("credentials", { redirect: false, username, password });
-    if (res?.error) setLoginError(t("Invalid username or password", "用户名或密码无效"));
-    else if (res?.ok) window.location.reload();
+    const res = await signIn("credentials", {
+      redirect: false,
+      username,
+      password,
+      ...(totpCode ? { totp_code: totpCode } : {}),
+    });
+    if (!res?.error) {
+      if (res?.ok) window.location.reload();
+      return;
+    }
+    if (res.error === "totp_required") {
+      setRequireTotp(true);
+      setLoginError(t("Enter the 6-digit code from your authenticator app", "请输入认证器 App 中的 6 位验证码"));
+    } else {
+      setLoginError(t("Invalid username or password", "用户名或密码无效"));
+    }
   };
 
   return (
@@ -65,6 +80,12 @@ export default function LoginPage({ t }: LoginPageProps) {
               <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">{t("Password", "登录密码")}</label>
               <input type="password" className="w-full pl-4 pr-4 py-3 bg-white dark:bg-black/50 border border-gray-200 dark:border-gray-800 rounded-xl text-sm focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all shadow-sm" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
             </div>
+            {requireTotp && (
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">{t("TOTP Code", "两步验证码")}</label>
+                <input type="text" className="w-full pl-4 pr-4 py-3 bg-white dark:bg-black/50 border border-gray-200 dark:border-gray-800 rounded-xl text-sm focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all shadow-sm" placeholder="000000" maxLength={6} value={totpCode} onChange={(e) => setTotpCode(e.target.value.replace(/\D/g, ""))} required />
+              </div>
+            )}
             {loginError && (
               <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl flex items-start space-x-2">
                 <ShieldAlert className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />

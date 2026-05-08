@@ -12,16 +12,24 @@ const handler = NextAuth({
       async authorize(credentials) {
         const apiBase = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8080";
         try {
+          const creds = credentials as Record<string, string> | undefined;
+          const body: { username: string; password: string; totp_code?: string } = {
+            username: creds?.username || "",
+            password: creds?.password || "",
+          };
+          if (creds?.totp_code) body.totp_code = creds.totp_code;
           const res = await fetch(`${apiBase}/admin/v1/auth/login`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              username: credentials?.username,
-              password: credentials?.password,
-            }),
+            body: JSON.stringify(body),
           });
-          if (!res.ok) return null;
           const data = await res.json();
+          if (!res.ok) {
+            if (data?.code === "unauthorized" && data?.message?.includes("TOTP")) {
+              throw new Error("totp_required");
+            }
+            return null;
+          }
           return {
             id: data.user.id,
             name: data.user.display_name || data.user.username,
@@ -30,7 +38,8 @@ const handler = NextAuth({
             role: data.user.role,
             accessToken: data.token,
           };
-        } catch {
+        } catch (e) {
+          if ((e as Error).message === "totp_required") throw e;
           return null;
         }
       },
