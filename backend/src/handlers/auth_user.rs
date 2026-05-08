@@ -485,7 +485,27 @@ pub async fn update_my_preferences(State(state): State<Arc<AppState>>, Extension
         merged["lang"] = serde_json::Value::String(lang.clone());
     }
     if let Some(notifications) = &payload.notifications {
-        merged["notifications"] = serde_json::to_value(notifications).unwrap_or_default();
+        let new_val = serde_json::to_value(notifications).unwrap_or_default();
+        if let Some(existing_notif) = merged.get("notifications").and_then(|v| v.as_object()) {
+            let mut merged_notif = existing_notif.clone();
+            if let Some(new_obj) = new_val.as_object() {
+                for (channel_key, channel_val) in new_obj {
+                    if let (Some(existing_ch), Some(new_ch)) = (
+                        merged_notif.get(channel_key).and_then(|v| v.as_object()),
+                        channel_val.as_object()
+                    ) {
+                        let mut merged_ch = existing_ch.clone();
+                        for (k, v) in new_ch { merged_ch.insert(k.clone(), v.clone()); }
+                        merged_notif.insert(channel_key.clone(), serde_json::Value::Object(merged_ch));
+                    } else {
+                        merged_notif.insert(channel_key.clone(), channel_val.clone());
+                    }
+                }
+            }
+            merged["notifications"] = serde_json::Value::Object(merged_notif);
+        } else {
+            merged["notifications"] = new_val;
+        }
     }
 
     let prefs_json = serde_json::to_string(&merged).unwrap_or_default();

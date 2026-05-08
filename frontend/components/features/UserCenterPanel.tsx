@@ -95,15 +95,22 @@ export default function UserCenterPanel({
   };
 
   const handlePreferenceChange = (key: string, value: boolean) => {
+    let emailRule = prefEmailRuleChanges;
+    let emailSecurity = prefEmailSecurity;
+    let inAppApprovals = prefInAppApprovals;
+    let inAppAudit = prefInAppAudit;
     switch (key) {
-      case "email.rule_changes": setPrefEmailRuleChanges(value); break;
-      case "email.security_alerts": setPrefEmailSecurity(value); break;
-      case "in_app.approvals": setPrefInAppApprovals(value); break;
-      case "in_app.audit": setPrefInAppAudit(value); break;
+      case "email.rule_changes": emailRule = value; setPrefEmailRuleChanges(value); break;
+      case "email.security_alerts": emailSecurity = value; setPrefEmailSecurity(value); break;
+      case "in_app.approvals": inAppApprovals = value; setPrefInAppApprovals(value); break;
+      case "in_app.audit": inAppAudit = value; setPrefInAppAudit(value); break;
     }
-    const parts = key.split(".");
-    const update: Record<string, unknown> = { notifications: { [parts[0]]: { [parts[1]]: value } } };
-    savePreferences(update);
+    savePreferences({
+      notifications: {
+        email: { rule_changes: emailRule, security_alerts: emailSecurity },
+        in_app: { approvals: inAppApprovals, audit: inAppAudit },
+      },
+    });
   };
 
   const handleChangePassword = async () => {
