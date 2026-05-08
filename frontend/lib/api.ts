@@ -35,11 +35,17 @@ export async function apiFetch(
   const key = dedupKey(path, init);
   const method = init.method || "GET";
 
-  // Invalidate cache entries for this path on mutations
+  // Invalidate cache for paths related to the mutation target
   if (method !== "GET") {
-    for (const [k, v] of cache) {
-      if (k.includes(path.split("?")[0])) {
-        cache.delete(k);
+    const mutationPath = path.split("?")[0];
+    for (const [k] of cache) {
+      const i = k.indexOf(":", 3); // skip "GET:"
+      const j = k.lastIndexOf(":");
+      if (i >= 0 && j > i) {
+        const cachedPath = k.substring(i + 1, j);
+        if (cachedPath === mutationPath || mutationPath.startsWith(cachedPath + "/") || cachedPath.startsWith(mutationPath + "/")) {
+          cache.delete(k);
+        }
       }
     }
   }
@@ -58,10 +64,7 @@ export async function apiFetch(
     return existing.then((r) => r.clone());
   }
 
-  const promise = fetch(endpoint(path), { ...init, headers });
-  inFlight.set(key, promise);
-
-  promise.then((r) => {
+  const promise = fetch(endpoint(path), { ...init, headers }).then((r) => {
     inFlight.delete(key);
     // Cache successful GET responses
     if (method === "GET" && r.ok) {
@@ -70,11 +73,16 @@ export async function apiFetch(
         cache.set(key, { response: r.clone(), ts: Date.now() });
       } catch { /* some responses can't be cloned */ }
     }
-  }).catch(() => {
+    return r;
+  });
+
+  inFlight.set(key, promise);
+
+  promise.catch(() => {
     inFlight.delete(key);
   });
 
-  return promise;
+  return promise.then((r) => r.clone());
 }
 
 /** Clear all cached GET responses. Call after mutations for aggressive invalidation. */

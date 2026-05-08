@@ -12,13 +12,19 @@ function TotpInput({ onSubmit, loading, t }: { onSubmit: (code: string) => void;
   const [digits, setDigits] = useState<string[]>(Array(6).fill(""));
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  useEffect(() => {
-    // Delay focus to account for CSS transition on parent container
-    const raf = requestAnimationFrame(() => {
-      inputRefs.current[0]?.focus();
-    });
-    return () => cancelAnimationFrame(raf);
+  const focusFirstInput = useCallback(() => {
+    inputRefs.current[0]?.focus();
   }, []);
+
+  useEffect(() => {
+    // Multiple attempts: rAF for next frame, then setTimeout as fallback
+    const raf = requestAnimationFrame(() => focusFirstInput());
+    const fallback = setTimeout(() => focusFirstInput(), 100);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(fallback);
+    };
+  }, [focusFirstInput]);
 
   const handleChange = useCallback((index: number, value: string) => {
     if (!/^\d?$/.test(value)) return;
@@ -251,7 +257,13 @@ export default function LoginPage({ t }: LoginPageProps) {
                   <p className="text-xs text-gray-500 dark:text-gray-400">{t("from your authenticator app", "来自您的认证器应用")}</p>
                 </div>
               </div>
-              <TotpInput onSubmit={handleTotp} loading={loading} t={t} />
+              {step === "totp" ? (
+                <TotpInput onSubmit={handleTotp} loading={loading} t={t} />
+              ) : (
+                <div className="py-6 flex items-center justify-center">
+                  <Loader2 className="w-5 h-5 animate-spin text-gray-300 dark:text-gray-600" />
+                </div>
+              )}
             </div>
 
             {loginError && (
