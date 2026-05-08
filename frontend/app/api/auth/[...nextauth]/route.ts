@@ -25,7 +25,7 @@ const handler = NextAuth({
           });
           const data = await res.json();
           if (!res.ok) {
-            if (data?.code === "unauthorized" && data?.message?.includes("TOTP")) {
+            if (data?.error === "unauthorized" && data?.message?.includes("TOTP")) {
               throw new Error("totp_required");
             }
             return null;
