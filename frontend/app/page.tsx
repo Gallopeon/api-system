@@ -52,7 +52,16 @@ export default function APIControlCenter() {
   const t = useCallback(<T,>(en: T, zh: T): T => (lang === "zh" ? zh : en), [lang]);
   const { data: session, status } = useSession();
   const userRole = (session?.user?.role as Role) || null;
-  const [activeMenu, setActiveMenu] = useState("dashboard");
+  const [activeMenu, setActiveMenuRaw] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("active_menu") || "dashboard";
+    }
+    return "dashboard";
+  });
+  const setActiveMenu = useCallback((menu: string) => {
+    setActiveMenuRaw(menu);
+    localStorage.setItem("active_menu", menu);
+  }, []);
 
   // Permission flags for role-based UI gating
   const can = {

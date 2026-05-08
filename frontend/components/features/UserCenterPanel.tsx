@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { UserCircle, Shield, Monitor, History, QrCode, Settings } from "lucide-react";
 import { useUserProfile, useSessions, useLoginHistory, useTotp, usePreferences } from "@/hooks/useUserProfile";
 import { useTheme } from "@/app/theme";
+import { useI18n } from "@/app/i18n";
 import UserProfileTab from "./UserProfileTab";
 import UserSecurityTab from "./UserSecurityTab";
 import UserTotpTab from "./UserTotpTab";
@@ -30,6 +31,12 @@ export default function UserCenterPanel({
     useTotp(accessToken, notifyError, notifySucc);
   const { prefs, loadPreferences, savePreferences } = usePreferences(accessToken, notifySucc);
   const { setTheme } = useTheme();
+  const { setLang } = useI18n();
+
+  const applyThemeLang = useCallback((theme: string, lang: string) => {
+    setTheme((theme === "auto" ? "system" : theme) as "system" | "light" | "dark");
+    if (lang) setLang(lang as "en" | "zh");
+  }, [setTheme, setLang]);
 
   const [editEmail, setEditEmail] = useState("");
   const [editDisplayName, setEditDisplayName] = useState("");
@@ -64,7 +71,10 @@ export default function UserCenterPanel({
 
   useEffect(() => {
     const theme = prefs.theme === "auto" ? "system" : prefs.theme;
-    if (theme) { setPrefTheme(theme); setTheme(theme as "system" | "light" | "dark"); }
+    if (theme) {
+      setPrefTheme(theme);
+      applyThemeLang(theme, prefs.lang || "zh");
+    }
     if (prefs.lang) setPrefLang(prefs.lang);
     if (prefs.notifications?.email) {
       setPrefEmailRuleChanges(prefs.notifications.email.rule_changes);
@@ -74,7 +84,7 @@ export default function UserCenterPanel({
       setPrefInAppApprovals(prefs.notifications.in_app.approvals);
       setPrefInAppAudit(prefs.notifications.in_app.audit);
     }
-  }, [prefs, setTheme]);
+  }, [prefs, setTheme, setLang, applyThemeLang]);
 
   const handleUpdateProfile = async () => {
     await updateProfile({
@@ -205,7 +215,7 @@ export default function UserCenterPanel({
           prefInAppApprovals={prefInAppApprovals}
           prefInAppAudit={prefInAppAudit}
           onPreferenceChange={handlePreferenceChange}
-          onSaveThemeLang={(theme, lang) => { savePreferences({ theme, lang }); setTheme(theme as "system" | "light" | "dark"); }}
+          onSaveThemeLang={(theme, lang) => { savePreferences({ theme, lang }); applyThemeLang(theme, lang); }}
           t={t}
         />
       )}
