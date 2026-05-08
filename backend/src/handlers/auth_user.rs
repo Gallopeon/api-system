@@ -174,14 +174,14 @@ pub async fn list_my_sessions(State(state): State<Arc<AppState>>, Extension(auth
     let items: Vec<Value> = rows.iter().map(|r| {
         let jti: Option<String> = r.try_get("token_jti").ok().flatten();
         let is_current = current_jti.as_ref().and_then(|c| jti.as_ref().map(|j| c == j)).unwrap_or(false);
-        let expires_at: chrono::NaiveDateTime = r.try_get("token_expires_at").unwrap_or_else(|_| chrono::Utc::now().naive_utc());
-        let created_at: chrono::NaiveDateTime = r.try_get("created_at").unwrap_or_else(|_| chrono::Utc::now().naive_utc());
+        let expires_at: DateTime<Utc> = r.try_get("token_expires_at").unwrap_or_else(|_| Utc::now());
+        let created_at: DateTime<Utc> = r.try_get("created_at").unwrap_or_else(|_| Utc::now());
         json!({
             "id": r.try_get::<String,_>("id").unwrap_or_default(),
             "client_ip": r.try_get::<String,_>("client_ip").unwrap_or_default(),
             "user_agent": r.try_get::<String,_>("user_agent").unwrap_or_default(),
-            "expires_at": format!("{}Z", expires_at.format("%Y-%m-%dT%H:%M:%S")),
-            "created_at": format!("{}Z", created_at.format("%Y-%m-%dT%H:%M:%S")),
+            "expires_at": expires_at.to_rfc3339(),
+            "created_at": created_at.to_rfc3339(),
             "current": is_current,
         })
     }).collect();
@@ -215,7 +215,7 @@ pub async fn list_my_login_history(State(state): State<Arc<AppState>>, Extension
     let rows = sqlx::query("SELECT id, username_attempt, client_ip, user_agent, success, failure_reason, created_at FROM login_history WHERE user_id = (SELECT id FROM users WHERE username = ?) ORDER BY created_at DESC LIMIT 50")
         .bind(&auth.subject).fetch_all(&state.pool).await?;
     let items: Vec<Value> = rows.iter().map(|r| {
-        let created_at: chrono::NaiveDateTime = r.try_get("created_at").unwrap_or_else(|_| chrono::Utc::now().naive_utc());
+        let created_at: DateTime<Utc> = r.try_get("created_at").unwrap_or_else(|_| Utc::now());
         json!({
             "id": r.try_get::<i64,_>("id").unwrap_or(0),
             "username_attempt": r.try_get::<String,_>("username_attempt").unwrap_or_default(),
@@ -223,7 +223,7 @@ pub async fn list_my_login_history(State(state): State<Arc<AppState>>, Extension
             "user_agent": r.try_get::<String,_>("user_agent").unwrap_or_default(),
             "success": r.try_get::<i8,_>("success").unwrap_or(0) == 1,
             "failure_reason": r.try_get::<String,_>("failure_reason").unwrap_or_default(),
-            "created_at": format!("{}Z", created_at.format("%Y-%m-%dT%H:%M:%S")),
+            "created_at": created_at.to_rfc3339(),
         })
     }).collect();
     Ok(Json(json!({"items": items})))

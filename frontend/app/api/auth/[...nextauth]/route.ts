@@ -9,7 +9,7 @@ const handler = NextAuth({
         username: { label: "Username", type: "text", placeholder: "admin" },
         password: { label: "Password", type: "password" },
       },
-      async authorize(credentials) {
+      async authorize(credentials, req) {
         const apiBase = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8080";
         try {
           const creds = credentials as Record<string, string> | undefined;
@@ -18,9 +18,14 @@ const handler = NextAuth({
             password: creds?.password || "",
           };
           if (creds?.totp_code) body.totp_code = creds.totp_code;
+          const forwardHeaders: Record<string, string> = { "Content-Type": "application/json" };
+          const xff = (req as any)?.headers?.["x-forwarded-for"];
+          if (xff) forwardHeaders["x-forwarded-for"] = Array.isArray(xff) ? xff[0] : String(xff);
+          const ua = (req as any)?.headers?.["user-agent"];
+          if (ua) forwardHeaders["user-agent"] = String(ua);
           const res = await fetch(`${apiBase}/admin/v1/auth/login`, {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: forwardHeaders,
             body: JSON.stringify(body),
           });
           const data = await res.json();
