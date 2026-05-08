@@ -455,10 +455,9 @@ fn base32_decode(encoded: &str) -> Option<Vec<u8>> {
 
 pub async fn get_my_preferences(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserSelf)?;
-    let prefs: Option<String> = sqlx::query_scalar("SELECT preferences FROM users WHERE username = ?")
-        .bind(&auth.subject).fetch_optional(&state.pool).await?
-        .and_then(|v: Option<String>| v);
-    let stored: Option<serde_json::Value> = prefs.and_then(|p| serde_json::from_str(&p).ok());
+    let row = sqlx::query("SELECT preferences FROM users WHERE username = ?")
+        .bind(&auth.subject).fetch_optional(&state.pool).await?;
+    let stored: Option<serde_json::Value> = row.and_then(|r| r.try_get::<serde_json::Value, _>("preferences").ok());
     Ok(Json(PreferencesResponse {
         user_id: auth.subject.clone(),
         theme: stored.as_ref().and_then(|v| v.get("theme").and_then(|t| t.as_str())).unwrap_or("system").to_string(),
@@ -471,12 +470,10 @@ pub async fn update_my_preferences(State(state): State<Arc<AppState>>, Extension
     ensure_permission(&auth, Permission::UserSelf)?;
 
     // Merge with existing preferences so partial updates don't wipe other fields
-    let existing: Option<String> = sqlx::query_scalar("SELECT preferences FROM users WHERE username = ?")
-        .bind(&auth.subject).fetch_optional(&state.pool).await?
-        .and_then(|v: Option<String>| v);
-    let mut merged: serde_json::Value = existing
-        .and_then(|p| serde_json::from_str(&p).ok())
-        .unwrap_or_default();
+    let existing_row = sqlx::query("SELECT preferences FROM users WHERE username = ?")
+        .bind(&auth.subject).fetch_optional(&state.pool).await?;
+    let existing: Option<serde_json::Value> = existing_row.and_then(|r| r.try_get::<serde_json::Value, _>("preferences").ok());
+    let mut merged: serde_json::Value = existing.unwrap_or_default();
 
     if let Some(theme) = &payload.theme {
         merged["theme"] = serde_json::Value::String(theme.clone());
