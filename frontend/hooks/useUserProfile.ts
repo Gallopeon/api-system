@@ -219,7 +219,7 @@ export function usePreferences(
       const r = await apiFetch("/admin/v1/users/me/preferences", undefined, accessToken);
       if (r.ok) {
         const d = await r.json();
-        setPrefs(d.preferences || {});
+        setPrefs(d);
       }
     } catch (e) {
       console.error("loadPreferences failed:", e);
@@ -235,7 +235,7 @@ export function usePreferences(
         }, accessToken);
         if (r.ok) {
           const d = await r.json();
-          setPrefs(d.preferences || {});
+          setPrefs(d);
           notifySucc?.("Preferences saved");
         }
       } catch (e) {

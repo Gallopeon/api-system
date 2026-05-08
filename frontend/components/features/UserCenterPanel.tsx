@@ -63,7 +63,8 @@ export default function UserCenterPanel({
   }, [profile]);
 
   useEffect(() => {
-    if (prefs.theme) { setPrefTheme(prefs.theme); setTheme(prefs.theme as "system" | "light" | "dark"); }
+    const theme = prefs.theme === "auto" ? "system" : prefs.theme;
+    if (theme) { setPrefTheme(theme); setTheme(theme as "system" | "light" | "dark"); }
     if (prefs.lang) setPrefLang(prefs.lang);
     if (prefs.notifications?.email) {
       setPrefEmailRuleChanges(prefs.notifications.email.rule_changes);

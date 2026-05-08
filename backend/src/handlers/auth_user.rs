@@ -3,7 +3,7 @@ use axum::extract::{Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
 use axum::response::IntoResponse;
 use axum::{Extension, Json};
-use chrono::{DateTime, Duration, Utc};
+use chrono::{DateTime, Utc};
 use serde_json::{json, Value};
 use sqlx::Row;
 use uuid::Uuid;
@@ -85,10 +85,9 @@ pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(
         .unwrap_or("unknown");
     let user_agent = headers.get("user-agent").and_then(|v| v.to_str().ok());
     let session_id = Uuid::new_v4().to_string();
-    let expires_at = (Utc::now() + Duration::seconds(86400)).naive_utc();
     let _ = sqlx::query(
-        "INSERT INTO user_sessions (id, user_id, token_jti, token_expires_at, client_ip, user_agent) VALUES (?, ?, ?, ?, ?, ?)"
-    ).bind(&session_id).bind(&user_id).bind(&jti).bind(expires_at).bind(client_ip).bind(user_agent).execute(&state.pool).await;
+        "INSERT INTO user_sessions (id, user_id, token_jti, token_expires_at, client_ip, user_agent) VALUES (?, ?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 86400 SECOND), ?, ?)"
+    ).bind(&session_id).bind(&user_id).bind(&jti).bind(client_ip).bind(user_agent).execute(&state.pool).await;
 
     Ok(Json(LoginResponse { token, user: row_to_user(&row) }))
 }
@@ -170,17 +169,19 @@ pub async fn change_my_password(State(state): State<Arc<AppState>>, Extension(au
 pub async fn list_my_sessions(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserSelf)?;
     let current_jti = auth.jti.clone();
-    let rows = sqlx::query("SELECT id, token_jti, token_expires_at, client_ip, user_agent, revoked, created_at FROM user_sessions WHERE user_id = (SELECT id FROM users WHERE username = ?) AND revoked = 0 AND token_expires_at > NOW()")
+    let rows = sqlx::query("SELECT id, token_jti, token_expires_at, client_ip, user_agent, revoked, created_at FROM user_sessions WHERE user_id = (SELECT id FROM users WHERE username = ?) AND revoked = 0 AND token_expires_at > UTC_TIMESTAMP()")
         .bind(&auth.subject).fetch_all(&state.pool).await?;
     let items: Vec<Value> = rows.iter().map(|r| {
         let jti: Option<String> = r.try_get("token_jti").ok().flatten();
         let is_current = current_jti.as_ref().and_then(|c| jti.as_ref().map(|j| c == j)).unwrap_or(false);
+        let expires_at: chrono::NaiveDateTime = r.try_get("token_expires_at").unwrap_or_else(|_| chrono::Utc::now().naive_utc());
+        let created_at: chrono::NaiveDateTime = r.try_get("created_at").unwrap_or_else(|_| chrono::Utc::now().naive_utc());
         json!({
             "id": r.try_get::<String,_>("id").unwrap_or_default(),
             "client_ip": r.try_get::<String,_>("client_ip").unwrap_or_default(),
             "user_agent": r.try_get::<String,_>("user_agent").unwrap_or_default(),
-            "expires_at": r.try_get::<String,_>("token_expires_at").unwrap_or_default(),
-            "created_at": r.try_get::<String,_>("created_at").unwrap_or_default(),
+            "expires_at": format!("{}Z", expires_at.format("%Y-%m-%dT%H:%M:%S")),
+            "created_at": format!("{}Z", created_at.format("%Y-%m-%dT%H:%M:%S")),
             "current": is_current,
         })
     }).collect();
@@ -213,15 +214,18 @@ pub async fn list_my_login_history(State(state): State<Arc<AppState>>, Extension
     ensure_permission(&auth, Permission::UserSelf)?;
     let rows = sqlx::query("SELECT id, username_attempt, client_ip, user_agent, success, failure_reason, created_at FROM login_history WHERE user_id = (SELECT id FROM users WHERE username = ?) ORDER BY created_at DESC LIMIT 50")
         .bind(&auth.subject).fetch_all(&state.pool).await?;
-    let items: Vec<Value> = rows.iter().map(|r| json!({
-        "id": r.try_get::<i64,_>("id").unwrap_or(0),
-        "username_attempt": r.try_get::<String,_>("username_attempt").unwrap_or_default(),
-        "client_ip": r.try_get::<String,_>("client_ip").unwrap_or_default(),
-        "user_agent": r.try_get::<String,_>("user_agent").unwrap_or_default(),
-        "success": r.try_get::<i8,_>("success").unwrap_or(0) == 1,
-        "failure_reason": r.try_get::<String,_>("failure_reason").unwrap_or_default(),
-        "created_at": r.try_get::<String,_>("created_at").unwrap_or_default(),
-    })).collect();
+    let items: Vec<Value> = rows.iter().map(|r| {
+        let created_at: chrono::NaiveDateTime = r.try_get("created_at").unwrap_or_else(|_| chrono::Utc::now().naive_utc());
+        json!({
+            "id": r.try_get::<i64,_>("id").unwrap_or(0),
+            "username_attempt": r.try_get::<String,_>("username_attempt").unwrap_or_default(),
+            "client_ip": r.try_get::<String,_>("client_ip").unwrap_or_default(),
+            "user_agent": r.try_get::<String,_>("user_agent").unwrap_or_default(),
+            "success": r.try_get::<i8,_>("success").unwrap_or(0) == 1,
+            "failure_reason": r.try_get::<String,_>("failure_reason").unwrap_or_default(),
+            "created_at": format!("{}Z", created_at.format("%Y-%m-%dT%H:%M:%S")),
+        })
+    }).collect();
     Ok(Json(json!({"items": items})))
 }
 
@@ -333,11 +337,15 @@ pub async fn setup_totp(State(state): State<Arc<AppState>>, Extension(auth): Ext
     ensure_permission(&auth, Permission::UserSelf)?;
     let raw_secret: Vec<u8> = (0..20).map(|_| rand::random::<u8>()).collect();
     let encoded = base32_encode(&raw_secret);
-    let qr_code_url = totp_rs::TOTP::new(
+    let totp = totp_rs::TOTP::new(
         totp_rs::Algorithm::SHA1, 6, 1, 30, raw_secret,
         Some("API Control Plane".to_string()),
         auth.subject.clone(),
-    ).map_err(|e| AppError::BadRequest(format!("TOTP setup error: {}", e)))?.get_url();
+    ).map_err(|e| AppError::BadRequest(format!("TOTP setup error: {}", e)))?;
+    let otpauth_url = totp.get_url();
+    let svg = qrcode_generator::to_svg_to_string(&otpauth_url, qrcode_generator::QrCodeEcc::Medium, 256, None::<&str>)
+        .map_err(|e| AppError::Internal(format!("QR code generation error: {}", e)))?;
+    let qr_code_url = format!("data:image/svg+xml;base64,{}", base64_encode(svg.as_bytes()));
     let user_id: String = sqlx::query_scalar("SELECT id FROM users WHERE username = ?")
         .bind(&auth.subject).fetch_optional(&state.pool).await?
         .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
@@ -394,6 +402,36 @@ fn base32_encode(data: &[u8]) -> String {
     out
 }
 
+fn base64_encode(data: &[u8]) -> String {
+    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
+    let mut chunks = data.chunks_exact(3);
+    for chunk in &mut chunks {
+        let buf = ((chunk[0] as u32) << 16) | ((chunk[1] as u32) << 8) | (chunk[2] as u32);
+        out.push(ALPHABET[((buf >> 18) & 0x3F) as usize] as char);
+        out.push(ALPHABET[((buf >> 12) & 0x3F) as usize] as char);
+        out.push(ALPHABET[((buf >> 6) & 0x3F) as usize] as char);
+        out.push(ALPHABET[(buf & 0x3F) as usize] as char);
+    }
+    let rem = chunks.remainder();
+    if !rem.is_empty() {
+        let buf = if rem.len() == 1 {
+            (rem[0] as u32) << 16
+        } else {
+            ((rem[0] as u32) << 16) | ((rem[1] as u32) << 8)
+        };
+        out.push(ALPHABET[((buf >> 18) & 0x3F) as usize] as char);
+        out.push(ALPHABET[((buf >> 12) & 0x3F) as usize] as char);
+        if rem.len() == 2 {
+            out.push(ALPHABET[((buf >> 6) & 0x3F) as usize] as char);
+        } else {
+            out.push('=');
+        }
+        out.push('=');
+    }
+    out
+}
+
 fn base32_decode(encoded: &str) -> Option<Vec<u8>> {
     let encoded = encoded.trim_end_matches('=').to_uppercase();
     let mut out = Vec::new();
@@ -423,7 +461,7 @@ pub async fn get_my_preferences(State(state): State<Arc<AppState>>, Extension(au
     let stored: Option<serde_json::Value> = prefs.and_then(|p| serde_json::from_str(&p).ok());
     Ok(Json(PreferencesResponse {
         user_id: auth.subject.clone(),
-        theme: stored.as_ref().and_then(|v| v.get("theme").and_then(|t| t.as_str())).unwrap_or("auto").to_string(),
+        theme: stored.as_ref().and_then(|v| v.get("theme").and_then(|t| t.as_str())).unwrap_or("system").to_string(),
         lang: stored.as_ref().and_then(|v| v.get("lang").and_then(|l| l.as_str())).unwrap_or("zh").to_string(),
         notifications: stored.as_ref().and_then(|v| v.get("notifications").cloned()),
     }))
@@ -433,7 +471,12 @@ pub async fn update_my_preferences(State(state): State<Arc<AppState>>, Extension
     ensure_permission(&auth, Permission::UserSelf)?;
     let prefs_json = serde_json::to_string(&payload).unwrap_or_default();
     sqlx::query("UPDATE users SET preferences = ? WHERE username = ?").bind(&prefs_json).bind(&auth.subject).execute(&state.pool).await?;
-    Ok(Json(json!({"updated": true})))
+    Ok(Json(PreferencesResponse {
+        user_id: auth.subject.clone(),
+        theme: payload.theme.unwrap_or_else(|| "system".to_string()),
+        lang: payload.lang.unwrap_or_else(|| "zh".to_string()),
+        notifications: payload.notifications.as_ref().and_then(|n| serde_json::to_value(n).ok()),
+    }))
 }
 
 // ==================== Helpers ====================

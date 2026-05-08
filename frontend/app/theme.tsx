@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 
 type Theme = "system" | "light" | "dark";
 
@@ -29,10 +29,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, [theme]);
 
-  const setTheme = (t: Theme) => {
+  const setTheme = useCallback((t: Theme) => {
     setThemeState(t);
     localStorage.setItem("app_theme", t);
-  };
+  }, []);
 
   return (
     <ThemeContext.Provider value={{ theme, setTheme }}>
