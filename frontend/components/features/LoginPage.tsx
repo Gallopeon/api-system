@@ -13,7 +13,11 @@ function TotpInput({ onSubmit, loading, t }: { onSubmit: (code: string) => void;
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
-    inputRefs.current[0]?.focus();
+    // Delay focus to account for CSS transition on parent container
+    const raf = requestAnimationFrame(() => {
+      inputRefs.current[0]?.focus();
+    });
+    return () => cancelAnimationFrame(raf);
   }, []);
 
   const handleChange = useCallback((index: number, value: string) => {
@@ -74,6 +78,7 @@ function TotpInput({ onSubmit, loading, t }: { onSubmit: (code: string) => void;
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"
+            autoFocus={i === 0}
             maxLength={1}
             value={digit}
             onChange={(e) => handleChange(i, e.target.value)}

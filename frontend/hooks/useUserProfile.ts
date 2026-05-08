@@ -93,7 +93,8 @@ export function useSessions(
         const r = await apiFetch(`/admin/v1/users/me/sessions/${sessionId}`, {
           method: "DELETE",
         }, accessToken);
-        if (!r.ok) throw new Error("Revoke failed");
+        if (!r.ok) throw new Error((await r.json().catch(() => ({})))?.message || "Revoke failed");
+        setSessions(prev => prev.filter(s => s.id !== sessionId));
         notifySucc?.("Session revoked");
         await loadSessions();
       } catch (e) {
@@ -187,7 +188,6 @@ export function useTotp(
   );
 
   const disableTotp = useCallback(async () => {
-    if (!confirm("Disable two-factor authentication?")) return;
     setTotpBusy(true);
     try {
       const r = await apiFetch("/admin/v1/users/me/totp", {
