@@ -1,10 +1,12 @@
 "use client";
 
 import { Network, LogOut } from "lucide-react";
+import NotificationCenter from "@/components/features/NotificationCenter";
 
 interface NavbarProps {
   liveState: string;
   readyState: string;
+  accessToken?: string;
   lang: string;
   onToggleLang: () => void;
   userName: string;
@@ -15,6 +17,7 @@ interface NavbarProps {
 export default function Navbar({
   liveState,
   readyState,
+  accessToken,
   lang,
   onToggleLang,
   userName,
@@ -103,6 +106,7 @@ export default function Navbar({
             {t("Hi, ", "你好, ")}
             {userName || t("Admin", "管理员")}
           </span>
+          <NotificationCenter accessToken={accessToken} t={t} />
           <button
             onClick={onSignOut}
             className="flex items-center space-x-1 text-red-500 hover:text-red-600 transition"

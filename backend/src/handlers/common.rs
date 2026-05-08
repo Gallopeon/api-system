@@ -50,13 +50,29 @@ pub async fn write_audit_log(pool: &MySqlPool, entry: AuditEntry) -> Result<(), 
 }
 
 /// Fire-and-forget audit log write. Spawns a background task so audit I/O
-/// does not add latency to the API response.
+/// does not add latency to the API response. Also dispatches notifications.
 pub fn spawn_audit_log(pool: &MySqlPool, entry: AuditEntry) {
     let pool = pool.clone();
     tokio::spawn(async move {
-        if let Err(e) = write_audit_log(&pool, entry).await {
+        if let Err(e) = write_audit_log(&pool, entry.clone()).await {
             tracing::warn!(error = %e, "async audit write failed");
         }
+
+        // Dispatch notifications for significant audit events
+        let (notif_type, pref_path) = match entry.action.as_str() {
+            "rule_created" | "rule_updated" | "rule_deleted" =>
+                ("rule_change", "notifications.email.rule_changes"),
+            "api_key_created" | "api_key_deleted" | "user_created" | "user_deleted" | "user_password_changed" =>
+                ("security_alert", "notifications.email.security_alerts"),
+            "approval_created" | "approval_reviewed" =>
+                ("approval", "notifications.in_app.approvals"),
+            _ => return,
+        };
+
+        let msg = entry.message.as_deref().unwrap_or(&entry.action);
+        crate::engine::notify::notify_pref_users(
+            &pool, pref_path, notif_type, "both", &entry.action, msg, None,
+        ).await;
     });
 }
 

@@ -124,6 +124,9 @@ pub async fn run() -> anyhow::Result<()> {
         .route("/admin/v1/system/settings", get(list_system_settings))
         .route("/admin/v1/system/settings/:key", put(update_system_setting))
         .route("/admin/v1/system/smtp/test", post(test_smtp))
+        .route("/admin/v1/users/me/notifications", get(list_my_notifications))
+        .route("/admin/v1/users/me/notifications/read", post(mark_notification_read))
+        .route("/admin/v1/users/me/notifications/unread-count", get(get_unread_count))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
     let public_router = Router::new()

@@ -298,7 +298,7 @@ pub struct AuditLogItem {
     pub created_at: String,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AuditEntry {
     pub rule_id: Option<String>,
     pub action: String,

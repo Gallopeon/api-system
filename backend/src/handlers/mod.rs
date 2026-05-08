@@ -38,4 +38,6 @@ pub use plugins::*;
 pub use llm::*;
 pub use openapi::*;
 pub use validation_handlers::*;
+pub mod notifications;
+pub use notifications::*;
 pub use system::*;

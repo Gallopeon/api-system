@@ -372,6 +372,18 @@ export type SessionResponse = {
   current: boolean;
 };
 
+export type NotificationItem = {
+  id: string;
+  type: string;
+  channel: string;
+  title: string;
+  message: string;
+  read: boolean;
+  email_sent: boolean;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+};
+
 export type LoginHistoryItem = {
   id: number;
   username_attempt: string;

@@ -256,6 +256,16 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
 
+    sqlx::query(r#"CREATE TABLE IF NOT EXISTS notifications (
+        id VARCHAR(36) PRIMARY KEY, user_id VARCHAR(36) NOT NULL,
+        type VARCHAR(32) NOT NULL, channel VARCHAR(16) NOT NULL DEFAULT 'in_app',
+        title VARCHAR(256) NOT NULL, message TEXT NOT NULL,
+        `read` TINYINT(1) NOT NULL DEFAULT 0, email_sent TINYINT(1) NOT NULL DEFAULT 0,
+        metadata JSON NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        KEY idx_notif_user (user_id), KEY idx_notif_read (user_id, `read`),
+        CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
+
     seed_settings(pool).await?;
     seed_admin(pool).await?;
 
