@@ -42,6 +42,39 @@ async fn flush_metrics_buffer(pool: &sqlx::MySqlPool, redis: &redis::Client) -> 
         return Ok(());
     }
 
+    let mut batch = Vec::with_capacity(items.len());
+    for item in &items {
+        if let Ok(req) = serde_json::from_str::<IngestMetricsRequest>(item) {
+            batch.push(req);
+        }
+    }
+
+    if !batch.is_empty() {
+        let mut query_str = String::from(
+            "INSERT INTO metrics_ingest (api_path, method, status_code, latency_ms, client_ip, api_key_id, timestamp) VALUES "
+        );
+        let mut first = true;
+        for _ in &batch {
+            if !first { query_str.push_str(", "); }
+            query_str.push_str("(?, ?, ?, ?, ?, ?, NOW())");
+            first = false;
+        }
+
+        let mut q = sqlx::query(&query_str);
+        for req in &batch {
+            q = q.bind(&req.api_path)
+                .bind(&req.method)
+                .bind(req.status_code)
+                .bind(req.latency_ms)
+                .bind(&req.client_ip)
+                .bind(&req.api_key_id);
+        }
+
+        q.execute(pool).await?;
+        tracing::info!(count = batch.len(), "metrics batch inserted");
+    }
+
+    // Safely remove processed items only AFTER successful database insertion
     let _: () = redis::cmd("LTRIM")
         .arg(METRICS_BUFFER_KEY)
         .arg(items.len() as i64)
@@ -49,39 +82,6 @@ async fn flush_metrics_buffer(pool: &sqlx::MySqlPool, redis: &redis::Client) -> 
         .query_async(&mut conn)
         .await?;
 
-    let mut batch = Vec::with_capacity(items.len());
-    for item in items {
-        if let Ok(req) = serde_json::from_str::<IngestMetricsRequest>(&item) {
-            batch.push(req);
-        }
-    }
-
-    if batch.is_empty() {
-        return Ok(());
-    }
-
-    let mut query_str = String::from(
-        "INSERT INTO metrics_ingest (api_path, method, status_code, latency_ms, client_ip, api_key_id, timestamp) VALUES "
-    );
-    let mut first = true;
-    for _ in &batch {
-        if !first { query_str.push_str(", "); }
-        query_str.push_str("(?, ?, ?, ?, ?, ?, NOW())");
-        first = false;
-    }
-
-    let mut q = sqlx::query(&query_str);
-    for req in &batch {
-        q = q.bind(&req.api_path)
-            .bind(&req.method)
-            .bind(req.status_code)
-            .bind(req.latency_ms)
-            .bind(&req.client_ip)
-            .bind(&req.api_key_id);
-    }
-
-    q.execute(pool).await?;
-    tracing::info!(count = batch.len(), "metrics batch inserted");
     Ok(())
 }
 

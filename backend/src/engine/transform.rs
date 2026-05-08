@@ -30,13 +30,19 @@ pub fn mask_value(value: &Value) -> Value {
 }
 
 pub fn apply_transform(input: &Value, rule: &TransformRule) -> Value {
+    let mask_set: HashSet<&str> = rule
+        .masked_fields
+        .iter()
+        .map(|f| f.as_str())
+        .collect();
+
     if let Some(pagination) = &rule.pagination {
         if let Some(obj) = input.as_object() {
             let raw_data = obj
                 .get(&pagination.data_key)
                 .cloned()
                 .unwrap_or_else(|| Value::Array(Vec::new()));
-            let transformed_data = transform_payload(&raw_data, rule);
+            let transformed_data = transform_payload_inner(&raw_data, rule, &mask_set);
 
             return json!({
                 "data": transformed_data,
@@ -49,30 +55,34 @@ pub fn apply_transform(input: &Value, rule: &TransformRule) -> Value {
         }
     }
 
-    transform_payload(input, rule)
+    transform_payload_inner(input, rule, &mask_set)
 }
 
 pub fn transform_payload(input: &Value, rule: &TransformRule) -> Value {
+    let mask_set: HashSet<&str> = rule.masked_fields.iter().map(|f| f.as_str()).collect();
+    transform_payload_inner(input, rule, &mask_set)
+}
+
+fn transform_payload_inner(input: &Value, rule: &TransformRule, mask_set: &HashSet<&str>) -> Value {
     match input {
         Value::Array(items) => {
             let transformed = items
                 .iter()
-                .map(|item| transform_payload(item, rule))
+                .map(|item| transform_payload_inner(item, rule, mask_set))
                 .collect::<Vec<_>>();
             Value::Array(transformed)
         }
-        Value::Object(obj) => transform_object(obj, rule),
+        Value::Object(obj) => transform_object_inner(obj, rule, mask_set),
         _ => input.clone(),
     }
 }
 
 pub fn transform_object(input: &Map<String, Value>, rule: &TransformRule) -> Value {
-    let mask_set = rule
-        .masked_fields
-        .iter()
-        .map(|f| f.as_str())
-        .collect::<HashSet<_>>();
+    let mask_set: HashSet<&str> = rule.masked_fields.iter().map(|f| f.as_str()).collect();
+    transform_object_inner(input, rule, &mask_set)
+}
 
+fn transform_object_inner(input: &Map<String, Value>, rule: &TransformRule, mask_set: &HashSet<&str>) -> Value {
     let selected = if rule.whitelist_fields.is_empty() {
         input.keys().cloned().collect::<Vec<_>>()
     } else {
