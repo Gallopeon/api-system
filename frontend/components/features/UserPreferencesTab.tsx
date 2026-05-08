@@ -55,24 +55,24 @@ export default function UserPreferencesTab({
         <div className="space-y-6">
           <div>
             <h3 className="text-sm font-medium text-gray-500 mb-2">{t("Email Notifications", "邮件通知")}</h3>
-            <label className="flex items-center space-x-3 py-2 cursor-pointer">
-              <input type="checkbox" className="rounded" checked={prefEmailRuleChanges} onChange={(e) => onPreferenceChange("email.rule_changes", e.target.checked)} />
-              <span className="text-sm">{t("Rule change alerts", "规则变更提醒")}</span>
+            <label className="flex items-center gap-3 py-2 cursor-pointer">
+              <input type="checkbox" className="w-4 h-4 rounded accent-blue-600 cursor-pointer" checked={prefEmailRuleChanges} onChange={(e) => onPreferenceChange("email.rule_changes", e.target.checked)} />
+              <span className="text-sm text-gray-700 dark:text-gray-300">{t("Rule change alerts", "规则变更提醒")}</span>
             </label>
-            <label className="flex items-center space-x-3 py-2 cursor-pointer">
-              <input type="checkbox" className="rounded" checked={prefEmailSecurity} onChange={(e) => onPreferenceChange("email.security_alerts", e.target.checked)} />
-              <span className="text-sm">{t("Security alerts", "安全告警")}</span>
+            <label className="flex items-center gap-3 py-2 cursor-pointer">
+              <input type="checkbox" className="w-4 h-4 rounded accent-blue-600 cursor-pointer" checked={prefEmailSecurity} onChange={(e) => onPreferenceChange("email.security_alerts", e.target.checked)} />
+              <span className="text-sm text-gray-700 dark:text-gray-300">{t("Security alerts", "安全告警")}</span>
             </label>
           </div>
           <div>
             <h3 className="text-sm font-medium text-gray-500 mb-2">{t("In-App Notifications", "站内通知")}</h3>
-            <label className="flex items-center space-x-3 py-2 cursor-pointer">
-              <input type="checkbox" className="rounded" checked={prefInAppApprovals} onChange={(e) => onPreferenceChange("in_app.approvals", e.target.checked)} />
-              <span className="text-sm">{t("Approval requests", "审批请求")}</span>
+            <label className="flex items-center gap-3 py-2 cursor-pointer">
+              <input type="checkbox" className="w-4 h-4 rounded accent-blue-600 cursor-pointer" checked={prefInAppApprovals} onChange={(e) => onPreferenceChange("in_app.approvals", e.target.checked)} />
+              <span className="text-sm text-gray-700 dark:text-gray-300">{t("Approval requests", "审批请求")}</span>
             </label>
-            <label className="flex items-center space-x-3 py-2 cursor-pointer">
-              <input type="checkbox" className="rounded" checked={prefInAppAudit} onChange={(e) => onPreferenceChange("in_app.audit", e.target.checked)} />
-              <span className="text-sm">{t("Audit log activity", "审计日志动态")}</span>
+            <label className="flex items-center gap-3 py-2 cursor-pointer">
+              <input type="checkbox" className="w-4 h-4 rounded accent-blue-600 cursor-pointer" checked={prefInAppAudit} onChange={(e) => onPreferenceChange("in_app.audit", e.target.checked)} />
+              <span className="text-sm text-gray-700 dark:text-gray-300">{t("Audit log activity", "审计日志动态")}</span>
             </label>
           </div>
         </div>

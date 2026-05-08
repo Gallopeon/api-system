@@ -237,9 +237,13 @@ export function usePreferences(
           const d = await r.json();
           setPrefs(d);
           notifySucc?.("Preferences saved");
+        } else {
+          const err = await r.json().catch(() => ({}));
+          throw new Error(err.message || "Save failed");
         }
       } catch (e) {
         console.error("savePreferences failed:", e);
+        notifySucc?.((e as Error).message || "Failed to save preferences");
       }
     },
     [accessToken, notifySucc],
