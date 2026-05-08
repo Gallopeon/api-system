@@ -15,3 +15,9 @@ pub struct UpdateSettingRequest {
     #[serde(default)]
     pub actor: Option<String>,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct SmtpTestRequest {
+    #[serde(default)]
+    pub to_email: Option<String>,
+}

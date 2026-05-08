@@ -273,6 +273,14 @@ async fn seed_settings(pool: &MySqlPool) -> Result<(), AppError> {
         ("admin_default_password", "****", "Default admin password (env-only)", false),
         ("cors_allowed_origins", "*", "CORS allowed origins", true),
         ("rust_log", "info", "Log level", true),
+        // SMTP configuration
+        ("smtp_host", "", "SMTP server hostname", true),
+        ("smtp_port", "587", "SMTP server port", true),
+        ("smtp_username", "", "SMTP authentication username", true),
+        ("smtp_password", "", "SMTP authentication password", true),
+        ("smtp_from_email", "", "Sender email address", true),
+        ("smtp_from_name", "API Control Plane", "Sender display name", true),
+        ("smtp_encryption", "tls", "SMTP encryption: tls, starttls, or none", true),
     ];
     for (key, val, desc, editable) in &defaults {
         sqlx::query(

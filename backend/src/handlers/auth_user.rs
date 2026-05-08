@@ -469,13 +469,32 @@ pub async fn get_my_preferences(State(state): State<Arc<AppState>>, Extension(au
 
 pub async fn update_my_preferences(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<UpdatePreferencesRequest>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserSelf)?;
-    let prefs_json = serde_json::to_string(&payload).unwrap_or_default();
+
+    // Merge with existing preferences so partial updates don't wipe other fields
+    let existing: Option<String> = sqlx::query_scalar("SELECT preferences FROM users WHERE username = ?")
+        .bind(&auth.subject).fetch_optional(&state.pool).await?
+        .and_then(|v: Option<String>| v);
+    let mut merged: serde_json::Value = existing
+        .and_then(|p| serde_json::from_str(&p).ok())
+        .unwrap_or_default();
+
+    if let Some(theme) = &payload.theme {
+        merged["theme"] = serde_json::Value::String(theme.clone());
+    }
+    if let Some(lang) = &payload.lang {
+        merged["lang"] = serde_json::Value::String(lang.clone());
+    }
+    if let Some(notifications) = &payload.notifications {
+        merged["notifications"] = serde_json::to_value(notifications).unwrap_or_default();
+    }
+
+    let prefs_json = serde_json::to_string(&merged).unwrap_or_default();
     sqlx::query("UPDATE users SET preferences = ? WHERE username = ?").bind(&prefs_json).bind(&auth.subject).execute(&state.pool).await?;
     Ok(Json(PreferencesResponse {
         user_id: auth.subject.clone(),
-        theme: payload.theme.unwrap_or_else(|| "system".to_string()),
-        lang: payload.lang.unwrap_or_else(|| "zh".to_string()),
-        notifications: payload.notifications.as_ref().and_then(|n| serde_json::to_value(n).ok()),
+        theme: merged.get("theme").and_then(|v| v.as_str()).unwrap_or("system").to_string(),
+        lang: merged.get("lang").and_then(|v| v.as_str()).unwrap_or("zh").to_string(),
+        notifications: merged.get("notifications").cloned(),
     }))
 }
 

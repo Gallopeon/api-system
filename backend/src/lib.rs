@@ -123,6 +123,7 @@ pub async fn run() -> anyhow::Result<()> {
         .route("/admin/v1/users/:id", get(get_user).put(update_user).delete(delete_user))
         .route("/admin/v1/system/settings", get(list_system_settings))
         .route("/admin/v1/system/settings/:key", put(update_system_setting))
+        .route("/admin/v1/system/smtp/test", post(test_smtp))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
     let public_router = Router::new()

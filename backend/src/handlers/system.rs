@@ -34,3 +34,54 @@ pub async fn update_system_setting(State(state): State<Arc<AppState>>, Extension
     }
     Ok(Json(json!({"key": key, "updated": true})))
 }
+
+async fn get_setting(pool: &sqlx::MySqlPool, key: &str) -> Option<String> {
+    sqlx::query_scalar("SELECT setting_value FROM system_settings WHERE setting_key = ?")
+        .bind(key).fetch_optional(pool).await.ok().flatten()
+}
+
+pub async fn test_smtp(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<SmtpTestRequest>) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::SystemWrite)?;
+
+    let smtp_host = get_setting(&state.pool, "smtp_host").await.unwrap_or_default();
+    let smtp_port: u16 = get_setting(&state.pool, "smtp_port").await.unwrap_or_else(|| "587".into()).parse().unwrap_or(587);
+    let smtp_user = get_setting(&state.pool, "smtp_username").await.unwrap_or_default();
+    let smtp_pass = get_setting(&state.pool, "smtp_password").await.unwrap_or_default();
+    let from_email = get_setting(&state.pool, "smtp_from_email").await.unwrap_or_default();
+    let from_name = get_setting(&state.pool, "smtp_from_name").await.unwrap_or_else(|| "API Control Plane".into());
+    let encryption = get_setting(&state.pool, "smtp_encryption").await.unwrap_or_else(|| "tls".into());
+
+    if smtp_host.is_empty() || from_email.is_empty() {
+        return Err(AppError::BadRequest("SMTP host and from email are required".to_string()));
+    }
+
+    let to_email = payload.to_email.unwrap_or_else(|| from_email.clone());
+
+    let msg = lettre::Message::builder()
+        .from(format!("{from_name} <{from_email}>").parse().map_err(|e| AppError::BadRequest(format!("invalid from: {e}")))?)
+        .to(to_email.parse().map_err(|e| AppError::BadRequest(format!("invalid to: {e}")))?)
+        .subject("SMTP Test — API Control Plane")
+        .body("This is a test email from your API Control Plane instance. SMTP is configured correctly.".to_string())
+        .map_err(|e| AppError::BadRequest(format!("failed to build email: {e}")))?;
+
+    let transport = match encryption.as_str() {
+        "tls" => lettre::transport::smtp::SmtpTransport::relay(&smtp_host)
+            .map_err(|e| AppError::BadRequest(format!("smtp relay error: {e}")))?
+            .port(smtp_port)
+            .credentials(lettre::transport::smtp::authentication::Credentials::new(smtp_user, smtp_pass))
+            .build(),
+        "starttls" => lettre::transport::smtp::SmtpTransport::starttls_relay(&smtp_host)
+            .map_err(|e| AppError::BadRequest(format!("smtp relay error: {e}")))?
+            .port(smtp_port)
+            .credentials(lettre::transport::smtp::authentication::Credentials::new(smtp_user, smtp_pass))
+            .build(),
+        _ => lettre::transport::smtp::SmtpTransport::builder_dangerous(&smtp_host)
+            .port(smtp_port)
+            .build(),
+    };
+
+    match lettre::Transport::send(&transport, &msg) {
+        Ok(_) => Ok(Json(json!({"success": true, "message": format!("Test email sent to {to_email}")}))),
+        Err(e) => Err(AppError::BadRequest(format!("SMTP test failed: {e}"))),
+    }
+}

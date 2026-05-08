@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { UserCircle, Shield, Monitor, History, QrCode, Settings } from "lucide-react";
+import { UserCircle, Shield, Monitor, History, QrCode, Settings, Mail } from "lucide-react";
 import { useUserProfile, useSessions, useLoginHistory, useTotp, usePreferences } from "@/hooks/useUserProfile";
+import { useSmtpSettings } from "@/hooks/useSmtpSettings";
 import { useTheme } from "@/app/theme";
 import UserProfileTab from "./UserProfileTab";
 import UserSecurityTab from "./UserSecurityTab";
@@ -10,6 +11,7 @@ import UserTotpTab from "./UserTotpTab";
 import UserSessionsTab from "./UserSessionsTab";
 import UserLoginHistoryTab from "./UserLoginHistoryTab";
 import UserPreferencesTab from "./UserPreferencesTab";
+import SmtpSettingsTab from "./SmtpSettingsTab";
 
 interface UserCenterPanelProps {
   accessToken?: string;
@@ -29,6 +31,7 @@ export default function UserCenterPanel({
   const { totpBusy, totpSecret, totpQrUrl, totpEnabled, setupTotp, verifyTotp, disableTotp, checkTotpStatus } =
     useTotp(accessToken, notifyError, notifySucc);
   const { prefs, loadPreferences, savePreferences } = usePreferences(accessToken, notifySucc);
+  const { smtp, smtpBusy, smtpLoading, loadSmtp, saveSmtp, testSmtp } = useSmtpSettings(accessToken, notifySucc, notifyError);
   const { setTheme } = useTheme();
 
   const [editEmail, setEditEmail] = useState("");
@@ -51,6 +54,7 @@ export default function UserCenterPanel({
     loadLoginHistory();
     checkTotpStatus();
     loadPreferences();
+    loadSmtp();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -116,6 +120,7 @@ export default function UserCenterPanel({
     { id: "sessions", icon: Monitor, en: "Sessions", zh: "会话管理" },
     { id: "history", icon: History, en: "Login History", zh: "登录历史" },
     { id: "preferences", icon: Settings, en: "Preferences", zh: "偏好设置" },
+    { id: "smtp", icon: Mail, en: "SMTP", zh: "邮件服务" },
   ];
 
   return (
@@ -125,12 +130,12 @@ export default function UserCenterPanel({
         <p className="text-gray-500">{t("Manage your profile, security, and sessions.", "管理您的个人资料、安全和会话。")}</p>
       </div>
 
-      <div className="flex border-b border-gray-200 dark:border-gray-800 space-x-1">
+      <div className="flex border-b border-gray-200 dark:border-gray-800 space-x-1 overflow-x-auto">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            className={`flex items-center space-x-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+            className={`flex items-center space-x-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
               activeTab === tab.id
                 ? "border-blue-600 text-blue-700 dark:text-blue-400"
                 : "border-transparent text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"
@@ -206,6 +211,17 @@ export default function UserCenterPanel({
           prefInAppAudit={prefInAppAudit}
           onPreferenceChange={handlePreferenceChange}
           onSaveThemeLang={(theme, lang) => { savePreferences({ theme, lang }); setTheme(theme as "system" | "light" | "dark"); }}
+          t={t}
+        />
+      )}
+
+      {activeTab === "smtp" && (
+        <SmtpSettingsTab
+          smtp={smtp}
+          smtpBusy={smtpBusy}
+          smtpLoading={smtpLoading}
+          saveSmtp={saveSmtp}
+          testSmtp={testSmtp}
           t={t}
         />
       )}
