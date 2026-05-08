@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { UserCircle, Shield, Monitor, History, QrCode, Settings, Mail } from "lucide-react";
+import { UserCircle, Shield, Monitor, History, QrCode, Settings } from "lucide-react";
 import { useUserProfile, useSessions, useLoginHistory, useTotp, usePreferences } from "@/hooks/useUserProfile";
-import { useSmtpSettings } from "@/hooks/useSmtpSettings";
 import { useTheme } from "@/app/theme";
 import UserProfileTab from "./UserProfileTab";
 import UserSecurityTab from "./UserSecurityTab";
@@ -11,7 +10,6 @@ import UserTotpTab from "./UserTotpTab";
 import UserSessionsTab from "./UserSessionsTab";
 import UserLoginHistoryTab from "./UserLoginHistoryTab";
 import UserPreferencesTab from "./UserPreferencesTab";
-import SmtpSettingsTab from "./SmtpSettingsTab";
 
 interface UserCenterPanelProps {
   accessToken?: string;
@@ -31,7 +29,6 @@ export default function UserCenterPanel({
   const { totpBusy, totpSecret, totpQrUrl, totpEnabled, setupTotp, verifyTotp, disableTotp, checkTotpStatus } =
     useTotp(accessToken, notifyError, notifySucc);
   const { prefs, loadPreferences, savePreferences } = usePreferences(accessToken, notifySucc);
-  const { smtp, smtpBusy, smtpLoading, loadSmtp, saveSmtp, testSmtp } = useSmtpSettings(accessToken, notifySucc, notifyError);
   const { setTheme } = useTheme();
 
   const [editEmail, setEditEmail] = useState("");
@@ -54,7 +51,6 @@ export default function UserCenterPanel({
     loadLoginHistory();
     checkTotpStatus();
     loadPreferences();
-    loadSmtp();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -120,7 +116,6 @@ export default function UserCenterPanel({
     { id: "sessions", icon: Monitor, en: "Sessions", zh: "会话管理" },
     { id: "history", icon: History, en: "Login History", zh: "登录历史" },
     { id: "preferences", icon: Settings, en: "Preferences", zh: "偏好设置" },
-    { id: "smtp", icon: Mail, en: "SMTP", zh: "邮件服务" },
   ];
 
   return (
@@ -215,16 +210,6 @@ export default function UserCenterPanel({
         />
       )}
 
-      {activeTab === "smtp" && (
-        <SmtpSettingsTab
-          smtp={smtp}
-          smtpBusy={smtpBusy}
-          smtpLoading={smtpLoading}
-          saveSmtp={saveSmtp}
-          testSmtp={testSmtp}
-          t={t}
-        />
-      )}
     </div>
   );
 }
