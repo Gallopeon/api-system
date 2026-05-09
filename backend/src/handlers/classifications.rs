@@ -7,7 +7,9 @@ use serde_json::{json, Value};
 use sqlx::Row;
 use uuid::Uuid;
 use crate::AppState;
+use crate::types::AuditEntry;
 use crate::auth::*;
+use super::common::spawn_audit_log;
 
 pub async fn create_data_classification(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ClassificationsWrite)?;
@@ -18,6 +20,12 @@ pub async fn create_data_classification(State(state): State<Arc<AppState>>, Exte
     let gdpr = payload.get("gdpr_relevant").and_then(|v| v.as_bool()).unwrap_or(false);
     sqlx::query("INSERT INTO data_classifications (id, api_path, data_category, contains_pii, gdpr_relevant) VALUES (?, ?, ?, ?, ?)")
         .bind(&id).bind(api_path).bind(category).bind(pii).bind(gdpr).execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "classification.create".to_string(), actor,
+        success: true, message: Some(format!("Data classification '{}' created", api_path)),
+        detail: Some(json!({"id": id, "api_path": api_path, "data_category": category})),
+    });
     Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
 }
 
@@ -97,10 +105,22 @@ pub async fn update_data_classification(State(state): State<Arc<AppState>>, Exte
         q = q.bind(v);
     }
     q.execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "classification.update".to_string(), actor,
+        success: true, message: Some(format!("Data classification {} updated", id)),
+        detail: Some(json!({"id": id})),
+    });
     Ok(Json(json!({"updated": true})))
 }
 pub async fn delete_data_classification(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ClassificationsWrite)?;
     sqlx::query("DELETE FROM data_classifications WHERE id = ?").bind(&id).execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "classification.delete".to_string(), actor,
+        success: true, message: Some(format!("Data classification {} deleted", id)),
+        detail: Some(json!({"id": id})),
+    });
     Ok(Json(json!({"deleted": true})))
 }

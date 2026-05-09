@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bell, Check, Loader2, FileText, Shield, Key, Users, ClipboardCheck } from "lucide-react";
+import { Bell, Check, Loader2, FileText, Shield, Key, Users, ClipboardCheck, Package, Activity, ScrollText } from "lucide-react";
 import { useNotifications } from "@/hooks/useNotifications";
 
 interface Props {
@@ -12,15 +12,21 @@ interface Props {
 const typeIcon: Record<string, React.ReactNode> = {
   rule_change: <FileText className="w-4 h-4" />,
   security_alert: <Shield className="w-4 h-4" />,
+  approval: <ClipboardCheck className="w-4 h-4" />,
+  product_change: <Package className="w-4 h-4" />,
+  infrastructure_change: <Activity className="w-4 h-4" />,
+  audit_event: <ScrollText className="w-4 h-4" />,
   api_key: <Key className="w-4 h-4" />,
   user_event: <Users className="w-4 h-4" />,
-  approval: <ClipboardCheck className="w-4 h-4" />,
 };
 
 const typeColor = (t: string) => {
   if (t === "rule_change") return "bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400";
   if (t === "security_alert") return "bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400";
   if (t === "approval") return "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400";
+  if (t === "product_change") return "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400";
+  if (t === "infrastructure_change") return "bg-cyan-100 dark:bg-cyan-900/30 text-cyan-600 dark:text-cyan-400";
+  if (t === "audit_event") return "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400";
   return "bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400";
 };
 

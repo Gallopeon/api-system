@@ -58,21 +58,50 @@ pub fn spawn_audit_log(pool: &MySqlPool, entry: AuditEntry) {
             tracing::warn!(error = %e, "async audit write failed");
         }
 
-        // Dispatch notifications for significant audit events
-        let (notif_type, pref_path) = match entry.action.as_str() {
-            "rule_created" | "rule_updated" | "rule_deleted" =>
-                ("rule_change", "notifications.email.rule_changes"),
-            "api_key_created" | "api_key_deleted" | "user_created" | "user_deleted" | "user_password_changed" =>
-                ("security_alert", "notifications.email.security_alerts"),
-            "approval_created" | "approval_reviewed" =>
-                ("approval", "notifications.in_app.approvals"),
-            _ => return,
+        // Dispatch notifications for significant audit events.
+        // pref_paths may contain multiple entries to reach users across email and in_app channels.
+        let msg = entry.message.as_deref().unwrap_or(&entry.action);
+        let (notif_type, channel, pref_paths): (&str, &str, &[&str]) = match entry.action.as_str() {
+            // ── Rule changes (matched against actual handler action strings) ──
+            "rule_create" | "rule_update" | "rule_delete" | "rule_rollback" =>
+                ("rule_change", "both", &["notifications.email.rule_changes"]),
+            // ── Security alerts ──
+            "api_key_create" | "api_key_delete" | "api_key_update" |
+            "user_create" | "user_delete" | "user_password_change" |
+            "system_setting_update" =>
+                ("security_alert", "both", &["notifications.email.security_alerts"]),
+            // ── Approval workflow ──
+            "approval_create" | "approval_approved" | "approval_rejected" =>
+                ("approval", "in_app", &["notifications.in_app.approvals"]),
+            // ── Product & subscription lifecycle ──
+            "product.create" | "product.update" | "product.delete" |
+            "subscription.create" | "subscription.update" | "subscription.delete" |
+            "subscription.upgrade" | "subscription.cancel" | "subscription.renew" =>
+                ("product_change", "both", &["notifications.email.product_updates", "notifications.in_app.product_updates"]),
+            // ── Infrastructure changes ──
+            "rate_limit.create" | "rate_limit.update" | "rate_limit.delete" |
+            "circuit_breaker.create" | "circuit_breaker.update" | "circuit_breaker.delete" |
+            "llm_provider.create" | "llm_provider.update" | "llm_provider.delete" |
+            "llm_template.create" | "llm_template.update" | "llm_template.delete" |
+            "protocol.create" | "protocol.update" | "protocol.delete" |
+            "classification.create" | "classification.update" | "classification.delete" |
+            "plugin.create" | "plugin.update" | "plugin.delete" =>
+                ("infrastructure_change", "in_app", &["notifications.in_app.infrastructure"]),
+            // ── Catch-all: send to users who have in_app.audit enabled ──
+            _ => {
+                crate::engine::notify::notify_pref_users(
+                    &pool, "notifications.in_app.audit", "audit_event", "in_app",
+                    &entry.action, msg, None,
+                ).await;
+                return;
+            }
         };
 
-        let msg = entry.message.as_deref().unwrap_or(&entry.action);
-        crate::engine::notify::notify_pref_users(
-            &pool, pref_path, notif_type, "both", &entry.action, msg, None,
-        ).await;
+        for pref_path in pref_paths {
+            crate::engine::notify::notify_pref_users(
+                &pool, pref_path, notif_type, channel, &entry.action, msg, None,
+            ).await;
+        }
     });
 }
 

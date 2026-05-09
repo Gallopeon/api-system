@@ -8,6 +8,7 @@ use sqlx::Row;
 use crate::AppState;
 use crate::types::*;
 use crate::auth::*;
+use super::common::spawn_audit_log;
 
 pub async fn list_system_settings(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::SystemRead)?;
@@ -32,6 +33,12 @@ pub async fn update_system_setting(State(state): State<Arc<AppState>>, Extension
     if rows.rows_affected() == 0 {
         return Err(AppError::BadRequest(format!("setting '{}' not found or is not editable", key)));
     }
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "system_setting_update".to_string(), actor,
+        success: true, message: Some(format!("System setting '{}' updated", key)),
+        detail: Some(json!({"key": key})),
+    });
     Ok(Json(json!({"key": key, "updated": true})))
 }
 

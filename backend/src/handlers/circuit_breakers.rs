@@ -7,7 +7,9 @@ use serde_json::{json, Value};
 use sqlx::Row;
 use uuid::Uuid;
 use crate::AppState;
+use crate::types::AuditEntry;
 use crate::auth::*;
+use super::common::spawn_audit_log;
 
 pub async fn create_circuit_breaker(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::CircuitBreakersWrite)?;
@@ -21,6 +23,12 @@ pub async fn create_circuit_breaker(State(state): State<Arc<AppState>>, Extensio
     let timeout = payload.get("timeout_ms").and_then(|v| v.as_i64()).unwrap_or(10000);
     sqlx::query("INSERT INTO circuit_breakers (id, api_path, failure_threshold, recovery_timeout_sec, half_open_max, retry_count, retry_delay_ms, timeout_ms, status) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active')")
         .bind(&id).bind(api_path).bind(threshold as i32).bind(recovery as i32).bind(half_open as i32).bind(retry_count as i32).bind(retry_delay as i32).bind(timeout as i32).execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "circuit_breaker.create".to_string(), actor,
+        success: true, message: Some(format!("Circuit breaker '{}' created", api_path)),
+        detail: Some(json!({"id": id, "api_path": api_path})),
+    });
     Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
 }
 
@@ -104,10 +112,22 @@ pub async fn update_circuit_breaker(State(state): State<Arc<AppState>>, Extensio
         q = q.bind(v);
     }
     q.execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "circuit_breaker.update".to_string(), actor,
+        success: true, message: Some(format!("Circuit breaker {} updated", id)),
+        detail: Some(json!({"id": id})),
+    });
     Ok(Json(json!({"updated": true})))
 }
 pub async fn delete_circuit_breaker(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::CircuitBreakersWrite)?;
     sqlx::query("DELETE FROM circuit_breakers WHERE id = ?").bind(&id).execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "circuit_breaker.delete".to_string(), actor,
+        success: true, message: Some(format!("Circuit breaker {} deleted", id)),
+        detail: Some(json!({"id": id})),
+    });
     Ok(Json(json!({"deleted": true})))
 }

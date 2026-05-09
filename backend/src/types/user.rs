@@ -142,6 +142,8 @@ pub struct EmailNotifPrefs {
     pub rule_changes: bool,
     #[serde(default)]
     pub security_alerts: bool,
+    #[serde(default)]
+    pub product_updates: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -150,6 +152,10 @@ pub struct InAppNotifPrefs {
     pub approvals: bool,
     #[serde(default)]
     pub audit: bool,
+    #[serde(default)]
+    pub product_updates: bool,
+    #[serde(default)]
+    pub infrastructure: bool,
 }
 
 #[derive(Debug, Serialize)]

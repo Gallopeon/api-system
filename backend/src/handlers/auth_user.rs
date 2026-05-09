@@ -11,6 +11,7 @@ use uuid::Uuid;
 use crate::AppState;
 use crate::types::*;
 use crate::auth::*;
+use super::common::spawn_audit_log;
 
 // ==================== Auth / User ====================
 
@@ -163,6 +164,11 @@ pub async fn change_my_password(State(state): State<Arc<AppState>>, Extension(au
     }
     let new_hash = bcrypt::hash(&payload.new_password, 12).map_err(|e| AppError::BadRequest(format!("bcrypt: {}", e)))?;
     sqlx::query("UPDATE users SET password_hash = ? WHERE username = ?").bind(&new_hash).bind(&auth.subject).execute(&state.pool).await?;
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "user_password_change".to_string(), actor: auth.subject.clone(),
+        success: true, message: Some(format!("User '{}' changed password", auth.subject)),
+        detail: None,
+    });
     Ok(Json(json!({"changed": true})))
 }
 
@@ -277,11 +283,18 @@ pub async fn create_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
     validate_password_strength(&payload.password)?;
     let id = Uuid::new_v4().to_string();
     let hash = bcrypt::hash(&payload.password, 12).map_err(|e| AppError::BadRequest(format!("bcrypt: {}", e)))?;
+    let role = payload.role.as_deref().unwrap_or("viewer");
     sqlx::query(
         "INSERT INTO users (id, username, password_hash, email, display_name, role) VALUES (?, ?, ?, ?, ?, ?)"
     ).bind(&id).bind(&payload.username).bind(&hash)
-     .bind(&payload.email).bind(&payload.display_name).bind(payload.role.as_deref().unwrap_or("viewer"))
+     .bind(&payload.email).bind(&payload.display_name).bind(role)
      .execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, payload.actor.as_deref());
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "user_create".to_string(), actor,
+        success: true, message: Some(format!("User '{}' created with role {}", payload.username, role)),
+        detail: Some(json!({"id": id, "username": payload.username, "role": role})),
+    });
     Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
 }
 
@@ -308,6 +321,12 @@ pub async fn update_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
     if let Some(ref email) = payload.email {
         sqlx::query("UPDATE users SET email = ? WHERE id = ?").bind(email).bind(&id).execute(&state.pool).await?;
     }
+    let actor = resolve_actor(&auth, payload.actor.as_deref());
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "user_update".to_string(), actor,
+        success: true, message: Some(format!("User {} updated", id)),
+        detail: Some(json!({"id": id, "role": payload.role, "status": payload.status})),
+    });
     Ok(Json(json!({"id": id, "updated": true})))
 }
 
@@ -322,6 +341,12 @@ pub async fn delete_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
         _ => {}
     }
     sqlx::query("DELETE FROM users WHERE id = ?").bind(&id).execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "user_delete".to_string(), actor,
+        success: true, message: Some(format!("User {} deleted", id)),
+        detail: Some(json!({"id": id})),
+    });
     Ok(Json(json!({"deleted": true})))
 }
 

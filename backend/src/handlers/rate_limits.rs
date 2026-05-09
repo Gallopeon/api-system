@@ -29,6 +29,12 @@ pub async fn create_rate_limit(
      .bind(payload.quota_daily.unwrap_or(0)).bind(payload.quota_monthly.unwrap_or(0))
      .bind(payload.per_api_key).bind(payload.per_ip).bind("active")
      .execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, payload.actor.as_deref());
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "rate_limit.create".to_string(), actor,
+        success: true, message: Some(format!("Rate limit '{}' created", payload.name)),
+        detail: Some(json!({"id": id, "name": payload.name, "api_path": payload.api_path})),
+    });
     Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
 }
 
@@ -84,6 +90,12 @@ pub async fn update_rate_limit(
     if let Some(ref status) = payload.status {
         sqlx::query("UPDATE rate_limit_configs SET status = ? WHERE id = ?").bind(status).bind(&id).execute(&state.pool).await?;
     }
+    let actor = resolve_actor(&auth, payload.actor.as_deref());
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "rate_limit.update".to_string(), actor,
+        success: true, message: Some(format!("Rate limit {} updated", id)),
+        detail: Some(json!({"id": id, "status": payload.status})),
+    });
     Ok(Json(get_rate_limit_by_id(&state.pool, &id).await?))
 }
 
@@ -94,6 +106,12 @@ pub async fn delete_rate_limit(
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::RateLimitWrite)?;
     sqlx::query("DELETE FROM rate_limit_configs WHERE id = ?").bind(&id).execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "rate_limit.delete".to_string(), actor,
+        success: true, message: Some(format!("Rate limit {} deleted", id)),
+        detail: Some(json!({"id": id})),
+    });
     Ok(Json(json!({"deleted": true})))
 }
 

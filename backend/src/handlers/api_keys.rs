@@ -12,6 +12,7 @@ use crate::AppState;
 use crate::types::*;
 use crate::auth::*;
 use crate::engine::*;
+use super::common::spawn_audit_log;
 
 pub async fn create_api_key(
     State(state): State<Arc<AppState>>,
@@ -32,6 +33,11 @@ pub async fn create_api_key(
      .bind(&payload.expires_at).bind(payload.max_calls.unwrap_or(-1))
      .bind(&payload.tenant_id).bind(&actor)
      .execute(&state.pool).await?;
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "api_key_create".to_string(), actor: actor.clone(),
+        success: true, message: Some(format!("API key '{}' created", payload.name)),
+        detail: Some(json!({"name": payload.name, "id": id})),
+    });
     Ok((StatusCode::CREATED, Json(json!({"id": id, "api_key": key, "created": true}))))
 }
 
@@ -120,6 +126,12 @@ pub async fn update_api_key(
             sqlx::query("UPDATE api_keys SET scopes = ? WHERE id = ?").bind(scopes.join(",")).bind(&id).execute(&state.pool).await?;
         }
     }
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "api_key_update".to_string(), actor,
+        success: true, message: Some(format!("API key {} updated", id)),
+        detail: Some(json!({"id": id, "status": payload.status, "name": payload.name})),
+    });
     Ok(Json(json!({"id": id, "updated": true})))
 }
 
@@ -130,6 +142,12 @@ pub async fn delete_api_key(
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ApiKeyWrite)?;
     sqlx::query("DELETE FROM api_keys WHERE id = ?").bind(&id).execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "api_key_delete".to_string(), actor,
+        success: true, message: Some(format!("API key {} deleted", id)),
+        detail: Some(json!({"id": id})),
+    });
     Ok(Json(json!({"deleted": true})))
 }
 

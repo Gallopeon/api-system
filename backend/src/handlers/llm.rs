@@ -11,6 +11,7 @@ use uuid::Uuid;
 use crate::AppState;
 use crate::types::*;
 use crate::auth::*;
+use super::common::spawn_audit_log;
 
 // ── LLM Providers ──
 
@@ -20,6 +21,12 @@ pub async fn create_llm_provider(State(state): State<Arc<AppState>>, Extension(a
     sqlx::query("INSERT INTO llm_providers (id, name, provider_type, endpoint_url, api_key_env, model_name, cost_per_1k_input, cost_per_1k_output, max_tokens, status, priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
         .bind(&id).bind(&payload.name).bind(&payload.provider_type).bind(&payload.endpoint_url).bind(&payload.api_key_env).bind(&payload.model_name).bind(payload.cost_per_1k_input).bind(payload.cost_per_1k_output).bind(payload.max_tokens).bind("active").bind(payload.priority)
         .execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "llm_provider.create".to_string(), actor,
+        success: true, message: Some(format!("LLM provider '{}' created", payload.name)),
+        detail: Some(json!({"id": id, "name": payload.name, "provider_type": payload.provider_type})),
+    });
     Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
 }
 
@@ -78,12 +85,24 @@ pub async fn update_llm_provider(State(state): State<Arc<AppState>>, Extension(a
     if let Some(v) = payload.get("priority").and_then(|v| v.as_i64()) { sqlx::query("UPDATE llm_providers SET priority = ? WHERE id = ?").bind(v).bind(&id).execute(&state.pool).await?; changed = true; }
     if let Some(v) = payload.get("status").and_then(|v| v.as_str()) { sqlx::query("UPDATE llm_providers SET status = ? WHERE id = ?").bind(v).bind(&id).execute(&state.pool).await?; changed = true; }
     if !changed { return Err(AppError::BadRequest("No fields to update".to_string())); }
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "llm_provider.update".to_string(), actor,
+        success: true, message: Some(format!("LLM provider {} updated", id)),
+        detail: Some(json!({"id": id})),
+    });
     Ok(Json(json!({"id": id, "updated": true})))
 }
 
 pub async fn delete_llm_provider(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::LlmManage)?;
     sqlx::query("DELETE FROM llm_providers WHERE id = ?").bind(&id).execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "llm_provider.delete".to_string(), actor,
+        success: true, message: Some(format!("LLM provider {} deleted", id)),
+        detail: Some(json!({"id": id})),
+    });
     Ok(Json(json!({"deleted": true})))
 }
 
@@ -95,6 +114,12 @@ pub async fn create_prompt_template(State(state): State<Arc<AppState>>, Extensio
     let variables = payload.variables.as_ref().map(|v| serde_json::to_value(v).unwrap_or_default());
     sqlx::query("INSERT INTO prompt_templates (id, name, template_text, variables) VALUES (?, ?, ?, ?)")
         .bind(&id).bind(&payload.name).bind(&payload.template_text).bind(variables).execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "llm_template.create".to_string(), actor,
+        success: true, message: Some(format!("Prompt template '{}' created", payload.name)),
+        detail: Some(json!({"id": id, "name": payload.name})),
+    });
     Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
 }
 
@@ -141,12 +166,24 @@ pub async fn update_prompt_template(State(state): State<Arc<AppState>>, Extensio
     if !changed { return Err(AppError::BadRequest("No fields to update".to_string())); }
     // Always bump version when any field changes
     sqlx::query("UPDATE prompt_templates SET version = version + 1 WHERE id = ?").bind(&id).execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "llm_template.update".to_string(), actor,
+        success: true, message: Some(format!("Prompt template {} updated", id)),
+        detail: Some(json!({"id": id})),
+    });
     Ok(Json(json!({"id": id, "updated": true})))
 }
 
 pub async fn delete_prompt_template(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::LlmManage)?;
     sqlx::query("DELETE FROM prompt_templates WHERE id = ?").bind(&id).execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "llm_template.delete".to_string(), actor,
+        success: true, message: Some(format!("Prompt template {} deleted", id)),
+        detail: Some(json!({"id": id})),
+    });
     Ok(Json(json!({"deleted": true})))
 }
 

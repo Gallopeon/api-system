@@ -7,7 +7,9 @@ use serde_json::{json, Value};
 use sqlx::Row;
 use uuid::Uuid;
 use crate::AppState;
+use crate::types::AuditEntry;
 use crate::auth::*;
+use super::common::spawn_audit_log;
 
 pub async fn create_plugin_config(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::PluginsWrite)?;
@@ -19,6 +21,12 @@ pub async fn create_plugin_config(State(state): State<Arc<AppState>>, Extension(
     let priority: i32 = payload.get("priority").and_then(|v| v.as_i64()).unwrap_or(100) as i32;
     sqlx::query("INSERT INTO plugin_configs (id, name, plugin_type, hook_point, config_json, priority, status) VALUES (?, ?, ?, ?, ?, ?, 'active')")
         .bind(&id).bind(name).bind(plugin_type).bind(hook_point).bind(&config_json).bind(priority).execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "plugin.create".to_string(), actor,
+        success: true, message: Some(format!("Plugin config '{}' created", name)),
+        detail: Some(json!({"id": id, "name": name, "plugin_type": plugin_type, "hook_point": hook_point})),
+    });
     Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
 }
 
@@ -89,10 +97,22 @@ pub async fn update_plugin_config(State(state): State<Arc<AppState>>, Extension(
         q = q.bind(v);
     }
     q.execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "plugin.update".to_string(), actor,
+        success: true, message: Some(format!("Plugin config {} updated", id)),
+        detail: Some(json!({"id": id})),
+    });
     Ok(Json(json!({"updated": true})))
 }
 pub async fn delete_plugin_config(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::PluginsWrite)?;
     sqlx::query("DELETE FROM plugin_configs WHERE id = ?").bind(&id).execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "plugin.delete".to_string(), actor,
+        success: true, message: Some(format!("Plugin config {} deleted", id)),
+        detail: Some(json!({"id": id})),
+    });
     Ok(Json(json!({"deleted": true})))
 }

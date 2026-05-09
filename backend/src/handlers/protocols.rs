@@ -7,7 +7,9 @@ use serde_json::{json, Value};
 use sqlx::Row;
 use uuid::Uuid;
 use crate::AppState;
+use crate::types::AuditEntry;
 use crate::auth::*;
+use super::common::spawn_audit_log;
 
 pub async fn create_protocol_config(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProtocolsWrite)?;
@@ -17,6 +19,12 @@ pub async fn create_protocol_config(State(state): State<Arc<AppState>>, Extensio
     let config_json = payload.get("config_json").map(|v| v.to_string()).unwrap_or_default();
     sqlx::query("INSERT INTO protocol_configs (id, api_path, protocol, config_json, status) VALUES (?, ?, ?, ?, 'active')")
         .bind(&id).bind(api_path).bind(protocol).bind(&config_json).execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "protocol.create".to_string(), actor,
+        success: true, message: Some(format!("Protocol config '{}' created", api_path)),
+        detail: Some(json!({"id": id, "api_path": api_path, "protocol": protocol})),
+    });
     Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
 }
 
@@ -76,10 +84,22 @@ pub async fn update_protocol_config(State(state): State<Arc<AppState>>, Extensio
         q = q.bind(v);
     }
     q.execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "protocol.update".to_string(), actor,
+        success: true, message: Some(format!("Protocol config {} updated", id)),
+        detail: Some(json!({"id": id})),
+    });
     Ok(Json(json!({"updated": true})))
 }
 pub async fn delete_protocol_config(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProtocolsWrite)?;
     sqlx::query("DELETE FROM protocol_configs WHERE id = ?").bind(&id).execute(&state.pool).await?;
+    let actor = resolve_actor(&auth, None);
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None, action: "protocol.delete".to_string(), actor,
+        success: true, message: Some(format!("Protocol config {} deleted", id)),
+        detail: Some(json!({"id": id})),
+    });
     Ok(Json(json!({"deleted": true})))
 }

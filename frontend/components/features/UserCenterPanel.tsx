@@ -46,8 +46,11 @@ export default function UserCenterPanel({
   const [prefLang, setPrefLang] = useState("zh");
   const [prefEmailRuleChanges, setPrefEmailRuleChanges] = useState(true);
   const [prefEmailSecurity, setPrefEmailSecurity] = useState(true);
+  const [prefEmailProductUpdates, setPrefEmailProductUpdates] = useState(true);
   const [prefInAppApprovals, setPrefInAppApprovals] = useState(true);
   const [prefInAppAudit, setPrefInAppAudit] = useState(false);
+  const [prefInAppProductUpdates, setPrefInAppProductUpdates] = useState(true);
+  const [prefInAppInfrastructure, setPrefInAppInfrastructure] = useState(false);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -77,12 +80,15 @@ export default function UserCenterPanel({
     }
     if (prefs.lang) setPrefLang(prefs.lang);
     if (prefs.notifications?.email) {
-      setPrefEmailRuleChanges(prefs.notifications.email.rule_changes);
-      setPrefEmailSecurity(prefs.notifications.email.security_alerts);
+      setPrefEmailRuleChanges(prefs.notifications.email.rule_changes ?? true);
+      setPrefEmailSecurity(prefs.notifications.email.security_alerts ?? true);
+      setPrefEmailProductUpdates(prefs.notifications.email.product_updates ?? true);
     }
     if (prefs.notifications?.in_app) {
-      setPrefInAppApprovals(prefs.notifications.in_app.approvals);
-      setPrefInAppAudit(prefs.notifications.in_app.audit);
+      setPrefInAppApprovals(prefs.notifications.in_app.approvals ?? true);
+      setPrefInAppAudit(prefs.notifications.in_app.audit ?? false);
+      setPrefInAppProductUpdates(prefs.notifications.in_app.product_updates ?? true);
+      setPrefInAppInfrastructure(prefs.notifications.in_app.infrastructure ?? false);
     }
   }, [prefs, setTheme, setLang, applyThemeLang]);
 
@@ -97,18 +103,24 @@ export default function UserCenterPanel({
   const handlePreferenceChange = (key: string, value: boolean) => {
     let emailRule = prefEmailRuleChanges;
     let emailSecurity = prefEmailSecurity;
+    let emailProduct = prefEmailProductUpdates;
     let inAppApprovals = prefInAppApprovals;
     let inAppAudit = prefInAppAudit;
+    let inAppProduct = prefInAppProductUpdates;
+    let inAppInfra = prefInAppInfrastructure;
     switch (key) {
       case "email.rule_changes": emailRule = value; setPrefEmailRuleChanges(value); break;
       case "email.security_alerts": emailSecurity = value; setPrefEmailSecurity(value); break;
+      case "email.product_updates": emailProduct = value; setPrefEmailProductUpdates(value); break;
       case "in_app.approvals": inAppApprovals = value; setPrefInAppApprovals(value); break;
       case "in_app.audit": inAppAudit = value; setPrefInAppAudit(value); break;
+      case "in_app.product_updates": inAppProduct = value; setPrefInAppProductUpdates(value); break;
+      case "in_app.infrastructure": inAppInfra = value; setPrefInAppInfrastructure(value); break;
     }
     savePreferences({
       notifications: {
-        email: { rule_changes: emailRule, security_alerts: emailSecurity },
-        in_app: { approvals: inAppApprovals, audit: inAppAudit },
+        email: { rule_changes: emailRule, security_alerts: emailSecurity, product_updates: emailProduct },
+        in_app: { approvals: inAppApprovals, audit: inAppAudit, product_updates: inAppProduct, infrastructure: inAppInfra },
       },
     });
   };
@@ -222,8 +234,11 @@ export default function UserCenterPanel({
           setPrefLang={setPrefLang}
           prefEmailRuleChanges={prefEmailRuleChanges}
           prefEmailSecurity={prefEmailSecurity}
+          prefEmailProductUpdates={prefEmailProductUpdates}
           prefInAppApprovals={prefInAppApprovals}
           prefInAppAudit={prefInAppAudit}
+          prefInAppProductUpdates={prefInAppProductUpdates}
+          prefInAppInfrastructure={prefInAppInfrastructure}
           onPreferenceChange={handlePreferenceChange}
           onSaveThemeLang={(theme, lang) => { savePreferences({ theme, lang }); applyThemeLang(theme, lang); }}
           t={t}
