@@ -108,26 +108,37 @@ export function usePortal(
     );
   }, []);
 
+  // tags may arrive as a JSON string or an array — normalize
+  const normalizeTags = useCallback((t: unknown): string[] => {
+    if (!t) return [];
+    if (Array.isArray(t)) return t;
+    if (typeof t === "string") {
+      try { const parsed = JSON.parse(t); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+    }
+    return [];
+  }, []);
+
   const allTags = useMemo(() => {
     const tags = new Set<string>();
-    products.forEach((p) => p.tags?.forEach((t) => tags.add(t)));
+    products.forEach((p) => normalizeTags(p.tags).forEach((t) => tags.add(t)));
     return Array.from(tags).sort();
-  }, [products]);
+  }, [products, normalizeTags]);
 
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       if (p.status !== "active") return false;
+      const ptags = normalizeTags(p.tags);
       const q = searchQuery.toLowerCase();
       const matchesSearch =
         !q ||
         p.name.toLowerCase().includes(q) ||
         (p.description || "").toLowerCase().includes(q) ||
-        (p.tags || []).some((t) => t.toLowerCase().includes(q));
+        ptags.some((t) => t.toLowerCase().includes(q));
       const matchesTags =
-        selectedTags.length === 0 || selectedTags.some((t) => (p.tags || []).includes(t));
+        selectedTags.length === 0 || selectedTags.some((t) => ptags.includes(t));
       return matchesSearch && matchesTags;
     });
-  }, [products, searchQuery, selectedTags]);
+  }, [products, searchQuery, selectedTags, normalizeTags]);
 
   const getProduct = useCallback(
     (productId: string) => products.find((p) => p.id === productId) || null,

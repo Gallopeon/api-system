@@ -75,6 +75,15 @@ export default function PortalCatalogTab({
   );
 }
 
+function normalizeTags(t: unknown): string[] {
+  if (!t) return [];
+  if (Array.isArray(t)) return t;
+  if (typeof t === "string") {
+    try { const parsed = JSON.parse(t); return Array.isArray(parsed) ? parsed : []; } catch { return []; }
+  }
+  return [];
+}
+
 function ProductCard({
   product,
   onNavigateToMenu,
@@ -86,8 +95,8 @@ function ProductCard({
   onSetOpenApiFilter: (v: string) => void;
   t: <T>(en: T, zh: T) => T;
 }) {
-  const tiers = product.pricing_tiers || [];
-  const tags = product.tags || [];
+  const tiers = Array.isArray(product.pricing_tiers) ? product.pricing_tiers : [];
+  const tags = normalizeTags(product.tags);
 
   return (
     <div className={`${cardClass} hover:shadow-lg transition-shadow group`}>
