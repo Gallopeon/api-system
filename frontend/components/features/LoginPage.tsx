@@ -10,14 +10,16 @@ interface LoginPageProps {
 
 function TotpInput({ onSubmit, loading, t }: { onSubmit: (code: string) => void; loading: boolean; t: LoginPageProps["t"] }) {
   const [digits, setDigits] = useState<string[]>(Array(6).fill(""));
+  const [submitted, setSubmitted] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const onSubmitRef = useRef(onSubmit);
+  onSubmitRef.current = onSubmit;
 
   const focusFirstInput = useCallback(() => {
     inputRefs.current[0]?.focus();
   }, []);
 
   useEffect(() => {
-    // Multiple attempts: rAF for next frame, then setTimeout as fallback
     const raf = requestAnimationFrame(() => focusFirstInput());
     const fallback = setTimeout(() => focusFirstInput(), 100);
     return () => {
@@ -65,11 +67,23 @@ function TotpInput({ onSubmit, loading, t }: { onSubmit: (code: string) => void;
   const complete = code.length === 6;
 
   useEffect(() => {
-    if (complete && !loading) {
-      const timer = setTimeout(() => onSubmit(code), 200);
+    if (complete && !loading && !submitted) {
+      setSubmitted(true);
+      const timer = setTimeout(() => onSubmitRef.current(code), 200);
       return () => clearTimeout(timer);
     }
-  }, [code, complete, loading, onSubmit]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [complete, loading]);
+
+  // Reset submitted flag when loading changes (allows retry after error)
+  useEffect(() => {
+    if (!loading && submitted) {
+      setDigits(Array(6).fill(""));
+      setSubmitted(false);
+      focusFirstInput();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
 
   return (
     <div className="space-y-4">
@@ -87,9 +101,10 @@ function TotpInput({ onSubmit, loading, t }: { onSubmit: (code: string) => void;
             autoFocus={i === 0}
             maxLength={1}
             value={digit}
+            disabled={submitted}
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
-            className="w-11 h-14 sm:w-14 sm:h-16 text-center text-2xl font-bold rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-black/50 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all shadow-sm text-gray-900 dark:text-gray-100"
+            className="w-11 h-14 sm:w-14 sm:h-16 text-center text-2xl font-bold rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-black/50 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all shadow-sm text-gray-900 dark:text-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
           />
         ))}
       </div>
@@ -111,7 +126,7 @@ export default function LoginPage({ t }: LoginPageProps) {
   const [loading, setLoading] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
 
-  const handleCredentials = async (e: React.FormEvent) => {
+  const handleCredentials = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError("");
     setLoading(true);
@@ -134,9 +149,9 @@ export default function LoginPage({ t }: LoginPageProps) {
     } else {
       setLoginError(t("Invalid username or password", "用户名或密码无效"));
     }
-  };
+  }, [username, password, t]);
 
-  const handleTotp = async (code: string) => {
+  const handleTotp = useCallback(async (code: string) => {
     setLoginError("");
     setLoading(true);
     const res = await signIn("credentials", {
@@ -151,16 +166,16 @@ export default function LoginPage({ t }: LoginPageProps) {
       return;
     }
     setLoginError(t("Invalid verification code", "验证码无效"));
-  };
+  }, [username, password, t]);
 
-  const goBack = () => {
+  const goBack = useCallback(() => {
     setTransitioning(true);
     setTimeout(() => {
       setStep("credentials");
       setLoginError("");
       setTransitioning(false);
     }, 150);
-  };
+  }, []);
 
   const sidebar = (
     <div className="hidden md:flex w-1/2 lg:w-3/5 flex-col justify-between bg-gradient-to-br from-blue-900 to-black p-12 text-white relative overflow-hidden">
