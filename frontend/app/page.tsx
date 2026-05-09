@@ -17,6 +17,7 @@ import { useApiKeys } from "@/hooks/useApiKeys";
 import { useRateLimits } from "@/hooks/useRateLimits";
 import { useApiBuilder } from "@/hooks/useApiBuilder";
 import { useDashboard, useAuditLog, useApprovals, useAnalytics } from "@/hooks/useDashboard";
+import { usePortal } from "@/hooks/usePortal";
 
 // ---- Layout ----
 import Navbar from "@/components/layout/Navbar";
@@ -105,6 +106,12 @@ export default function APIControlCenter() {
     notifyError, notifySucc, t,
   );
 
+  const portalHook = usePortal(
+    session?.user?.name || "",
+    notifyError,
+    notifySucc,
+  );
+
   // Expr eval state
   const [expr, setExpr] = useState("vip == true");
   const [exprIn, setExprIn] = useState('{"vip": true}');
@@ -118,6 +125,8 @@ export default function APIControlCenter() {
     loadAuditLogs();
     apiKeysHook.loadApiKeys();
     rateLimitsHook.loadRateLimits();
+    portalHook.loadCatalog();
+    portalHook.loadMyApps();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -354,17 +363,31 @@ export default function APIControlCenter() {
 
           {activeMenu === "portal" && (
             <PortalPanel
-              rules={rulesHook.rules}
-              akName={apiKeysHook.akName} akScopes={apiKeysHook.akScopes}
-              akExpires={apiKeysHook.akExpires} akBusy={apiKeysHook.akBusy}
-              akCreatedKey={apiKeysHook.akCreatedKey}
-              setAkName={apiKeysHook.setAkName} setAkScopes={apiKeysHook.setAkScopes}
-              setAkExpires={apiKeysHook.setAkExpires} setAkCreatedKey={apiKeysHook.setAkCreatedKey}
-              onCreateApiKey={apiKeysHook.createApiKey}
-              setActiveMenu={setActiveMenu}
-              onSelectRule={rulesHook.selectRule}
-              setOpenApiFilter={setOpenApiFilter}
+              products={portalHook.products}
+              allTags={portalHook.allTags}
+              catalogBusy={portalHook.catalogBusy}
+              searchQuery={portalHook.searchQuery}
+              selectedTags={portalHook.selectedTags}
+              onSearchChange={portalHook.setSearchQuery}
+              onTagToggle={portalHook.toggleTag}
+              myKeys={portalHook.myKeys}
+              mySubscriptions={portalHook.mySubscriptions}
+              usageMap={portalHook.usageMap}
+              getProduct={portalHook.getProduct}
+              akName={portalHook.akName} akScopes={portalHook.akScopes}
+              akExpires={portalHook.akExpires} akCreatedKey={portalHook.akCreatedKey}
+              akBusy={portalHook.akBusy}
+              onAkNameChange={portalHook.setAkName}
+              onAkScopesChange={portalHook.setAkScopes}
+              onAkExpiresChange={portalHook.setAkExpires}
+              onAkCreatedKeyChange={portalHook.setAkCreatedKey}
+              onCreateKey={portalHook.createPortalKey}
               getDefaultExpiry={getDefaultExpiry}
+              portalTab={portalHook.portalTab}
+              onPortalTabChange={portalHook.setPortalTab}
+              onNavigateToMenu={setActiveMenu}
+              onSelectRule={rulesHook.selectRule}
+              onSetOpenApiFilter={setOpenApiFilter}
               canRequestKey={can.writeApiKey}
               notifySucc={notifySucc}
               t={t}
