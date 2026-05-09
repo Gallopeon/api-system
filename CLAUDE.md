@@ -12,7 +12,7 @@ Gateway (OpenResty :80) ──► Frontend (Next.js :3000)
                                                     ──► Redis
 ```
 
-- **Backend** (`backend/`): Rust `axum` server. Source split across `main.rs` (entry), `lib.rs` (router/setup), `handlers.rs` (~55 handlers), `types.rs` (all structs/enums), `auth.rs` (middleware/RBAC). Three MySQL tables auto-created on startup (`rule_configs`, `rule_versions`, `audit_logs`). Redis caches rule detail reads (prefix `rule:`, TTL 300s by default).
+- **Backend** (`backend/`): Rust `axum` server. Source split across `main.rs` (entry), `lib.rs` (router/setup), `handlers.rs` (~55 handlers), `types.rs` (all structs/enums), `auth.rs` (middleware/RBAC). MySQL tables auto-created on startup. Redis caches rule detail reads (prefix `rule:`, TTL 300s by default). Notification system dispatches events via `spawn_audit_log` → `notify_pref_users` → `notifications` table, with user-configurable email/in-app preferences.
 - **Frontend** (`frontend/`): Next.js 14 App Router SPA. Auth via NextAuth credentials provider (hardcoded `admin/admin`). Uses Tailwind CSS 4, `lucide-react` icons, and a custom `i18n.tsx` context (zh/en).
 - **Gateway** (`infra/openresty/`): OpenResty reverse proxy. Routes `/api/*` to backend, `/api/auth/*` to frontend, and `/` to frontend. Per-IP rate limiting at 120 r/s with burst 240 on `/api/` paths.
 - **Infra**: MySQL init script at `infra/mysql/init/`, K8s base manifests at `deploy/k8s/base.yaml`.
@@ -488,7 +488,19 @@ When adding new transform/validation/expression logic, add it to the appropriate
 **Frontend role gating**: The frontend implements role-based UI hiding via `lib/permissions.ts`. `canAccessMenu(role, menuId)` filters the Sidebar, and individual panels receive `canManage` / `canWrite` props to hide action buttons. Non-admin users never see buttons for operations they cannot perform. This prevents the poor UX of clickable buttons that result in 403 errors.
 - **Database**: MySQL tables auto-created on startup in `db::bootstrap_schema()`: `rule_configs`, `rule_versions`, `audit_logs`, `api_keys`, `rate_limit_configs`, `metrics_ingest`, `metrics_hourly_summary`, `approvals`, `llm_providers`, `prompt_templates`, `llm_usage_logs`, `api_products`, `subscriptions`, `circuit_breakers`, `protocol_configs`, `data_classifications`, `plugin_configs`, `users`, `user_sessions`, `login_history`, `user_totp`, `system_settings`. Redis caches: rule detail reads (prefix `rule:`, TTL 300s), rules metadata Hash `rules:meta` (HGETALL for list_rules), analytics aggregates (prefix `analytics:agg`, TTL 300s), metrics buffer list `metrics:buffer`.
 - **Error handling**: `AppError` enum in `auth.rs` implements `IntoResponse`, mapped to appropriate HTTP status codes.
-- **Audit**: All mutating operations write to `audit_logs` table via fire-and-forget `spawn_audit_log()` (wraps `write_audit_log()` in `tokio::spawn` to avoid adding I/O latency to the critical path).
+- **Audit**: All mutating operations across all 12 handler modules write to `audit_logs` table via fire-and-forget `spawn_audit_log()` (wraps `write_audit_log()` in `tokio::spawn` to avoid adding I/O latency to the critical path).
+- **Notifications**: `spawn_audit_log()` in `common.rs` also dispatches notifications by matching audit action strings → notification types → user preference paths. `notify_pref_users()` in `engine/notify.rs` iterates active users and inserts into the `notifications` table for those with the corresponding preference enabled. Notification type mapping:
+
+| Audit Action(s) | Notif Type | Channel | Preference Path(s) |
+|---|---|---|---|
+| rule_create/update/delete/rollback | rule_change | both | email.rule_changes |
+| api_key_create/delete/update, user_create/delete/password_change, system_setting_update | security_alert | both | email.security_alerts |
+| approval_create/approved/rejected | approval | in_app | in_app.approvals |
+| product.*, subscription.* | product_change | both | email.product_updates, in_app.product_updates |
+| rate_limit.*, circuit_breaker.*, llm_provider.*, llm_template.*, protocol.*, classification.*, plugin.* | infrastructure_change | in_app | in_app.infrastructure |
+| all other audit actions | audit_event | in_app | in_app.audit |
+
+- **Notification API**: `GET /admin/v1/users/me/notifications` (list with unread count), `POST /admin/v1/users/me/notifications/read` (mark read), `GET /admin/v1/users/me/notifications/unread-count`. Frontend polls unread count every 60s via `useNotifications` hook, displays in `NotificationCenter` bell dropdown in Navbar.
 
 ### Handler reference by domain
 
@@ -504,6 +516,7 @@ The old `handlers.rs` monolith (~4600 lines) has been split into per-domain file
 | Approvals | `handlers/approvals.rs` | create/list/get/review_approval |
 | Metrics | `handlers/metrics.rs` | ingest_metrics (Redis buffer), get_analytics (single UNION query using metrics_hourly_summary + current hour raw data), get_top_apis, get_api_key_stats, get_metrics_overview (parallel COUNTs), get_dashboard (aggregate endpoint) |
 | Audit | `handlers/audit.rs` | list_audit_logs |
+| Notifications | `handlers/notifications.rs` | list_my_notifications, mark_notification_read, get_unread_count |
 | Auth & Users | `handlers/auth_user.rs` | login, list_users (with filters), CRUD users, profile, password, sessions, login history, TOTP (setup/verify/disable/status), preferences |
 | Products | `handlers/products.rs` | products CRUD, product subscriptions list |
 | Subscriptions | `handlers/subscriptions.rs` | subscriptions CRUD, usage, upgrade, cancel, renew |
