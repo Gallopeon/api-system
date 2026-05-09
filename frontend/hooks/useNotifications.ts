@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { apiFetch } from "@/lib/api";
 import type { NotificationItem } from "@/lib/types";
 
+const POLL_INTERVAL_MS = 10_000; // poll every 10s for near-real-time updates
+
 export function useNotifications(accessToken?: string) {
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -13,7 +15,14 @@ export function useNotifications(accessToken?: string) {
       const r = await apiFetch("/admin/v1/users/me/notifications/unread-count");
       if (r.ok) {
         const d = await r.json();
-        setUnreadCount(d.unread_count || 0);
+        const count = d.unread_count || 0;
+        setUnreadCount((prev) => {
+          // Auto-load notifications when new ones arrive
+          if (count > prev) {
+            loadNotifications();
+          }
+          return count;
+        });
       }
     } catch {
       // silent
@@ -42,18 +51,22 @@ export function useNotifications(accessToken?: string) {
         method: "POST",
         body: JSON.stringify({}),
       }, accessToken);
-      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       setUnreadCount(0);
     } catch (e) {
       console.error("markAllRead failed:", e);
     }
   }, [accessToken]);
 
-  // Poll unread count every 60s
+  // Poll unread count on a short interval. When count increases, notifications
+  // are automatically loaded so the bell badge and dropdown stay up-to-date
+  // without requiring a page refresh.
   useEffect(() => {
     loadUnreadCount();
-    pollRef.current = setInterval(loadUnreadCount, 60_000);
-    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+    pollRef.current = setInterval(loadUnreadCount, POLL_INTERVAL_MS);
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
   }, [loadUnreadCount]);
 
   return { notifications, unreadCount, loading, loadNotifications, markAllRead, loadUnreadCount };

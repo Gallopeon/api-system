@@ -12,7 +12,6 @@ use crate::AppState;
 use crate::types::*;
 use crate::auth::*;
 use super::common::*;
-use crate::engine::notify::notify_user;
 
 pub async fn create_approval(
     State(state): State<Arc<AppState>>,
@@ -28,38 +27,9 @@ pub async fn create_approval(
     ).bind(&id).bind(&payload.rule_id).bind(payload.version as i32).bind(&actor).bind(reviewer).bind(&payload.comment)
      .execute(&state.pool).await?;
     spawn_audit_log(&state.pool, AuditEntry {
-        rule_id: Some(payload.rule_id.clone()), action: "approval_create".to_string(), actor: actor.clone(),
+        rule_id: Some(payload.rule_id.clone()), action: "approval_create".to_string(), actor,
         success: true, message: Some("Approval request created".to_string()), detail: None,
     });
-
-    // Directly notify the reviewer(s) regardless of preference settings.
-    // If a specific reviewer is named, notify them. Otherwise notify all admins and reviewers.
-    let pool = state.pool.clone();
-    let requestor = actor;
-    let rule_id = payload.rule_id.clone();
-    let reviewer_name = reviewer.map(|r| r.to_string());
-    tokio::spawn(async move {
-        let title = "New Approval Request";
-        let message = format!("{} requests approval for rule {}", requestor, rule_id);
-        if let Some(ref rname) = reviewer_name {
-            if let Ok(Some(uid)) = sqlx::query_scalar::<_, String>(
-                "SELECT id FROM users WHERE username = ? AND status = 'active'"
-            ).bind(rname).fetch_optional(&pool).await {
-                notify_user(&pool, &uid, "approval", "in_app", title, &message, None).await;
-            }
-        } else {
-            // No specific reviewer — notify all admins and reviewers
-            if let Ok(rows) = sqlx::query(
-                "SELECT id FROM users WHERE role IN ('admin', 'reviewer') AND status = 'active'"
-            ).fetch_all(&pool).await {
-                for row in rows {
-                    let uid: String = row.try_get("id").unwrap_or_default();
-                    notify_user(&pool, &uid, "approval", "in_app", title, &message, None).await;
-                }
-            }
-        }
-    });
-
     Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
 }
 
