@@ -48,9 +48,9 @@ pub async fn notify_pref_users(
 
     for row in rows {
         let user_id: String = row.try_get("id").unwrap_or_default();
-        let prefs_str: Option<String> = row.try_get("preferences").ok().flatten();
-        let Some(prefs_str) = prefs_str else { continue };
-        let Ok(prefs): Result<Value, _> = serde_json::from_str(&prefs_str) else { continue };
+        // preferences is a JSON column — read as Value directly, not as String
+        let prefs: Value = row.try_get("preferences").unwrap_or(Value::Null);
+        if prefs.is_null() { continue; }
 
         let enabled = prefs
             .get("notifications")
