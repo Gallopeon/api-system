@@ -154,15 +154,8 @@ pub async fn delete_api_key(
 
 fn parse_scopes(raw: Option<&str>) -> Option<Vec<String>> {
     let s = raw?;
-    // Try JSON array first (new format): ["/api/v1/foo", "/api/v1/bar"]
-    if let Ok(arr) = serde_json::from_str::<Vec<String>>(s) {
-        return Some(arr);
-    }
-    // Fall back to comma-separated plain text (legacy format)
-    if !s.is_empty() {
-        return Some(s.split(',').map(|p| p.to_string()).collect());
-    }
-    None
+    if s.is_empty() { return None; }
+    serde_json::from_str::<Vec<String>>(s).ok()
 }
 
 pub async fn validate_api_key(
