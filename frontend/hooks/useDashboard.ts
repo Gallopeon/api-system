@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
 import { PAGE_LIMIT, PAGE_OFFSET } from "@/lib/constants";
 import type {
@@ -175,6 +175,31 @@ export function useApprovals(
     [loadApprovals, loadMyPending, notifyError, notifySucc, accessToken],
   );
 
+  const deleteApproval = useCallback(
+    async (id: string) => {
+      setApprBusy(true);
+      try {
+        const r = await apiFetch(`/admin/v1/approvals/${id}`, {
+          method: "DELETE",
+        }, accessToken);
+        if (!r.ok) throw new Error((await r.json())?.message || `HTTP ${r.status}`);
+        notifySucc("Approval deleted");
+        await loadApprovals();
+        await loadMyRequests();
+        await loadMyPending();
+      } catch (e) {
+        notifyError((e as Error).message);
+      } finally {
+        setApprBusy(false);
+      }
+    },
+    [loadApprovals, loadMyRequests, loadMyPending, notifyError, notifySucc, accessToken],
+  );
+
+  useEffect(() => {
+    loadApprovals();
+  }, [loadApprovals]);
+
   return {
     approvals, myApprovals, myPending,
     approvalFilter, approvalTab,
@@ -183,7 +208,7 @@ export function useApprovals(
     setApprovalFilter, setApprovalTab,
     setApprovalRuleId, setApprovalComment, setApprovalReviewer,
     loadApprovals, loadMyRequests, loadMyPending,
-    createApproval, reviewApproval,
+    createApproval, reviewApproval, deleteApproval,
   };
 }
 

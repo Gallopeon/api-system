@@ -129,3 +129,28 @@ pub async fn review_approval(
     });
     Ok(Json(json!({"id": id, "status": new_status})))
 }
+
+pub async fn delete_approval(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::RuleWrite)?;
+    let result = sqlx::query("DELETE FROM approvals WHERE id = ?")
+        .bind(&id)
+        .execute(&state.pool)
+        .await?;
+    if result.rows_affected() == 0 {
+        return Err(AppError::NotFound("Approval not found".into()));
+    }
+    let actor = auth.subject;
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: None,
+        action: "approval_delete".to_string(),
+        actor,
+        success: true,
+        message: Some(format!("Approval {} deleted", id)),
+        detail: None,
+    });
+    Ok(Json(json!({"id": id, "deleted": true})))
+}

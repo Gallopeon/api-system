@@ -92,7 +92,7 @@ export default function APIControlCenter() {
   const { approvals, myApprovals, myPending, approvalFilter, approvalTab, apprBusy,
     approvalRuleId, approvalComment, approvalReviewer,
     setApprovalFilter, setApprovalTab, setApprovalRuleId, setApprovalComment, setApprovalReviewer,
-    loadApprovals, loadMyRequests, loadMyPending, createApproval, reviewApproval } =
+    loadApprovals, loadMyRequests, loadMyPending, createApproval, reviewApproval, deleteApproval } =
     useApprovals(notifyError, notifySucc);
   const { analytics, analyticsHours, analyticsBusy, topApis, keyStats,
     setAnalyticsHours, loadAnalytics } = useAnalytics(notifyError);
@@ -321,8 +321,9 @@ export default function APIControlCenter() {
               onSetApprovalReviewer={setApprovalReviewer}
               onCreateApproval={handleCreateApproval}
               onReviewApproval={handleReviewApproval}
+              onDeleteApproval={deleteApproval}
               onRefresh={loadApprovals} onLoadMyRequests={loadMyRequests} onLoadMyPending={loadMyPending}
-              canReview={can.reviewApproval} t={t}
+              canReview={can.reviewApproval} canDelete={can.writeRule} t={t}
             />
           )}
 
