@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::response::IntoResponse;
 use axum::{Extension, Json};
 use chrono::{DateTime, Utc};
@@ -105,4 +105,48 @@ pub async fn get_unread_count(
         "SELECT COUNT(*) FROM notifications n JOIN users u ON n.user_id = u.id WHERE u.username = ? AND n.`read` = 0"
     ).bind(&auth.subject).fetch_one(&state.pool).await?;
     Ok(Json(json!({"unread_count": count})))
+}
+
+pub async fn delete_my_notifications(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthContext>,
+) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
+    let user_id: String = sqlx::query_scalar("SELECT id FROM users WHERE username = ?")
+        .bind(&auth.subject)
+        .fetch_optional(&state.pool).await?
+        .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
+
+    let deleted = sqlx::query("DELETE FROM notifications WHERE user_id = ?")
+        .bind(&user_id)
+        .execute(&state.pool)
+        .await?
+        .rows_affected();
+
+    Ok(Json(json!({"deleted": deleted, "cleared": true})))
+}
+
+pub async fn delete_notification(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthContext>,
+    Path(id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
+    let user_id: String = sqlx::query_scalar("SELECT id FROM users WHERE username = ?")
+        .bind(&auth.subject)
+        .fetch_optional(&state.pool).await?
+        .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
+
+    let affected = sqlx::query("DELETE FROM notifications WHERE id = ? AND user_id = ?")
+        .bind(&id)
+        .bind(&user_id)
+        .execute(&state.pool)
+        .await?
+        .rows_affected();
+
+    if affected == 0 {
+        return Err(AppError::NotFound("notification not found".into()));
+    }
+
+    Ok(Json(json!({"id": id, "deleted": true})))
 }

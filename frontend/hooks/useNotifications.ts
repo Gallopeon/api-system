@@ -58,6 +58,30 @@ export function useNotifications(accessToken?: string) {
     }
   }, [accessToken]);
 
+  const clearAll = useCallback(async () => {
+    try {
+      await apiFetch("/admin/v1/users/me/notifications", {
+        method: "DELETE",
+      }, accessToken);
+      setNotifications([]);
+      setUnreadCount(0);
+    } catch (e) {
+      console.error("clearAll failed:", e);
+    }
+  }, [accessToken]);
+
+  const deleteNotification = useCallback(async (id: string) => {
+    try {
+      await apiFetch(`/admin/v1/users/me/notifications/${id}`, {
+        method: "DELETE",
+      }, accessToken);
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    } catch (e) {
+      console.error("deleteNotification failed:", e);
+    }
+  }, [accessToken]);
+
   // Poll unread count on a short interval. When count increases, notifications
   // are automatically loaded so the bell badge and dropdown stay up-to-date
   // without requiring a page refresh.
@@ -69,5 +93,5 @@ export function useNotifications(accessToken?: string) {
     };
   }, [loadUnreadCount]);
 
-  return { notifications, unreadCount, loading, loadNotifications, markAllRead, loadUnreadCount };
+  return { notifications, unreadCount, loading, loadNotifications, markAllRead, clearAll, deleteNotification, loadUnreadCount };
 }

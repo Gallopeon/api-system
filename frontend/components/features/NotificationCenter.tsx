@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bell, Check, Loader2, FileText, Shield, Key, Users, ClipboardCheck, Package, Activity, ScrollText } from "lucide-react";
+import { Bell, Check, Loader2, FileText, Shield, Key, Users, ClipboardCheck, Package, Activity, ScrollText, Trash2, X } from "lucide-react";
 import { useNotifications } from "@/hooks/useNotifications";
 
 interface Props {
@@ -43,7 +43,7 @@ function fmtTime(iso: string, t: Props["t"]) {
 }
 
 export default function NotificationCenter({ accessToken, t }: Props) {
-  const { notifications, unreadCount, loading, loadNotifications, markAllRead } = useNotifications(accessToken);
+  const { notifications, unreadCount, loading, loadNotifications, markAllRead, clearAll, deleteNotification } = useNotifications(accessToken);
   const [open, setOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
@@ -82,12 +82,23 @@ export default function NotificationCenter({ accessToken, t }: Props) {
         <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 max-h-[70vh] flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
             <h3 className="font-semibold text-sm">{t("Notifications", "通知中心")}</h3>
-            {unreadCount > 0 && (
-              <button onClick={markAllRead} className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                <Check className="w-3.5 h-3.5" />
-                {t("Mark all read", "全部已读")}
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {unreadCount > 0 && (
+                <button onClick={markAllRead} className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                  <Check className="w-3.5 h-3.5" />
+                  {t("Mark all read", "全部已读")}
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={() => { if (confirm(t("Clear all notifications?", "确定清除所有通知？"))) clearAll(); }}
+                  className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 hover:underline"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  {t("Clear all", "清空")}
+                </button>
+              )}
+            </div>
           </div>
 
           <div className="overflow-y-auto flex-1">
@@ -104,7 +115,7 @@ export default function NotificationCenter({ accessToken, t }: Props) {
               notifications.map((n) => (
                 <div
                   key={n.id}
-                  className={"px-4 py-3 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors" + (!n.read ? " bg-blue-50/30 dark:bg-blue-950/10" : "")}
+                  className={"px-4 py-3 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group" + (!n.read ? " bg-blue-50/30 dark:bg-blue-950/10" : "")}
                 >
                   <div className="flex items-start gap-2.5">
                     <div className={"mt-0.5 w-7 h-7 rounded-lg flex items-center justify-center shrink-0 " + typeColor(n.type)}>
@@ -118,6 +129,13 @@ export default function NotificationCenter({ accessToken, t }: Props) {
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{n.message}</p>
                       <p className="text-[10px] text-gray-400 mt-1">{fmtTime(n.created_at, t)}</p>
                     </div>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteNotification(n.id); }}
+                      className="p-1 rounded text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 opacity-0 group-hover:opacity-100 transition shrink-0"
+                      title={t("Delete", "删除")}
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 </div>
               ))
