@@ -24,6 +24,12 @@ export function usePortal(
   const [portalTab, setPortalTab] = useState("catalog");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [docsProductId, setDocsProductId] = useState<string>("");
+
+  const viewProductDocs = useCallback((productId: string) => {
+    setDocsProductId(productId);
+    setPortalTab("docs");
+  }, []);
 
   const loadCatalog = useCallback(async () => {
     setCatalogBusy(true);
@@ -166,5 +172,7 @@ export function usePortal(
     searchQuery, setSearchQuery,
     selectedTags,
     toggleTag,
+    docsProductId, setDocsProductId,
+    viewProductDocs,
   };
 }

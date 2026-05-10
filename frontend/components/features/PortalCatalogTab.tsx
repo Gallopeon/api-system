@@ -8,6 +8,7 @@ import type { ApiProduct } from "@/lib/types";
 export default function PortalCatalogTab({
   products, allTags, catalogBusy, searchQuery, selectedTags,
   onSearchChange, onTagToggle, onNavigateToMenu, onSetOpenApiFilter,
+  onViewProductDocs,
   t,
 }: PortalPanelProps) {
   return (
@@ -67,7 +68,7 @@ export default function PortalCatalogTab({
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {products.map((p) => (
-            <ProductCard key={p.id} product={p} onNavigateToMenu={onNavigateToMenu} onSetOpenApiFilter={onSetOpenApiFilter} t={t} />
+            <ProductCard key={p.id} product={p} onNavigateToMenu={onNavigateToMenu} onSetOpenApiFilter={onSetOpenApiFilter} onViewProductDocs={onViewProductDocs} t={t} />
           ))}
         </div>
       )}
@@ -86,11 +87,13 @@ function normalizeTags(t: unknown): string[] {
 
 function ProductCard({
   product,
+  onViewProductDocs,
   onNavigateToMenu,
   onSetOpenApiFilter,
   t,
 }: {
   product: ApiProduct;
+  onViewProductDocs?: (productId: string) => void;
   onNavigateToMenu: (menu: string) => void;
   onSetOpenApiFilter: (v: string) => void;
   t: <T>(en: T, zh: T) => T;
@@ -142,14 +145,21 @@ function ProductCard({
       )}
       <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-800">
         <button
+          onClick={() => onViewProductDocs?.(product.id)}
+          className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-2.5 py-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition flex items-center gap-1 font-medium"
+        >
+          <BookOpen className="w-3.5 h-3.5" />
+          {t("View Docs", "查看文档")}
+        </button>
+        <button
           onClick={() => { onNavigateToMenu("openapi"); onSetOpenApiFilter(product.rule_ids?.[0] || ""); }}
-          className="text-xs bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-2.5 py-1.5 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/40 transition flex items-center gap-1"
+          className="text-xs bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-2.5 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center gap-1"
         >
           <FileText className="w-3.5 h-3.5" />
-          {t("Docs", "文档")}
+          {t("OpenAPI", "OpenAPI")}
         </button>
         {product.documentation_url && (
-          <a href={product.documentation_url} target="_blank" rel="noopener noreferrer" className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2.5 py-1.5 rounded-lg hover:bg-gray-200 transition flex items-center gap-1">
+          <a href={product.documentation_url} target="_blank" rel="noopener noreferrer" className="text-xs bg-gray-50 dark:bg-gray-800 text-gray-500 dark:text-gray-400 px-2.5 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition flex items-center gap-1">
             <ExternalLink className="w-3.5 h-3.5" />
             {t("External Docs", "外部文档")}
           </a>

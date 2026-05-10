@@ -33,6 +33,9 @@ export interface PortalPanelProps {
   onSetOpenApiFilter: (v: string) => void;
   canRequestKey: boolean;
   notifySucc: (msg: string) => void;
+  docsProductId: string;
+  onViewProductDocs: (productId: string) => void;
+  allProducts: ApiProduct[];
   t: <T>(en: T, zh: T) => T;
 }
 

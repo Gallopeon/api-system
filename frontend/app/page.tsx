@@ -391,6 +391,9 @@ export default function APIControlCenter() {
               onSetOpenApiFilter={setOpenApiFilter}
               canRequestKey={can.writeApiKey}
               notifySucc={notifySucc}
+              docsProductId={portalHook.docsProductId}
+              onViewProductDocs={portalHook.viewProductDocs}
+              allProducts={portalHook.allProducts}
               t={t}
             />
           )}
