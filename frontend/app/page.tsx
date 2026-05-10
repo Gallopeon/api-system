@@ -394,6 +394,8 @@ export default function APIControlCenter() {
               docsProductId={portalHook.docsProductId}
               onViewProductDocs={portalHook.viewProductDocs}
               allProducts={portalHook.allProducts}
+              subscribeToProduct={portalHook.subscribeToProduct}
+              subBusy={portalHook.subBusy}
               t={t}
             />
           )}

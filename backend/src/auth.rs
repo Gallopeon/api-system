@@ -400,6 +400,8 @@ pub enum AppError {
     Unauthorized(String),
     #[error("forbidden: {0}")]
     Forbidden(String),
+    #[error("conflict: {0}")]
+    Conflict(String),
     #[error("internal error: {0}")]
     Internal(String),
 }
@@ -411,6 +413,7 @@ impl IntoResponse for AppError {
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, "not_found", msg.clone()),
             AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, "unauthorized", msg.clone()),
             AppError::Forbidden(msg) => (StatusCode::FORBIDDEN, "forbidden", msg.clone()),
+            AppError::Conflict(msg) => (StatusCode::CONFLICT, "conflict", msg.clone()),
             AppError::Internal(msg) => {
                 error!(error = %msg, "internal error");
                 (StatusCode::INTERNAL_SERVER_ERROR, "internal_error", "internal server error".to_string())

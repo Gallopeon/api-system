@@ -36,6 +36,8 @@ export interface PortalPanelProps {
   docsProductId: string;
   onViewProductDocs: (productId: string) => void;
   allProducts: ApiProduct[];
+  subscribeToProduct: (productId: string, apiKeyId: string, plan: string) => Promise<void>;
+  subBusy: boolean;
   t: <T>(en: T, zh: T) => T;
 }
 

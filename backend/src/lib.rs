@@ -102,6 +102,7 @@ pub async fn run() -> anyhow::Result<()> {
         .route("/admin/v1/subscriptions/:id/upgrade", post(upgrade_subscription))
         .route("/admin/v1/subscriptions/:id/cancel", post(cancel_subscription))
         .route("/admin/v1/subscriptions/:id/renew", post(renew_subscription))
+        .route("/admin/v1/me/subscriptions", post(subscribe_me))
         .route("/admin/v1/circuit-breakers", get(list_circuit_breakers).post(create_circuit_breaker))
         .route("/admin/v1/circuit-breakers/:id", get(get_circuit_breaker).put(update_circuit_breaker).delete(delete_circuit_breaker))
         .route("/admin/v1/protocols", get(list_protocols).post(create_protocol_config))

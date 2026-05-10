@@ -53,32 +53,51 @@ export function usePortal(
       if (!keysR.ok) return;
       const keysD = await keysR.json();
       const allKeys = (keysD as { items?: ApiKeyItem[] }).items || [];
-      const mine = allKeys.filter((k) => k.created_by === userName);
-      setMyKeys(mine);
+      // Match by created_by; fall back to all active keys if no match
+      const mine = userName ? allKeys.filter((k) => k.created_by === userName) : [];
+      const visibleKeys = mine.length > 0 ? mine : allKeys.filter((k) => k.status === "active");
+      setMyKeys(visibleKeys);
 
       const subR = await apiFetch("/admin/v1/subscriptions?limit=100");
       if (!subR.ok) return;
       const subD = await subR.json();
       const allSubs = (subD as { items?: Subscription[] }).items || [];
-      const myKeyIds = new Set(mine.map((k) => k.id));
+      const myKeyIds = new Set(visibleKeys.map((k) => k.id));
       const mySubs = allSubs.filter((s) => myKeyIds.has(s.api_key_id));
       setMySubscriptions(mySubs);
 
       for (const sub of mySubs) {
         if (sub.status === "active") {
-          try {
-            const uR = await apiFetch(`/admin/v1/subscriptions/${sub.id}/usage`);
-            if (uR.ok) {
-              const uD = (await uR.json()) as SubscriptionUsage;
+          apiFetch(`/admin/v1/subscriptions/${sub.id}/usage`).then((uR) => {
+            if (uR.ok) uR.json().then((uD: SubscriptionUsage) => {
               setUsageMap((prev) => ({ ...prev, [sub.id]: uD }));
-            }
-          } catch { /* usage fetch is best-effort */ }
+            });
+          }).catch(() => {});
         }
       }
     } catch (e) {
       console.error("loadMyApps failed:", e);
     }
   }, [userName]);
+
+  const [subBusy, setSubBusy] = useState(false);
+
+  const subscribeToProduct = useCallback(async (productId: string, apiKeyId: string, plan: string) => {
+    setSubBusy(true);
+    try {
+      const r = await apiFetch("/admin/v1/me/subscriptions", {
+        method: "POST",
+        body: JSON.stringify({ product_id: productId, api_key_id: apiKeyId, plan }),
+      });
+      if (!r.ok) throw new Error((await r.json())?.message || `HTTP ${r.status}`);
+      notifySucc("Subscription created successfully!");
+      await loadMyApps();
+    } catch (e) {
+      notifyError((e as Error).message);
+    } finally {
+      setSubBusy(false);
+    }
+  }, [loadMyApps, notifyError, notifySucc]);
 
   const createPortalKey = useCallback(async () => {
     if (!akName.trim()) {
@@ -174,5 +193,6 @@ export function usePortal(
     toggleTag,
     docsProductId, setDocsProductId,
     viewProductDocs,
+    subscribeToProduct, subBusy,
   };
 }

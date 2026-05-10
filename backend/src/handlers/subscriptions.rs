@@ -224,6 +224,93 @@ pub async fn renew_subscription(
     Ok(Json(json!({"renewed": true, "expires_at": new_expiry})))
 }
 
+// ─── Portal self-service ──────────────────────────────────────────────────────
+
+pub async fn subscribe_me(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthContext>,
+    Json(payload): Json<Value>,
+) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
+    let product_id = payload.get("product_id").and_then(|v| v.as_str()).unwrap_or("");
+    let api_key_id = payload.get("api_key_id").and_then(|v| v.as_str()).unwrap_or("");
+    let plan = payload.get("plan").and_then(|v| v.as_str()).unwrap_or("free");
+
+    if product_id.is_empty() || api_key_id.is_empty() {
+        return Err(AppError::BadRequest("product_id and api_key_id are required".into()));
+    }
+
+    // Verify the API key belongs to the authenticated user
+    let key_owner: String = sqlx::query_scalar("SELECT created_by FROM api_keys WHERE id = ?")
+        .bind(api_key_id)
+        .fetch_optional(&state.pool)
+        .await?
+        .unwrap_or_default();
+
+    if key_owner != auth.subject {
+        return Err(AppError::Forbidden("This API key does not belong to you".into()));
+    }
+
+    // Check for existing active subscription for this key+product pair
+    let existing: Option<String> = sqlx::query_scalar(
+        "SELECT id FROM subscriptions WHERE api_key_id = ? AND product_id = ? AND status = 'active'"
+    )
+    .bind(api_key_id).bind(product_id)
+    .fetch_optional(&state.pool).await?;
+
+    if existing.is_some() {
+        return Err(AppError::Conflict("You already have an active subscription to this product with this key".into()));
+    }
+
+    // Resolve pricing tier for the selected plan
+    let product = sqlx::query("SELECT pricing_tiers FROM api_products WHERE id = ?")
+        .bind(product_id)
+        .fetch_optional(&state.pool)
+        .await?
+        .ok_or_else(|| AppError::NotFound("Product not found".into()))?;
+
+    let tiers_str: Option<String> = product.try_get("pricing_tiers").ok();
+    let mut rate_limit_rps: Option<i64> = None;
+    let mut quota_daily: Option<i64> = None;
+
+    if let Some(ref json_str) = tiers_str {
+        if let Ok(tiers) = serde_json::from_str::<Vec<Value>>(json_str) {
+            for tier in &tiers {
+                if tier.get("name").and_then(|v| v.as_str()).unwrap_or("") == plan {
+                    rate_limit_rps = tier.get("rate_limit_rps").and_then(|v| v.as_i64());
+                    quota_daily = tier.get("quota_daily").and_then(|v| v.as_i64());
+                    break;
+                }
+            }
+        }
+    }
+
+    let id = Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO subscriptions (id, api_key_id, product_id, plan, rate_limit_rps, quota_daily, status) VALUES (?, ?, ?, ?, ?, ?, 'active')"
+    )
+    .bind(&id).bind(api_key_id).bind(product_id).bind(plan)
+    .bind(rate_limit_rps).bind(quota_daily)
+    .execute(&state.pool).await?;
+
+    spawn_audit_log(&state.pool, AuditEntry {
+        rule_id: Some(id.clone()),
+        action: "subscription.subscribe".into(),
+        actor: auth.subject.clone(),
+        success: true,
+        message: Some(format!("User subscribed key {} to product {} with plan {}", api_key_id, product_id, plan)),
+        detail: None,
+    });
+
+    Ok((StatusCode::CREATED, Json(json!({
+        "id": id,
+        "created": true,
+        "plan": plan,
+        "rate_limit_rps": rate_limit_rps,
+        "quota_daily": quota_daily,
+    }))))
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
 #[derive(Deserialize)]
