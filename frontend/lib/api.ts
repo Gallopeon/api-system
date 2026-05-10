@@ -43,7 +43,8 @@ export async function apiFetch(
       const j = k.lastIndexOf(":");
       if (i >= 0 && j > i) {
         const cachedPath = k.substring(i + 1, j);
-        if (cachedPath === mutationPath || mutationPath.startsWith(cachedPath + "/") || cachedPath.startsWith(mutationPath + "/")) {
+        const cachedBase = cachedPath.split("?")[0];
+        if (cachedBase === mutationPath || mutationPath.startsWith(cachedBase + "/") || cachedBase.startsWith(mutationPath + "/")) {
           cache.delete(k);
         }
       }
