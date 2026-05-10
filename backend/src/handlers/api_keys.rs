@@ -25,7 +25,7 @@ pub async fn create_api_key(
     let (key, key_hash) = generate_api_key();
     let scopes_json: Option<String> = payload.scopes
         .filter(|v| !v.is_empty())
-        .map(|v| v.join(","));
+        .map(|v| serde_json::to_string(&v).unwrap_or_default());
     sqlx::query(
         "INSERT INTO api_keys (id, key_hash, key_prefix, name, status, scopes, expires_at, max_calls, call_count, tenant_id, created_by) VALUES (?, ?, ?, ?, 'active', ?, ?, ?, 0, ?, ?)"
     ).bind(&id).bind(&key_hash).bind(&key[..8].to_string()).bind(&payload.name)
@@ -66,7 +66,7 @@ pub async fn list_api_keys(
             key_prefix: r.try_get("key_prefix").unwrap_or_default(),
             name: r.try_get("name").unwrap_or_default(),
             status: r.try_get("status").unwrap_or_default(),
-            scopes: scopes_str.map(|s| s.split(',').map(|p| p.to_string()).collect()),
+            scopes: parse_scopes(scopes_str.as_deref()),
             expires_at: r.try_get("expires_at").ok(),
             max_calls: r.try_get("max_calls").ok(),
             call_count: r.try_get("call_count").unwrap_or(0),
@@ -97,7 +97,7 @@ pub async fn get_api_key(
         key_prefix: row.try_get("key_prefix").unwrap_or_default(),
         name: row.try_get("name").unwrap_or_default(),
         status: row.try_get("status").unwrap_or_default(),
-        scopes: scopes_str.map(|s| s.split(',').map(|p| p.to_string()).collect()),
+        scopes: parse_scopes(scopes_str.as_deref()),
         expires_at: row.try_get("expires_at").ok(),
         max_calls: row.try_get("max_calls").ok(),
         call_count: row.try_get("call_count").unwrap_or(0),
@@ -123,7 +123,8 @@ pub async fn update_api_key(
     }
     if let Some(ref scopes) = payload.scopes {
         if !scopes.is_empty() {
-            sqlx::query("UPDATE api_keys SET scopes = ? WHERE id = ?").bind(scopes.join(",")).bind(&id).execute(&state.pool).await?;
+            let json_val = serde_json::to_string(scopes).unwrap_or_default();
+            sqlx::query("UPDATE api_keys SET scopes = ? WHERE id = ?").bind(&json_val).bind(&id).execute(&state.pool).await?;
         }
     }
     let actor = resolve_actor(&auth, None);
@@ -149,6 +150,19 @@ pub async fn delete_api_key(
         detail: Some(json!({"id": id})),
     });
     Ok(Json(json!({"deleted": true})))
+}
+
+fn parse_scopes(raw: Option<&str>) -> Option<Vec<String>> {
+    let s = raw?;
+    // Try JSON array first (new format): ["/api/v1/foo", "/api/v1/bar"]
+    if let Ok(arr) = serde_json::from_str::<Vec<String>>(s) {
+        return Some(arr);
+    }
+    // Fall back to comma-separated plain text (legacy format)
+    if !s.is_empty() {
+        return Some(s.split(',').map(|p| p.to_string()).collect());
+    }
+    None
 }
 
 pub async fn validate_api_key(
