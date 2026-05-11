@@ -309,17 +309,26 @@ pub async fn get_user(State(state): State<Arc<AppState>>, Extension(auth): Exten
 
 pub async fn update_user(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(payload): Json<UpdateUserRequest>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserManage)?;
+    let mut need_revoke = false;
     if let Some(ref role) = payload.role {
         sqlx::query("UPDATE users SET role = ? WHERE id = ?").bind(role).bind(&id).execute(&state.pool).await?;
+        need_revoke = true;
     }
     if let Some(ref status) = payload.status {
         sqlx::query("UPDATE users SET status = ? WHERE id = ?").bind(status).bind(&id).execute(&state.pool).await?;
+        if status == "disabled" {
+            need_revoke = true;
+        }
     }
     if let Some(ref display_name) = payload.display_name {
         sqlx::query("UPDATE users SET display_name = ? WHERE id = ?").bind(display_name).bind(&id).execute(&state.pool).await?;
     }
     if let Some(ref email) = payload.email {
         sqlx::query("UPDATE users SET email = ? WHERE id = ?").bind(email).bind(&id).execute(&state.pool).await?;
+    }
+    // Revoke all active sessions when role changes or user is disabled
+    if need_revoke {
+        revoke_all_user_sessions(&state.pool, &state.redis, &id).await;
     }
     let actor = resolve_actor(&auth, payload.actor.as_deref());
     spawn_audit_log(&state.pool, AuditEntry {
@@ -328,6 +337,39 @@ pub async fn update_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
         detail: Some(json!({"id": id, "role": payload.role, "status": payload.status})),
     });
     Ok(Json(json!({"id": id, "updated": true})))
+}
+
+async fn revoke_all_user_sessions(pool: &sqlx::MySqlPool, redis: &redis::Client, user_id: &str) {
+    let jtis: Vec<String> = match sqlx::query_scalar(
+        "SELECT token_jti FROM user_sessions WHERE user_id = ? AND revoked = 0 AND token_expires_at > UTC_TIMESTAMP()"
+    ).bind(user_id).fetch_all(pool).await {
+        Ok(rows) => rows.into_iter().filter_map(|j: Option<String>| j).collect(),
+        Err(e) => {
+            tracing::warn!(user_id, error = %e, "failed to fetch active sessions for revocation");
+            return;
+        }
+    };
+    if jtis.is_empty() {
+        return;
+    }
+    // Mark all active sessions as revoked
+    if let Err(e) = sqlx::query("UPDATE user_sessions SET revoked = 1 WHERE user_id = ? AND revoked = 0")
+        .bind(user_id).execute(pool).await {
+        tracing::warn!(user_id, error = %e, "failed to revoke sessions in DB");
+        return;
+    }
+    // Blacklist JTIs in Redis so the auth middleware rejects them immediately
+    if let Ok(mut conn) = redis.get_multiplexed_async_connection().await {
+        for jti in &jtis {
+            let _: Result<(), _> = redis::cmd("SETEX")
+                .arg(format!("jti:revoked:{}", jti))
+                .arg(86400_i64)
+                .arg("1")
+                .query_async(&mut conn)
+                .await;
+        }
+        tracing::info!(user_id, count = jtis.len(), "revoked all active sessions for user");
+    }
 }
 
 pub async fn delete_user(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
@@ -340,6 +382,8 @@ pub async fn delete_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
         Some(ref name) if name == "admin" => return Err(AppError::Forbidden("cannot delete the built-in admin user".to_string())),
         _ => {}
     }
+    // Revoke all active sessions before deleting the user
+    revoke_all_user_sessions(&state.pool, &state.redis, &id).await;
     sqlx::query("DELETE FROM users WHERE id = ?").bind(&id).execute(&state.pool).await?;
     let actor = resolve_actor(&auth, None);
     spawn_audit_log(&state.pool, AuditEntry {
