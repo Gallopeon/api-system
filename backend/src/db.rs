@@ -268,7 +268,61 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
 
     seed_settings(pool).await?;
     seed_admin(pool).await?;
+    seed_plugins(pool).await?;
 
+    Ok(())
+}
+
+async fn seed_plugins(pool: &MySqlPool) -> Result<(), AppError> {
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM plugin_configs").fetch_one(pool).await.unwrap_or(0);
+    if count > 0 {
+        return Ok(());
+    }
+    let defaults: Vec<(&str, &str, &str, &str, i32)> = vec![
+        (
+            "IP Blacklist",
+            "lua",
+            "pre_auth",
+            r#"{"type":"ip_blacklist","ips":["10.0.0.1","192.168.1.100"],"action":"deny","message":"Access denied from your IP address","enabled":true}"#,
+            10,
+        ),
+        (
+            "Request Logger",
+            "lua",
+            "pre_transform",
+            r#"{"type":"request_logger","log_headers":true,"log_body":false,"log_query_params":true,"log_format":"json","sample_rate":1.0,"enabled":true}"#,
+            20,
+        ),
+        (
+            "Security Headers Injector",
+            "lua",
+            "post_transform",
+            r#"{"type":"response_headers","headers":{"X-Content-Type-Options":"nosniff","X-Frame-Options":"DENY","X-XSS-Protection":"1; mode=block","Referrer-Policy":"strict-origin-when-cross-origin","Permissions-Policy":"camera=(), microphone=(), geolocation=()"},"remove_headers":["Server","X-Powered-By"],"enabled":true}"#,
+            30,
+        ),
+        (
+            "CORS Preflight Handler",
+            "lua",
+            "pre_auth",
+            r#"{"type":"cors","allowed_origins":["http://localhost:3000"],"allowed_methods":["GET","POST","PUT","DELETE","PATCH","OPTIONS"],"allowed_headers":["Content-Type","Authorization","X-Request-ID"],"expose_headers":["X-Request-ID"],"max_age":86400,"allow_credentials":true,"enabled":true}"#,
+            40,
+        ),
+        (
+            "Rate Limit Guard",
+            "lua",
+            "pre_transform",
+            r#"{"type":"rate_limit_guard","window_seconds":60,"max_requests":100,"burst":20,"per_ip":true,"per_api_key":true,"status_code":429,"message":"Too many requests, please try again later","enabled":true}"#,
+            50,
+        ),
+    ];
+    for (name, plugin_type, hook_point, config_json, priority) in &defaults {
+        let id = uuid::Uuid::new_v4().to_string();
+        sqlx::query(
+            "INSERT INTO plugin_configs (id, name, plugin_type, hook_point, config_json, priority, status) VALUES (?, ?, ?, ?, ?, ?, 'active')"
+        )
+        .bind(&id).bind(name).bind(plugin_type).bind(hook_point).bind(config_json).bind(priority)
+        .execute(pool).await?;
+    }
     Ok(())
 }
 

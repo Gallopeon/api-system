@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Plus, Edit3, Trash2, Check, X, Settings } from "lucide-react";
+import { Plus, Edit3, Trash2, Check, X, Settings, ChevronDown, ChevronRight, Code2, Shield, Zap, Globe, Gauge } from "lucide-react";
 import { cardClass, inputClass, labelClass, btnPrimary, btnSecondary } from "@/lib/constants";
 import type { PluginConfig } from "@/lib/types";
 
@@ -16,6 +16,19 @@ interface Props {
   t: <T>(en: T, zh: T) => T;
 }
 
+const hookMeta: Record<string, { label: string; zh: string; icon: React.ReactNode; color: string }> = {
+  pre_auth:      { label: "Pre Auth",      zh: "认证前", icon: <Shield className="w-3.5 h-3.5" />,   color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  post_auth:     { label: "Post Auth",     zh: "认证后", icon: <Shield className="w-3.5 h-3.5" />,   color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+  pre_transform: { label: "Pre Transform", zh: "转换前", icon: <Zap className="w-3.5 h-3.5" />,       color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+  post_transform:{ label: "Post Transform",zh: "转换后", icon: <Zap className="w-3.5 h-3.5" />,       color: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400" },
+  pre_cache:     { label: "Pre Cache",     zh: "缓存前", icon: <Gauge className="w-3.5 h-3.5" />,     color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
+  post_cache:    { label: "Post Cache",    zh: "缓存后", icon: <Gauge className="w-3.5 h-3.5" />,     color: "bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400" },
+};
+
+function parseDesc(cfg: string): string {
+  try { return JSON.parse(cfg).type || ""; } catch { return ""; }
+}
+
 const statusBadge = (s: string, t: Props["t"]) => (
   <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${s === "active" ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"}`}>
     {s === "active" ? t("active", "激活") : s}
@@ -27,10 +40,13 @@ const td = (c: React.ReactNode, cls = "") => <td className={`px-4 py-3 ${cls}`}>
 export default function AdvancedPluginsTab({ plugins, busy, createPlugin, updatePlugin, deletePlugin, canWrite, notifyError, t }: Props) {
   const [show, setShow] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [name, setName] = useState(""); const [type, setType] = useState("lua"); const [hook, setHook] = useState("pre_transform");
   const [json, setJson] = useState("{}"); const [prio, setPrio] = useState("10");
   const [eName, setEName] = useState(""); const [eType, setEType] = useState("lua"); const [eHook, setEHook] = useState("pre_transform");
   const [eJson, setEJson] = useState("{}"); const [ePrio, setEPrio] = useState("");
+
+  const toggleExpand = (id: string) => setExpanded(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
 
   const startEdit = (p: PluginConfig) => { setEditId(p.id); setEName(p.name); setEType(p.plugin_type); setEHook(p.hook_point); setEJson(p.config_json || "{}"); setEPrio(String(p.priority)); };
   const saveEdit = useCallback(async () => {
@@ -66,17 +82,30 @@ export default function AdvancedPluginsTab({ plugins, busy, createPlugin, update
         <div className={`${cardClass} text-center py-10 text-gray-400`}><Settings className="w-10 h-10 mx-auto mb-3 opacity-40" /><p className="text-sm">{t("No items found", "暂无数据")}</p></div>
       ) : (
         <div className={`${cardClass} p-0 overflow-hidden`}>
-          <table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800"><tr>{[t("Name", "名称"), t("Type", "类型"), t("Hook Point", "钩子点"), t("Priority", "优先级"), t("Status", "状态"), ...(canWrite ? [t("Actions", "操作")] : [])].map(h => th(h))}</tr></thead>
+          <table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800"><tr>{[t("", ""), t("Name", "名称"), t("Hook Point", "钩子点"), t("Priority", "优先级"), t("Status", "状态"), ...(canWrite ? [t("Actions", "操作")] : [])].map(h => th(h))}</tr></thead>
           <tbody className="divide-y dark:divide-gray-800">
-            {plugins.map(p => (
-              <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition">
-                {editId === p.id ? (
-                  <>{td(<input className={inputClass} value={eName} onChange={e => setEName(e.target.value)} />)}{td(<input className={inputClass} value={eType} onChange={e => setEType(e.target.value)} />)}{td(<select className={inputClass} value={eHook} onChange={e => setEHook(e.target.value)}><option value="pre_transform">pre_transform</option><option value="post_transform">post_transform</option><option value="pre_auth">pre_auth</option><option value="post_auth">post_auth</option><option value="pre_cache">pre_cache</option><option value="post_cache">post_cache</option></select>)}{td(<input className={inputClass} type="number" value={ePrio} onChange={e => setEPrio(e.target.value)} />)}{td(statusBadge(p.status, t))}{canWrite && td(<div className="flex gap-1"><button className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg" onClick={saveEdit}><Check className="w-3.5 h-3.5" /></button><button className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" onClick={() => setEditId(null)}><X className="w-3.5 h-3.5" /></button></div>)}</>
-                ) : (
-                  <>{td(<span className="font-semibold text-gray-900 dark:text-gray-100">{p.name}</span>)}{td(<span className="text-xs px-2 py-0.5 rounded-full font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-400 uppercase">{p.plugin_type}</span>)}{td(<span className="text-xs px-2 py-0.5 rounded-full font-medium bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-400">{p.hook_point}</span>)}{td(<span className="font-semibold">{p.priority}</span>)}{td(statusBadge(p.status, t))}{canWrite && td(<div className="flex items-center gap-1"><button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(p)}><Edit3 className="w-3.5 h-3.5" /></button><button className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" onClick={() => deletePlugin(p.id)} disabled={busy}><Trash2 className="w-3.5 h-3.5" /></button></div>)}</>
+            {plugins.map(p => {
+              const hm = hookMeta[p.hook_point] || hookMeta.pre_transform;
+              const desc = parseDesc(p.config_json || "");
+              const open = expanded.has(p.id);
+              return (<>
+                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition cursor-pointer" onClick={() => toggleExpand(p.id)}>
+                  {editId === p.id ? (
+                    <>{td(<button className="p-1" onClick={() => toggleExpand(p.id)}>{open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}</button>)}{td(<input className={inputClass} value={eName} onChange={e => setEName(e.target.value)} />)}{td(<select className={inputClass} value={eHook} onChange={e => setEHook(e.target.value)}><option value="pre_transform">pre_transform</option><option value="post_transform">post_transform</option><option value="pre_auth">pre_auth</option><option value="post_auth">post_auth</option><option value="pre_cache">pre_cache</option><option value="post_cache">post_cache</option></select>)}{td(<input className={inputClass} type="number" value={ePrio} onChange={e => setEPrio(e.target.value)} />)}{td(statusBadge(p.status, t))}{canWrite && td(<div className="flex gap-1"><button className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg" onClick={saveEdit}><Check className="w-3.5 h-3.5" /></button><button className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" onClick={(e) => { e.stopPropagation(); setEditId(null); }}><X className="w-3.5 h-3.5" /></button></div>)}</>
+                  ) : (
+                    <>{td(<button className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><ChevronRight className={`w-4 h-4 transition-transform ${open ? "rotate-90" : ""}`} /></button>)}{td(<div><span className="font-semibold text-gray-900 dark:text-gray-100">{p.name}</span>{desc && <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-0.5">{desc}</p>}</div>)}{td(<span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium ${hm.color}`}>{hm.icon}{t(hm.label, hm.zh)}</span>)}{td(<span className="font-semibold tabular-nums">{p.priority}</span>)}{td(statusBadge(p.status, t))}{canWrite && td(<div className="flex items-center gap-1" onClick={e => e.stopPropagation()}><button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(p)}><Edit3 className="w-3.5 h-3.5" /></button><button className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" onClick={() => deletePlugin(p.id)} disabled={busy}><Trash2 className="w-3.5 h-3.5" /></button></div>)}</>
+                  )}
+                </tr>
+                {open && (
+                  <tr key={`${p.id}-config`} className="bg-gray-50/50 dark:bg-gray-900/50">
+                    <td colSpan={canWrite ? 6 : 5} className="px-4 py-3">
+                      <div className="flex items-center gap-1.5 text-[10px] text-gray-400 uppercase tracking-wider mb-1.5"><Code2 className="w-3 h-3" />{t("Plugin Config", "插件配置")}</div>
+                      <pre className="text-xs text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg p-3 overflow-x-auto font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">{p.config_json ? (() => { try { return JSON.stringify(JSON.parse(p.config_json), null, 2); } catch { return p.config_json; } })() : "{}"}</pre>
+                    </td>
+                  </tr>
                 )}
-              </tr>
-            ))}
+              </>);
+            })}
           </tbody></table>
         </div>
       )}

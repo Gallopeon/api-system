@@ -32,12 +32,13 @@ pub async fn create_plugin_config(State(state): State<Arc<AppState>>, Extension(
 
 pub async fn list_plugins(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::PluginsRead)?;
-    let rows = sqlx::query("SELECT id, name, plugin_type, hook_point, priority, status FROM plugin_configs ORDER BY priority ASC").fetch_all(&state.pool).await?;
+    let rows = sqlx::query("SELECT id, name, plugin_type, hook_point, config_json, priority, status FROM plugin_configs ORDER BY priority ASC").fetch_all(&state.pool).await?;
     let items: Vec<Value> = rows.iter().map(|r| json!({
         "id": r.try_get::<String,_>("id").unwrap_or_default(),
         "name": r.try_get::<String,_>("name").unwrap_or_default(),
         "plugin_type": r.try_get::<String,_>("plugin_type").unwrap_or_default(),
         "hook_point": r.try_get::<String,_>("hook_point").unwrap_or_default(),
+        "config_json": r.try_get::<Option<String>,_>("config_json").ok().flatten(),
         "priority": r.try_get::<i32,_>("priority").unwrap_or(100),
         "status": r.try_get::<String,_>("status").unwrap_or_default(),
     })).collect();
