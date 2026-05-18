@@ -7,7 +7,7 @@ import LoginPage from "@/components/features/LoginPage";
 
 // ---- Foundation ----
 import { getDefaultExpiry } from "@/lib/utils";
-import { hasPermission, PERMISSIONS, type Role } from "@/lib/permissions";
+import { hasPermission, canAccessMenu, PERMISSIONS, type Role } from "@/lib/permissions";
 
 // ---- Hooks ----
 import { useNotification } from "@/hooks/useNotification";
@@ -116,6 +116,14 @@ export default function APIControlCenter() {
   const [expr, setExpr] = useState("vip == true");
   const [exprIn, setExprIn] = useState('{"vip": true}');
   const [exprOut, setExprOut] = useState("-");
+
+  // Guard against localStorage manipulation: reset to dashboard if menu is not accessible
+  useEffect(() => {
+    if (userRole && !canAccessMenu(userRole, activeMenu)) {
+      setActiveMenu("dashboard");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userRole]);
 
   // ---- Init ----
   useEffect(() => {
