@@ -16,9 +16,10 @@ pub async fn create_protocol_config(State(state): State<Arc<AppState>>, Extensio
     let id = Uuid::new_v4().to_string();
     let api_path = payload.get("api_path").and_then(|v| v.as_str()).unwrap_or("");
     let protocol = payload.get("protocol").and_then(|v| v.as_str()).unwrap_or("http");
+    let description = payload.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
     let config_json = payload.get("config_json").map(|v| v.to_string()).unwrap_or_default();
-    sqlx::query("INSERT INTO protocol_configs (id, api_path, protocol, config_json, status) VALUES (?, ?, ?, ?, 'active')")
-        .bind(&id).bind(api_path).bind(protocol).bind(&config_json).execute(&state.pool).await?;
+    sqlx::query("INSERT INTO protocol_configs (id, api_path, protocol, description, config_json, status) VALUES (?, ?, ?, ?, ?, 'active')")
+        .bind(&id).bind(api_path).bind(protocol).bind(&description).bind(&config_json).execute(&state.pool).await?;
     let actor = resolve_actor(&auth, None);
     spawn_audit_log(&state.pool, AuditEntry {
         rule_id: None, action: "protocol.create".to_string(), actor,
@@ -30,11 +31,12 @@ pub async fn create_protocol_config(State(state): State<Arc<AppState>>, Extensio
 
 pub async fn list_protocols(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProtocolsRead)?;
-    let rows = sqlx::query("SELECT id, api_path, protocol, config_json, status FROM protocol_configs").fetch_all(&state.pool).await?;
+    let rows = sqlx::query("SELECT id, api_path, protocol, description, config_json, status FROM protocol_configs").fetch_all(&state.pool).await?;
     let items: Vec<Value> = rows.iter().map(|r| json!({
         "id": r.try_get::<String,_>("id").unwrap_or_default(),
         "api_path": r.try_get::<String,_>("api_path").unwrap_or_default(),
         "protocol": r.try_get::<String,_>("protocol").unwrap_or_default(),
+        "description": r.try_get::<Option<String>,_>("description").ok().flatten(),
         "config_json": r.try_get::<String,_>("config_json").unwrap_or_default(),
         "status": r.try_get::<String,_>("status").unwrap_or_default(),
     })).collect();
@@ -43,13 +45,14 @@ pub async fn list_protocols(State(state): State<Arc<AppState>>, Extension(auth):
 
 pub async fn get_protocol_config(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProtocolsRead)?;
-    let row = sqlx::query("SELECT id, api_path, protocol, config_json, status FROM protocol_configs WHERE id = ?")
+    let row = sqlx::query("SELECT id, api_path, protocol, description, config_json, status FROM protocol_configs WHERE id = ?")
         .bind(&id).fetch_optional(&state.pool).await?
         .ok_or_else(|| AppError::NotFound(format!("protocol config {} not found", id)))?;
     Ok(Json(json!({
         "id": row.try_get::<String,_>("id").unwrap_or_default(),
         "api_path": row.try_get::<String,_>("api_path").unwrap_or_default(),
         "protocol": row.try_get::<String,_>("protocol").unwrap_or_default(),
+        "description": row.try_get::<Option<String>,_>("description").ok().flatten(),
         "config_json": row.try_get::<String,_>("config_json").unwrap_or_default(),
         "status": row.try_get::<String,_>("status").unwrap_or_default(),
     })))
@@ -65,6 +68,11 @@ pub async fn update_protocol_config(State(state): State<Arc<AppState>>, Extensio
     if payload.get("protocol").and_then(|v| v.as_str()).is_some() {
         set_clauses.push("protocol = ?".into());
         bind_values.push(payload["protocol"].as_str().unwrap().to_string());
+    }
+    if payload.get("description").is_some() {
+        set_clauses.push("description = ?".into());
+        let desc: Option<String> = payload.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
+        bind_values.push(desc.unwrap_or_default());
     }
     if payload.get("config_json").is_some() {
         set_clauses.push("config_json = ?".into());

@@ -36,22 +36,22 @@ export default function AdvancedProtocolsTab({ protocols, busy, createProtocol, 
   const [show, setShow] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [path, setPath] = useState(""); const [proto, setProto] = useState("graphql"); const [json, setJson] = useState("{}");
-  const [ePath, setEPath] = useState(""); const [eProto, setEProto] = useState("graphql"); const [eJson, setEJson] = useState("{}");
+  const [path, setPath] = useState(""); const [proto, setProto] = useState("graphql"); const [desc, setDesc] = useState(""); const [json, setJson] = useState("{}");
+  const [ePath, setEPath] = useState(""); const [eProto, setEProto] = useState("graphql"); const [eDesc, setEDesc] = useState(""); const [eJson, setEJson] = useState("{}");
 
   const toggleExpand = (id: string) => setExpanded(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
 
-  const startEdit = (p: ProtocolConfig) => { setEditId(p.id); setEPath(p.api_path); setEProto(p.protocol); setEJson(p.config_json || "{}"); };
+  const startEdit = (p: ProtocolConfig) => { setEditId(p.id); setEPath(p.api_path); setEProto(p.protocol); setEDesc(p.description || ""); setEJson(p.config_json || "{}"); };
   const saveEdit = useCallback(async () => {
     if (!editId) return;
-    await updateProtocol(editId, { api_path: ePath.trim(), protocol: eProto, config_json: eJson });
+    await updateProtocol(editId, { api_path: ePath.trim(), protocol: eProto, description: eDesc.trim() || null, config_json: eJson });
     setEditId(null);
-  }, [editId, ePath, eProto, eJson, updateProtocol]);
+  }, [editId, ePath, eProto, eDesc, eJson, updateProtocol]);
   const handleCreate = useCallback(async () => {
     if (!path.trim()) { notifyError("API path is required"); return; }
-    await createProtocol({ api_path: path.trim(), protocol: proto, config_json: json });
-    setPath(""); setProto("graphql"); setJson("{}"); setShow(false);
-  }, [path, proto, json, createProtocol, notifyError]);
+    await createProtocol({ api_path: path.trim(), protocol: proto, description: desc.trim() || null, config_json: json });
+    setPath(""); setProto("graphql"); setDesc(""); setJson("{}"); setShow(false);
+  }, [path, proto, desc, json, createProtocol, notifyError]);
 
   return (
     <div className="space-y-4">
@@ -65,6 +65,7 @@ export default function AdvancedProtocolsTab({ protocols, busy, createProtocol, 
             <div><label className={labelClass}>{t("API Path", "API 路径")} <span className="text-red-500">*</span></label><input className={inputClass} value={path} onChange={e => setPath(e.target.value)} placeholder="/admin/v1/graphql" /></div>
             <div><label className={labelClass}>{t("Protocol", "协议")}</label><select className={inputClass} value={proto} onChange={e => setProto(e.target.value)}><option value="graphql">GraphQL</option><option value="grpc">gRPC</option><option value="sse">SSE</option><option value="ws">WebSocket</option><option value="rest">REST</option></select></div>
           </div>
+          <div><label className={labelClass}>{t("Description", "作用说明")}</label><input className={inputClass} value={desc} onChange={e => setDesc(e.target.value)} placeholder={t("What does this protocol config do?", "此协议配置的作用是什么？")} /></div>
           <div><label className={labelClass}>{t("Config JSON", "配置 JSON")}</label><textarea className={inputClass} rows={4} value={json} onChange={e => setJson(e.target.value)} placeholder='{"key": "value"}' /></div>
           <div className="flex gap-2"><button className={btnPrimary} onClick={handleCreate} disabled={busy}>{busy ? t("Creating…", "创建中…") : t("Save Protocol", "保存协议")}</button><button className={btnSecondary} onClick={() => setShow(false)}>{t("Cancel", "取消")}</button></div>
         </div>
@@ -92,7 +93,7 @@ export default function AdvancedProtocolsTab({ protocols, busy, createProtocol, 
                   ) : (
                     <>
                       {td(<button className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><ChevronRight className={`w-4 h-4 transition-transform ${open ? "rotate-90" : ""}`} /></button>)}
-                      {td(<div><span className="font-mono text-xs text-gray-900 dark:text-gray-100">{p.api_path}</span></div>)}
+                      {td(<div><span className="font-mono text-xs text-gray-900 dark:text-gray-100">{p.api_path}</span>{p.description && <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2 leading-snug">{p.description}</p>}</div>)}
                       {td(<span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium uppercase ${pm.color}`}>{p.protocol}</span>)}
                       {td(statusBadge(p.status, t))}
                       {canWrite && td(<div className="flex items-center gap-1" onClick={e => e.stopPropagation()}><button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(p)} title={t("Edit", "编辑")}><Edit3 className="w-3.5 h-3.5" /></button><button className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" onClick={() => deleteProtocol(p.id)} disabled={busy} title={t("Delete", "删除")}><Trash2 className="w-3.5 h-3.5" /></button></div>)}
@@ -103,9 +104,9 @@ export default function AdvancedProtocolsTab({ protocols, busy, createProtocol, 
                   <tr key={`${p.id}-config`} className="bg-gray-50/50 dark:bg-gray-900/50">
                     <td colSpan={canWrite ? 4 : 3} className="px-4 py-3">
                       {editing && (
-                        <div className="mb-3">
-                          <label className={labelClass}>{t("Config JSON", "配置 JSON")}</label>
-                          <textarea className={`${inputClass} font-mono text-xs`} rows={6} value={(() => { try { return JSON.stringify(JSON.parse(eJson), null, 2); } catch { return eJson; } })()} onChange={e => { try { JSON.parse(e.target.value); setEJson(e.target.value); } catch { setEJson(e.target.value); } }} />
+                        <div className="grid grid-cols-1 gap-3 mb-3">
+                          <div><label className={labelClass}>{t("Description", "作用说明")}</label><input className={inputClass} value={eDesc} onChange={e => setEDesc(e.target.value)} placeholder={t("What does this protocol config do?", "此协议配置的作用是什么？")} /></div>
+                          <div><label className={labelClass}>{t("Config JSON", "配置 JSON")}</label><textarea className={`${inputClass} font-mono text-xs`} rows={6} value={(() => { try { return JSON.stringify(JSON.parse(eJson), null, 2); } catch { return eJson; } })()} onChange={e => { try { JSON.parse(e.target.value); setEJson(e.target.value); } catch { setEJson(e.target.value); } }} /></div>
                         </div>
                       )}
                       <div className="flex items-center gap-1.5 text-[10px] text-gray-400 uppercase tracking-wider mb-1.5"><Code2 className="w-3 h-3" />{t("Protocol Config", "协议配置")}</div>

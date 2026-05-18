@@ -302,6 +302,7 @@ export type ProtocolConfig = {
   id: string;
   api_path: string;
   protocol: string;
+  description: string | null;
   config_json: string | null;
   status: string;
   created_at: string;

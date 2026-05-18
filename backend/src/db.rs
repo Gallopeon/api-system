@@ -163,9 +163,18 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
 
     sqlx::query(r#"CREATE TABLE IF NOT EXISTS protocol_configs (
         id VARCHAR(36) PRIMARY KEY, api_path VARCHAR(255) NOT NULL UNIQUE, protocol VARCHAR(32) NOT NULL,
-        config_json LONGTEXT NULL, status VARCHAR(32) NOT NULL DEFAULT 'active',
+        description VARCHAR(500) NULL, config_json LONGTEXT NULL, status VARCHAR(32) NOT NULL DEFAULT 'active',
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY idx_proto (protocol)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
+
+    // Add description column if missing (migration from older schema)
+    let has_desc: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'protocol_configs' AND COLUMN_NAME = 'description'"
+    ).fetch_one(pool).await.unwrap_or(0);
+    if has_desc == 0 {
+        sqlx::query("ALTER TABLE protocol_configs ADD COLUMN description VARCHAR(500) NULL AFTER protocol")
+            .execute(pool).await?;
+    }
 
     sqlx::query(r#"CREATE TABLE IF NOT EXISTS data_classifications (
         id VARCHAR(36) PRIMARY KEY, api_path VARCHAR(255) NOT NULL UNIQUE,
@@ -332,69 +341,79 @@ async fn seed_protocols(pool: &MySqlPool) -> Result<(), AppError> {
     if count > 0 {
         return Ok(());
     }
-    let defaults: Vec<(&str, &str, &str)> = vec![
+    let defaults: Vec<(&str, &str, &str, &str)> = vec![
         // ── GraphQL ──
         (
             "/admin/v1/graphql",
             "graphql",
+            "Schema federation for internal services — stitches Users and Orders subgraphs with query depth limiting and persisted queries support.",
             r#"{"type":"schema_federation","subgraphs":[{"name":"users","endpoint":"/graphql/users"},{"name":"orders","endpoint":"/graphql/orders"}],"introspection":true,"query_depth_limit":8,"complexity_limit":1000,"persisted_queries":true,"enabled":true}"#,
         ),
         (
             "/api/public/graphql",
             "graphql",
+            "Public GraphQL gateway with IP-based rate limiting, JWT authentication, and restricted mutation allowlist for third-party integrations.",
             r#"{"type":"public_gateway","rate_limit_per_ip":60,"require_authentication":true,"allowed_mutations":["createOrder","updateProfile"],"blocked_introspection_fields":["__schema","__type"],"response_cache_ttl":30,"enabled":true}"#,
         ),
         // ── gRPC ──
         (
             "/grpc.UserService",
             "grpc",
+            "gRPC-to-REST transcoding for UserService — maps protobuf RPCs (GetUser, ListUsers, CreateUser) to RESTful HTTP endpoints with server reflection.",
             r#"{"type":"grpc_method_mapping","methods":[{"rpc":"GetUser","http_method":"GET","http_path":"/api/users/{id}"},{"rpc":"ListUsers","http_method":"GET","http_path":"/api/users"},{"rpc":"CreateUser","http_method":"POST","http_path":"/api/users"}],"proto_file":"user.proto","enable_reflection":true,"deadline_ms":5000,"enabled":true}"#,
         ),
         (
             "/grpc.OrderService",
             "grpc",
+            "gRPC service proxy for OrderService with health checking, distributed tracing, and automatic retry on UNAVAILABLE/DEADLINE_EXCEEDED errors.",
             r#"{"type":"grpc_service_proxy","proto_file":"order.proto","health_check_path":"/grpc.health.v1.Health/Check","max_message_size_mb":8,"enable_tracing":true,"retry_policy":{"max_attempts":3,"backoff_ms":100,"retryable_statuses":["UNAVAILABLE","DEADLINE_EXCEEDED"]},"enabled":true}"#,
         ),
         // ── SSE ──
         (
             "/api/events/notifications",
             "sse",
+            "Server-Sent Events stream for real-time notification delivery — supports JWT auth, automatic reconnect, and heartbeat keepalive every 15s.",
             r#"{"type":"event_stream","auth_required":true,"event_types":["notification.new","notification.read"],"reconnect_delay_ms":3000,"max_retries":5,"heartbeat_interval_ms":15000,"idle_timeout_ms":120000,"enabled":true}"#,
         ),
         (
             "/api/events/metrics",
             "sse",
+            "Real-time metrics push via SSE — streams CPU, memory, and RPS data to admin dashboards with buffered batching every 5s.",
             r#"{"type":"metrics_stream","event_types":["metrics.cpu","metrics.memory","metrics.rps"],"buffer_size":100,"flush_interval_ms":5000,"max_clients":50,"require_role":"admin","enabled":true}"#,
         ),
         // ── WebSocket ──
         (
             "/ws/chat",
             "ws",
+            "WebSocket chat with room-based broadcasting — JWT authenticated, supports general/support/alerts rooms, limits 5 connections per IP.",
             r#"{"type":"ws_room_broadcast","auth_via":"jwt_token","rooms":["general","support","alerts"],"max_message_size_kb":16,"max_connections_per_ip":5,"idle_timeout_sec":300,"enable_typing_indicator":true,"enabled":true}"#,
         ),
         (
             "/ws/live",
             "ws",
+            "WebSocket real-time push channel for dashboard updates, rule changes, and alert triggers — API-key authenticated with per-message compression.",
             r#"{"type":"ws_realtime_push","auth_via":"api_key","message_types":["dashboard.update","rule.change","alert.triggered"],"compression":true,"max_connections_total":200,"ping_interval_sec":30,"enabled":true}"#,
         ),
         // ── REST ──
         (
             "/api/v2/users",
             "rest",
+            "REST API versioning via Accept-Version header — v2.0 current, v1.0 deprecated with Sunset header, response envelope wraps data with metadata.",
             r#"{"type":"api_versioning","version_header":"Accept-Version","default_version":"2.0","deprecated_versions":["1.0"],"sunset_header":true,"rate_limit_per_min":120,"response_envelope":{"enabled":true,"wrap_data":true,"include_metadata":true},"enabled":true}"#,
         ),
         (
             "/api/public/catalog",
             "rest",
+            "Public product catalog with cursor-based pagination, HATEOAS links, field filtering, and 60s CDN cache — designed for developer portal consumption.",
             r#"{"type":"public_catalog","pagination_style":"cursor","default_page_size":20,"max_page_size":100,"hateoas_links":true,"cache_control":"public, max-age=60","cors_allow_origins":["*"],"fields_filtering":true,"enabled":true}"#,
         ),
     ];
-    for (api_path, protocol, config_json) in &defaults {
+    for (api_path, protocol, description, config_json) in &defaults {
         let id = uuid::Uuid::new_v4().to_string();
         sqlx::query(
-            "INSERT INTO protocol_configs (id, api_path, protocol, config_json, status) VALUES (?, ?, ?, ?, 'active')"
+            "INSERT INTO protocol_configs (id, api_path, protocol, description, config_json, status) VALUES (?, ?, ?, ?, ?, 'active')"
         )
-        .bind(&id).bind(api_path).bind(protocol).bind(config_json)
+        .bind(&id).bind(api_path).bind(protocol).bind(description).bind(config_json)
         .execute(pool).await?;
     }
     Ok(())
