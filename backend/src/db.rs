@@ -178,11 +178,20 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
 
     sqlx::query(r#"CREATE TABLE IF NOT EXISTS data_classifications (
         id VARCHAR(36) PRIMARY KEY, api_path VARCHAR(255) NOT NULL UNIQUE,
-        data_category VARCHAR(64) NOT NULL DEFAULT 'internal', contains_pii TINYINT(1) NOT NULL DEFAULT 0,
-        gdpr_relevant TINYINT(1) NOT NULL DEFAULT 0, retention_days INT NOT NULL DEFAULT 365,
-        notes TEXT NULL, classified_by VARCHAR(64) NULL,
+        data_category VARCHAR(64) NOT NULL DEFAULT 'internal', description VARCHAR(500) NULL,
+        contains_pii TINYINT(1) NOT NULL DEFAULT 0, gdpr_relevant TINYINT(1) NOT NULL DEFAULT 0,
+        retention_days INT NOT NULL DEFAULT 365, notes TEXT NULL, classified_by VARCHAR(64) NULL,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, KEY idx_class_category (data_category)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
+
+    // Migration: add description column if missing
+    let has_cdesc: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'data_classifications' AND COLUMN_NAME = 'description'"
+    ).fetch_one(pool).await.unwrap_or(0);
+    if has_cdesc == 0 {
+        sqlx::query("ALTER TABLE data_classifications ADD COLUMN description VARCHAR(500) NULL AFTER data_category")
+            .execute(pool).await?;
+    }
 
     sqlx::query(r#"CREATE TABLE IF NOT EXISTS plugin_configs (
         id VARCHAR(36) PRIMARY KEY, name VARCHAR(120) NOT NULL, plugin_type VARCHAR(64) NOT NULL,
@@ -279,6 +288,7 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
     seed_admin(pool).await?;
     seed_plugins(pool).await?;
     seed_protocols(pool).await?;
+    seed_classifications(pool).await?;
 
     Ok(())
 }
@@ -414,6 +424,82 @@ async fn seed_protocols(pool: &MySqlPool) -> Result<(), AppError> {
             "INSERT INTO protocol_configs (id, api_path, protocol, description, config_json, status) VALUES (?, ?, ?, ?, ?, 'active')"
         )
         .bind(&id).bind(api_path).bind(protocol).bind(description).bind(config_json)
+        .execute(pool).await?;
+    }
+    Ok(())
+}
+
+async fn seed_classifications(pool: &MySqlPool) -> Result<(), AppError> {
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM data_classifications").fetch_one(pool).await.unwrap_or(0);
+    if count > 0 {
+        return Ok(());
+    }
+    // (api_path, data_category, description, contains_pii, gdpr_relevant, retention_days, notes)
+    let defaults: Vec<(&str, &str, &str, bool, bool, i32, &str)> = vec![
+        (
+            "/admin/v1/users",
+            "pii",
+            "用户管理端点 — 处理用户名、邮箱、密码哈希、角色等个人身份信息，GDPR 适用，需要最短保留期",
+            true, true, 90,
+            "GDPR Article 17 (right to erasure) applies. Delete user data within 90 days of account closure.",
+        ),
+        (
+            "/admin/v1/auth/login",
+            "confidential",
+            "认证端点 — 处理登录凭据和 JWT 令牌，属于机密数据，令牌相关日志最多保留 30 天",
+            true, true, 30,
+            "Store login history for 30 days for security auditing. JWT tokens must not be logged.",
+        ),
+        (
+            "/api/v1/transform",
+            "internal",
+            "数据转换管线 — 处理 API 响应内容，可能包含被转换的业务数据，按默认策略保留",
+            false, false, 365,
+            "Transform results may contain cached business data. Default retention applies.",
+        ),
+        (
+            "/api/public/catalog",
+            "public",
+            "开发者门户产品目录 — 公开可访问的产品信息，不包含任何敏感数据，可永久缓存",
+            false, false, 0,
+            "Public catalog data has no retention limit. CDN cache encouraged.",
+        ),
+        (
+            "/admin/v1/metrics/ingest",
+            "internal",
+            "指标采集端点 — 接收 API 调用指标和性能数据，不包含用户 PII 但属于内部运营数据",
+            false, false, 30,
+            "Raw metrics data is aggregated hourly and purged after 30 days. Hourly summaries kept for 1 year.",
+        ),
+        (
+            "/admin/v1/audit-logs",
+            "confidential",
+            "审计日志 — 记录所有管理员操作和系统事件，包含操作者身份信息，安全审计用途保留 365 天",
+            true, false, 365,
+            "Audit trail required for SOC 2 compliance. Immutable storage recommended.",
+        ),
+        (
+            "/admin/v1/notifications",
+            "internal",
+            "通知中心 — 存储用户通知和偏好设置，包含用户特定的消息内容",
+            false, false, 60,
+            "Notifications older than 60 days are automatically purged by the cleanup task.",
+        ),
+        (
+            "/api/v2/users",
+            "pii",
+            "公开用户 API (v2) — 返回用户资料数据给第三方客户端，经过脱敏处理，需要 OAuth 授权",
+            true, true, 90,
+            "Fields masked: email → partial, phone → redacted. GDPR consent required before sharing.",
+        ),
+    ];
+    for (api_path, data_category, description, contains_pii, gdpr_relevant, retention_days, notes) in &defaults {
+        let id = uuid::Uuid::new_v4().to_string();
+        sqlx::query(
+            "INSERT INTO data_classifications (id, api_path, data_category, description, contains_pii, gdpr_relevant, retention_days, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+        .bind(&id).bind(api_path).bind(data_category).bind(description)
+        .bind(contains_pii).bind(gdpr_relevant).bind(retention_days).bind(notes)
         .execute(pool).await?;
     }
     Ok(())

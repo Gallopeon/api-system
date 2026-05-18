@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Plus, Edit3, Trash2, Check, X, ShieldAlert } from "lucide-react";
+import { Plus, Edit3, Trash2, Check, X, ShieldAlert, ChevronRight } from "lucide-react";
 import { cardClass, inputClass, labelClass, btnPrimary, btnSecondary } from "@/lib/constants";
 import type { DataClassification } from "@/lib/types";
 
@@ -22,22 +22,25 @@ const td = (c: React.ReactNode, cls = "") => <td className={`px-4 py-3 ${cls}`}>
 export default function AdvancedClassificationsTab({ classifications, busy, createClassification, updateClassification, deleteClassification, canWrite, notifyError, t }: Props) {
   const [show, setShow] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
-  const [path, setPath] = useState(""); const [cat, setCat] = useState("internal"); const [pii, setPii] = useState(false);
-  const [gdpr, setGdpr] = useState(false); const [ret, setRet] = useState("365"); const [note, setNote] = useState("");
-  const [ePath, setEPath] = useState(""); const [eCat, setECat] = useState("internal"); const [ePii, setEPii] = useState(false);
-  const [eGdpr, setEGdpr] = useState(false); const [eRet, setERet] = useState(""); const [eNote, setENote] = useState("");
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [path, setPath] = useState(""); const [cat, setCat] = useState("internal"); const [desc, setDesc] = useState("");
+  const [pii, setPii] = useState(false); const [gdpr, setGdpr] = useState(false); const [ret, setRet] = useState("365"); const [note, setNote] = useState("");
+  const [ePath, setEPath] = useState(""); const [eCat, setECat] = useState("internal"); const [eDesc, setEDesc] = useState("");
+  const [ePii, setEPii] = useState(false); const [eGdpr, setEGdpr] = useState(false); const [eRet, setERet] = useState(""); const [eNote, setENote] = useState("");
 
-  const startEdit = (c: DataClassification) => { setEditId(c.id); setEPath(c.api_path); setECat(c.data_category); setEPii(c.contains_pii); setEGdpr(c.gdpr_relevant); setERet(String(c.retention_days)); setENote(c.notes || ""); };
+  const toggleExpand = (id: string) => setExpanded(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+
+  const startEdit = (c: DataClassification) => { setEditId(c.id); setEPath(c.api_path); setECat(c.data_category); setEDesc(c.description || ""); setEPii(c.contains_pii); setEGdpr(c.gdpr_relevant); setERet(String(c.retention_days)); setENote(c.notes || ""); };
   const saveEdit = useCallback(async () => {
     if (!editId) return;
-    await updateClassification(editId, { api_path: ePath.trim(), data_category: eCat, contains_pii: ePii, gdpr_relevant: eGdpr, retention_days: parseInt(eRet) || 365, notes: eNote });
+    await updateClassification(editId, { api_path: ePath.trim(), data_category: eCat, description: eDesc.trim() || null, contains_pii: ePii, gdpr_relevant: eGdpr, retention_days: parseInt(eRet) || 365, notes: eNote });
     setEditId(null);
-  }, [editId, ePath, eCat, ePii, eGdpr, eRet, eNote, updateClassification]);
+  }, [editId, ePath, eCat, eDesc, ePii, eGdpr, eRet, eNote, updateClassification]);
   const handleCreate = useCallback(async () => {
     if (!path.trim()) { notifyError("API path is required"); return; }
-    await createClassification({ api_path: path.trim(), data_category: cat, contains_pii: pii, gdpr_relevant: gdpr, retention_days: parseInt(ret) || 365, notes: note });
-    setPath(""); setCat("internal"); setPii(false); setGdpr(false); setRet("365"); setNote(""); setShow(false);
-  }, [path, cat, pii, gdpr, ret, note, createClassification, notifyError]);
+    await createClassification({ api_path: path.trim(), data_category: cat, description: desc.trim() || null, contains_pii: pii, gdpr_relevant: gdpr, retention_days: parseInt(ret) || 365, notes: note });
+    setPath(""); setCat("internal"); setDesc(""); setPii(false); setGdpr(false); setRet("365"); setNote(""); setShow(false);
+  }, [path, cat, desc, pii, gdpr, ret, note, createClassification, notifyError]);
 
   return (
     <div className="space-y-4">
@@ -49,9 +52,10 @@ export default function AdvancedClassificationsTab({ classifications, busy, crea
         <div className={`${cardClass} space-y-4`}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div><label className={labelClass}>{t("API Path", "API 路径")} <span className="text-red-500">*</span></label><input className={inputClass} value={path} onChange={e => setPath(e.target.value)} placeholder="/admin/v1/users" /></div>
-            <div><label className={labelClass}>{t("Data Category", "数据类别")}</label><select className={inputClass} value={cat} onChange={e => setCat(e.target.value)}><option value="public">{t("Public", "公共")}</option><option value="internal">{t("Internal", "内部")}</option><option value="confidential">{t("Confidential", "机密")}</option><option value="pii">{t("PII", "个人信息")}</option></select></div>
-            <div><label className={labelClass}>{t("Retention (days)", "保留天数")}</label><input className={inputClass} type="number" value={ret} onChange={e => setRet(e.target.value)} /></div>
+            <div><label className={labelClass}>{t("Data Category", "数据类别")}</label><select className={inputClass} value={cat} onChange={e => setCat(e.target.value)}><option value="public">{t("Public — 公开数据", "Public — 公开数据")}</option><option value="internal">{t("Internal — 内部数据", "Internal — 内部数据")}</option><option value="confidential">{t("Confidential — 机密数据", "Confidential — 机密数据")}</option><option value="pii">{t("PII — 个人信息", "PII — 个人信息")}</option></select></div>
+            <div><label className={labelClass}>{t("Retention (days)", "保留天数")}</label><input className={inputClass} type="number" value={ret} onChange={e => setRet(e.target.value)} placeholder="365" /></div>
           </div>
+          <div><label className={labelClass}>{t("Description", "作用说明")}</label><input className={inputClass} value={desc} onChange={e => setDesc(e.target.value)} placeholder={t("What data does this endpoint handle?", "此端点处理什么数据？")} /></div>
           <div className="flex flex-wrap gap-6">
             <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={pii} onChange={e => setPii(e.target.checked)} className="rounded" />{t("Contains PII", "包含 PII")}</label>
             <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={gdpr} onChange={e => setGdpr(e.target.checked)} className="rounded" />{t("GDPR Relevant", "GDPR 相关")}</label>
@@ -63,20 +67,37 @@ export default function AdvancedClassificationsTab({ classifications, busy, crea
       {classifications.length === 0 ? (
         <div className={`${cardClass} text-center py-10 text-gray-400`}><ShieldAlert className="w-10 h-10 mx-auto mb-3 opacity-40" /><p className="text-sm">{t("No items found", "暂无数据")}</p></div>
       ) : (
-        <div className={`${cardClass} p-0 overflow-hidden`}>
-          <table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800"><tr>{[t("API Path", "API 路径"), t("Category", "类别"), t("PII", "PII"), t("GDPR", "GDPR"), t("Retention", "保留"), t("Notes", "备注"), ...(canWrite ? [t("Actions", "操作")] : [])].map(h => th(h))}</tr></thead>
+        <div className={`${cardClass} p-0 overflow-auto`}>
+          <table className="w-full text-sm table-fixed min-w-[800px]"><thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800"><tr>{[t("", ""), t("API Path", "API 路径"), t("Category", "类别"), t("PII", "PII"), t("GDPR", "GDPR"), t("Retention", "保留"), ...(canWrite ? [t("Actions", "操作")] : [])].map(h => th(h))}</tr></thead>
           <tbody className="divide-y dark:divide-gray-800">
             {classifications.map(c => {
               const catStyle = c.data_category === "pii" ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-400" : c.data_category === "confidential" ? "bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400" : c.data_category === "internal" ? "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400";
-              return (
-                <tr key={c.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition">
-                  {editId === c.id ? (
-                    <>{td(<input className={inputClass} value={ePath} onChange={e => setEPath(e.target.value)} />)}{td(<select className={inputClass} value={eCat} onChange={e => setECat(e.target.value)}><option value="public">{t("Public", "公共")}</option><option value="internal">{t("Internal", "内部")}</option><option value="confidential">{t("Confidential", "机密")}</option><option value="pii">{t("PII", "个人信息")}</option></select>)}{td(<input type="checkbox" checked={ePii} onChange={e => setEPii(e.target.checked)} />)}{td(<input type="checkbox" checked={eGdpr} onChange={e => setEGdpr(e.target.checked)} />)}{td(<input className={inputClass} type="number" value={eRet} onChange={e => setERet(e.target.value)} />)}{td(<input className={inputClass} value={eNote} onChange={e => setENote(e.target.value)} />)}{canWrite && td(<div className="flex gap-1"><button className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg" onClick={saveEdit}><Check className="w-3.5 h-3.5" /></button><button className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" onClick={() => setEditId(null)}><X className="w-3.5 h-3.5" /></button></div>)}</>
+              const open = expanded.has(c.id);
+              const editing = editId === c.id;
+              return (<>
+                <tr key={c.id} className={`hover:bg-gray-50 dark:hover:bg-gray-900/50 transition cursor-pointer ${editing ? "ring-2 ring-inset ring-blue-500/50" : ""}`} onClick={() => !editing && toggleExpand(c.id)}>
+                  {editing ? (
+                    <>{td(<ShieldAlert className="w-4 h-4 text-gray-400" />)}{td(<input className={inputClass} value={ePath} onChange={e => setEPath(e.target.value)} />)}{td(<select className={inputClass} value={eCat} onChange={e => setECat(e.target.value)}><option value="public">{t("Public", "公共")}</option><option value="internal">{t("Internal", "内部")}</option><option value="confidential">{t("Confidential", "机密")}</option><option value="pii">{t("PII", "个人信息")}</option></select>)}{td(<input type="checkbox" checked={ePii} onChange={e => setEPii(e.target.checked)} />)}{td(<input type="checkbox" checked={eGdpr} onChange={e => setEGdpr(e.target.checked)} />)}{td(<input className={inputClass} type="number" value={eRet} onChange={e => setERet(e.target.value)} />)}{canWrite && td(<div className="flex gap-1" onClick={e => e.stopPropagation()}><button className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg" onClick={saveEdit} title={t("Save", "保存")}><Check className="w-3.5 h-3.5" /></button><button className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" onClick={(e) => { e.stopPropagation(); setEditId(null); }} title={t("Cancel", "取消")}><X className="w-3.5 h-3.5" /></button></div>)}</>
                   ) : (
-                    <>{td(<span className="font-mono text-xs text-gray-900 dark:text-gray-100">{c.api_path}</span>)}{td(<span className={`text-xs px-2 py-0.5 rounded-full font-medium ${catStyle}`}>{c.data_category}</span>)}{td(<span className={c.contains_pii ? "text-red-600 dark:text-red-400 font-semibold" : "text-gray-400"}>{c.contains_pii ? t("Yes", "是") : t("No", "否")}</span>)}{td(<span className={c.gdpr_relevant ? "text-orange-600 dark:text-orange-400 font-semibold" : "text-gray-400"}>{c.gdpr_relevant ? t("Yes", "是") : t("No", "否")}</span>)}{td(<span className="text-gray-600 dark:text-gray-400">{c.retention_days}d</span>)}{td(<span className="text-gray-500 text-xs max-w-[120px] truncate block">{c.notes || "—"}</span>)}{canWrite && td(<div className="flex items-center gap-1"><button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(c)}><Edit3 className="w-3.5 h-3.5" /></button><button className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" onClick={() => deleteClassification(c.id)} disabled={busy}><Trash2 className="w-3.5 h-3.5" /></button></div>)}</>
+                    <>{td(<button className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><ChevronRight className={`w-4 h-4 transition-transform ${open ? "rotate-90" : ""}`} /></button>)}{td(<div><span className="font-mono text-xs text-gray-900 dark:text-gray-100">{c.api_path}</span>{c.description && <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2 leading-snug">{c.description}</p>}</div>)}{td(<span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${catStyle}`}>{t(c.data_category, c.data_category)}</span>)}{td(<span className={c.contains_pii ? "text-red-600 dark:text-red-400 font-semibold" : "text-gray-400"}>{c.contains_pii ? t("Yes", "是") : t("No", "否")}</span>)}{td(<span className={c.gdpr_relevant ? "text-orange-600 dark:text-orange-400 font-semibold" : "text-gray-400"}>{c.gdpr_relevant ? t("Yes", "是") : t("No", "否")}</span>)}{td(<span className="text-gray-600 dark:text-gray-400 tabular-nums">{c.retention_days === 0 ? "∞" : `${c.retention_days}d`}</span>)}{canWrite && td(<div className="flex items-center gap-1" onClick={e => e.stopPropagation()}><button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(c)} title={t("Edit", "编辑")}><Edit3 className="w-3.5 h-3.5" /></button><button className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" onClick={() => deleteClassification(c.id)} disabled={busy} title={t("Delete", "删除")}><Trash2 className="w-3.5 h-3.5" /></button></div>)}</>
                   )}
                 </tr>
-              );
+                {(open || editing) && (
+                  <tr key={`${c.id}-detail`} className="bg-gray-50/50 dark:bg-gray-900/50">
+                    <td colSpan={canWrite ? 7 : 6} className="px-4 py-3">
+                      {editing && (
+                        <div className="grid grid-cols-1 gap-3 mb-3">
+                          <div><label className={labelClass}>{t("Description", "作用说明")}</label><input className={inputClass} value={eDesc} onChange={e => setEDesc(e.target.value)} placeholder={t("What data does this endpoint handle?", "此端点处理什么数据？")} /></div>
+                          <div><label className={labelClass}>{t("Notes", "备注")}</label><textarea className={inputClass} rows={2} value={eNote} onChange={e => setENote(e.target.value)} /></div>
+                        </div>
+                      )}
+                      {c.description && !editing && <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 leading-relaxed">{c.description}</p>}
+                      {c.notes && <div className="flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400"><span className="font-semibold shrink-0">{t("Notes:", "备注：")}</span><span>{c.notes}</span></div>}
+                      {!c.description && !c.notes && <p className="text-xs text-gray-400">{t("No additional details", "暂无额外说明")}</p>}
+                    </td>
+                  </tr>
+                )}
+              </>);
             })}
           </tbody></table>
         </div>
