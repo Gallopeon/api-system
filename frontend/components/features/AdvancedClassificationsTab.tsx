@@ -24,23 +24,23 @@ export default function AdvancedClassificationsTab({ classifications, busy, crea
   const [editId, setEditId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [path, setPath] = useState(""); const [cat, setCat] = useState("internal"); const [desc, setDesc] = useState("");
-  const [pii, setPii] = useState(false); const [gdpr, setGdpr] = useState(false); const [ret, setRet] = useState("365"); const [note, setNote] = useState("");
-  const [ePath, setEPath] = useState(""); const [eCat, setECat] = useState("internal"); const [eDesc, setEDesc] = useState("");
+  const [tt, setTt] = useState(""); const [pii, setPii] = useState(false); const [gdpr, setGdpr] = useState(false); const [ret, setRet] = useState("365"); const [note, setNote] = useState("");
+  const [ePath, setEPath] = useState(""); const [eCat, setECat] = useState("internal"); const [eDesc, setEDesc] = useState(""); const [eTt, setETt] = useState("");
   const [ePii, setEPii] = useState(false); const [eGdpr, setEGdpr] = useState(false); const [eRet, setERet] = useState(""); const [eNote, setENote] = useState("");
 
   const toggleExpand = (id: string) => setExpanded(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
 
-  const startEdit = (c: DataClassification) => { setEditId(c.id); setEPath(c.api_path); setECat(c.data_category); setEDesc(c.description || ""); setEPii(c.contains_pii); setEGdpr(c.gdpr_relevant); setERet(String(c.retention_days)); setENote(c.notes || ""); };
+  const startEdit = (c: DataClassification) => { setEditId(c.id); setEPath(c.api_path); setECat(c.data_category); setEDesc(c.description || ""); setETt(c.target_table || ""); setEPii(c.contains_pii); setEGdpr(c.gdpr_relevant); setERet(String(c.retention_days)); setENote(c.notes || ""); };
   const saveEdit = useCallback(async () => {
     if (!editId) return;
-    await updateClassification(editId, { api_path: ePath.trim(), data_category: eCat, description: eDesc.trim() || null, contains_pii: ePii, gdpr_relevant: eGdpr, retention_days: parseInt(eRet) || 365, notes: eNote });
+    await updateClassification(editId, { api_path: ePath.trim(), data_category: eCat, description: eDesc.trim() || null, target_table: eTt.trim() || null, contains_pii: ePii, gdpr_relevant: eGdpr, retention_days: parseInt(eRet) || 365, notes: eNote });
     setEditId(null);
-  }, [editId, ePath, eCat, eDesc, ePii, eGdpr, eRet, eNote, updateClassification]);
+  }, [editId, ePath, eCat, eDesc, eTt, ePii, eGdpr, eRet, eNote, updateClassification]);
   const handleCreate = useCallback(async () => {
     if (!path.trim()) { notifyError("API path is required"); return; }
-    await createClassification({ api_path: path.trim(), data_category: cat, description: desc.trim() || null, contains_pii: pii, gdpr_relevant: gdpr, retention_days: parseInt(ret) || 365, notes: note });
-    setPath(""); setCat("internal"); setDesc(""); setPii(false); setGdpr(false); setRet("365"); setNote(""); setShow(false);
-  }, [path, cat, desc, pii, gdpr, ret, note, createClassification, notifyError]);
+    await createClassification({ api_path: path.trim(), data_category: cat, description: desc.trim() || null, target_table: tt.trim() || null, contains_pii: pii, gdpr_relevant: gdpr, retention_days: parseInt(ret) || 365, notes: note });
+    setPath(""); setCat("internal"); setDesc(""); setTt(""); setPii(false); setGdpr(false); setRet("365"); setNote(""); setShow(false);
+  }, [path, cat, desc, tt, pii, gdpr, ret, note, createClassification, notifyError]);
 
   return (
     <div className="space-y-4">
@@ -56,6 +56,9 @@ export default function AdvancedClassificationsTab({ classifications, busy, crea
             <div><label className={labelClass}>{t("Retention (days)", "保留天数")}</label><input className={inputClass} type="number" value={ret} onChange={e => setRet(e.target.value)} placeholder="365" /></div>
           </div>
           <div><label className={labelClass}>{t("Description", "作用说明")}</label><input className={inputClass} value={desc} onChange={e => setDesc(e.target.value)} placeholder={t("What data does this endpoint handle?", "此端点处理什么数据？")} /></div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><label className={labelClass}>{t("Target Table", "目标清理表")}</label><select className={inputClass} value={tt} onChange={e => setTt(e.target.value)}><option value="">— {t("None (no auto cleanup)", "无（不自动清理）")} —</option><option value="notifications">notifications</option><option value="audit_logs">audit_logs</option><option value="login_history">login_history</option><option value="user_sessions">user_sessions</option><option value="metrics_ingest">metrics_ingest</option><option value="metrics_hourly_summary">metrics_hourly_summary</option></select></div>
+          </div>
           <div className="flex flex-wrap gap-6">
             <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={pii} onChange={e => setPii(e.target.checked)} className="rounded" />{t("Contains PII", "包含 PII")}</label>
             <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={gdpr} onChange={e => setGdpr(e.target.checked)} className="rounded" />{t("GDPR Relevant", "GDPR 相关")}</label>
@@ -86,14 +89,22 @@ export default function AdvancedClassificationsTab({ classifications, busy, crea
                   <tr key={`${c.id}-detail`} className="bg-gray-50/50 dark:bg-gray-900/50">
                     <td colSpan={canWrite ? 7 : 6} className="px-4 py-3">
                       {editing && (
-                        <div className="grid grid-cols-1 gap-3 mb-3">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
                           <div><label className={labelClass}>{t("Description", "作用说明")}</label><input className={inputClass} value={eDesc} onChange={e => setEDesc(e.target.value)} placeholder={t("What data does this endpoint handle?", "此端点处理什么数据？")} /></div>
-                          <div><label className={labelClass}>{t("Notes", "备注")}</label><textarea className={inputClass} rows={2} value={eNote} onChange={e => setENote(e.target.value)} /></div>
+                          <div><label className={labelClass}>{t("Target Table", "目标清理表")}</label><select className={inputClass} value={eTt} onChange={e => setETt(e.target.value)}><option value="">— {t("None", "无")} —</option><option value="notifications">notifications</option><option value="audit_logs">audit_logs</option><option value="login_history">login_history</option><option value="user_sessions">user_sessions</option><option value="metrics_ingest">metrics_ingest</option><option value="metrics_hourly_summary">metrics_hourly_summary</option></select></div>
+                          <div className="md:col-span-2"><label className={labelClass}>{t("Notes", "备注")}</label><textarea className={inputClass} rows={2} value={eNote} onChange={e => setENote(e.target.value)} /></div>
                         </div>
                       )}
                       {c.description && !editing && <p className="text-xs text-gray-600 dark:text-gray-400 mb-2 leading-relaxed">{c.description}</p>}
+                      {c.target_table && !editing && (
+                        <div className="flex items-center gap-1.5 text-xs mb-2">
+                          <span className="font-semibold text-gray-500 dark:text-gray-400">{t("Auto-clean:", "自动清理：")}</span>
+                          <code className="text-[11px] bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{c.target_table}</code>
+                          <span className="text-gray-400">{t("every 6h, keep", "每6小时，保留")} {c.retention_days}d</span>
+                        </div>
+                      )}
                       {c.notes && <div className="flex items-start gap-1.5 text-xs text-gray-500 dark:text-gray-400"><span className="font-semibold shrink-0">{t("Notes:", "备注：")}</span><span>{c.notes}</span></div>}
-                      {!c.description && !c.notes && <p className="text-xs text-gray-400">{t("No additional details", "暂无额外说明")}</p>}
+                      {!c.description && !c.notes && !c.target_table && <p className="text-xs text-gray-400">{t("No additional details", "暂无额外说明")}</p>}
                     </td>
                   </tr>
                 )}

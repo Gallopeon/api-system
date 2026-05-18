@@ -313,6 +313,7 @@ export type DataClassification = {
   api_path: string;
   data_category: string;
   description: string | null;
+  target_table: string | null;
   contains_pii: boolean;
   gdpr_relevant: boolean;
   retention_days: number;

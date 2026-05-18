@@ -61,6 +61,10 @@ pub async fn run() -> anyhow::Result<()> {
     let (ret_shutdown_tx, ret_shutdown_rx) = tokio::sync::watch::channel(false);
     let retention_handle = tokio::spawn(engine::run_metrics_retention(pool.clone(), ret_shutdown_rx));
 
+    // Spawn data classification retention engine (reads classifications, purges target tables)
+    let (class_ret_tx, class_ret_rx) = tokio::sync::watch::channel(false);
+    let class_retention_handle = tokio::spawn(engine::run_retention_engine(pool.clone(), class_ret_rx));
+
     let admin_router = Router::new()
         .route("/admin/v1/rules", post(create_rule).get(list_rules))
         .route("/admin/v1/rules/:id", get(get_rule).put(update_rule).delete(delete_rule))
@@ -175,6 +179,10 @@ pub async fn run() -> anyhow::Result<()> {
     let _ = ret_shutdown_tx.send(true);
     let _ = retention_handle.await;
     info!("metrics retention stopped");
+
+    let _ = class_ret_tx.send(true);
+    let _ = class_retention_handle.await;
+    info!("classification retention engine stopped");
     Ok(())
 }
 

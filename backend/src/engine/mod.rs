@@ -7,6 +7,7 @@ pub mod openapi;
 pub mod crypto;
 pub mod metrics;
 pub mod notify;
+pub mod retention;
 
 pub use transform::*;
 pub use expression::*;
@@ -17,3 +18,4 @@ pub use openapi::*;
 pub use crypto::*;
 pub use metrics::*;
 pub use notify::*;
+pub use retention::*;

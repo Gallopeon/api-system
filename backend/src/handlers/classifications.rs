@@ -17,10 +17,11 @@ pub async fn create_data_classification(State(state): State<Arc<AppState>>, Exte
     let api_path = payload.get("api_path").and_then(|v| v.as_str()).unwrap_or("");
     let category = payload.get("data_category").and_then(|v| v.as_str()).unwrap_or("internal");
     let description = payload.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let target_table = payload.get("target_table").and_then(|v| v.as_str()).map(|s| s.to_string());
     let pii = payload.get("contains_pii").and_then(|v| v.as_bool()).unwrap_or(false);
     let gdpr = payload.get("gdpr_relevant").and_then(|v| v.as_bool()).unwrap_or(false);
-    sqlx::query("INSERT INTO data_classifications (id, api_path, data_category, description, contains_pii, gdpr_relevant) VALUES (?, ?, ?, ?, ?, ?)")
-        .bind(&id).bind(api_path).bind(category).bind(&description).bind(pii).bind(gdpr).execute(&state.pool).await?;
+    sqlx::query("INSERT INTO data_classifications (id, api_path, data_category, description, target_table, contains_pii, gdpr_relevant) VALUES (?, ?, ?, ?, ?, ?, ?)")
+        .bind(&id).bind(api_path).bind(category).bind(&description).bind(&target_table).bind(pii).bind(gdpr).execute(&state.pool).await?;
     let actor = resolve_actor(&auth, None);
     spawn_audit_log(&state.pool, AuditEntry {
         rule_id: None, action: "classification.create".to_string(), actor,
@@ -32,12 +33,13 @@ pub async fn create_data_classification(State(state): State<Arc<AppState>>, Exte
 
 pub async fn list_classifications(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ClassificationsRead)?;
-    let rows = sqlx::query("SELECT id, api_path, data_category, description, contains_pii, gdpr_relevant, retention_days, notes, classified_by, created_at FROM data_classifications").fetch_all(&state.pool).await?;
+    let rows = sqlx::query("SELECT id, api_path, data_category, description, target_table, contains_pii, gdpr_relevant, retention_days, notes, classified_by, created_at FROM data_classifications").fetch_all(&state.pool).await?;
     let items: Vec<Value> = rows.iter().map(|r| json!({
         "id": r.try_get::<String,_>("id").unwrap_or_default(),
         "api_path": r.try_get::<String,_>("api_path").unwrap_or_default(),
         "data_category": r.try_get::<String,_>("data_category").unwrap_or_default(),
         "description": r.try_get::<Option<String>,_>("description").ok().flatten(),
+        "target_table": r.try_get::<Option<String>,_>("target_table").ok().flatten(),
         "contains_pii": r.try_get::<bool,_>("contains_pii").unwrap_or(false),
         "gdpr_relevant": r.try_get::<bool,_>("gdpr_relevant").unwrap_or(false),
         "retention_days": r.try_get::<i32,_>("retention_days").unwrap_or(365),
@@ -50,7 +52,7 @@ pub async fn list_classifications(State(state): State<Arc<AppState>>, Extension(
 
 pub async fn get_classification(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ClassificationsRead)?;
-    let row = sqlx::query("SELECT id, api_path, data_category, description, contains_pii, gdpr_relevant, retention_days, notes, classified_by, created_at FROM data_classifications WHERE id = ?")
+    let row = sqlx::query("SELECT id, api_path, data_category, description, target_table, contains_pii, gdpr_relevant, retention_days, notes, classified_by, created_at FROM data_classifications WHERE id = ?")
         .bind(&id).fetch_optional(&state.pool).await?
         .ok_or_else(|| AppError::NotFound(format!("classification {} not found", id)))?;
     Ok(Json(json!({
@@ -58,6 +60,7 @@ pub async fn get_classification(State(state): State<Arc<AppState>>, Extension(au
         "api_path": row.try_get::<String,_>("api_path").unwrap_or_default(),
         "data_category": row.try_get::<String,_>("data_category").unwrap_or_default(),
         "description": row.try_get::<Option<String>,_>("description").ok().flatten(),
+        "target_table": row.try_get::<Option<String>,_>("target_table").ok().flatten(),
         "contains_pii": row.try_get::<bool,_>("contains_pii").unwrap_or(false),
         "gdpr_relevant": row.try_get::<bool,_>("gdpr_relevant").unwrap_or(false),
         "retention_days": row.try_get::<i32,_>("retention_days").unwrap_or(365),
@@ -90,6 +93,11 @@ pub async fn update_data_classification(State(state): State<Arc<AppState>>, Exte
     if payload.get("gdpr_relevant").and_then(|v| v.as_bool()).is_some() {
         set_clauses.push("gdpr_relevant = ?".into());
         bind_values.push(if payload["gdpr_relevant"].as_bool().unwrap_or(false) { "1".into() } else { "0".into() });
+    }
+    if payload.get("target_table").is_some() {
+        set_clauses.push("target_table = ?".into());
+        let tt: Option<String> = payload.get("target_table").and_then(|v| v.as_str()).map(|s| s.to_string());
+        bind_values.push(tt.unwrap_or_default());
     }
     if let Some(v) = payload.get("retention_days").and_then(|v| v.as_i64()) {
         set_clauses.push("retention_days = ?".into());
