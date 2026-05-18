@@ -45,6 +45,8 @@ function fmtTime(iso: string, t: Props["t"]) {
 export default function NotificationCenter({ accessToken, t }: Props) {
   const { notifications, unreadCount, loading, loadNotifications, markAllRead, clearAll, deleteNotification } = useNotifications(accessToken);
   const [open, setOpen] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
+  const [clearing, setClearing] = useState(false);
   const panelRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -82,21 +84,44 @@ export default function NotificationCenter({ accessToken, t }: Props) {
         <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl z-50 max-h-[70vh] flex flex-col">
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
             <h3 className="font-semibold text-sm">{t("Notifications", "通知中心")}</h3>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               {unreadCount > 0 && (
-                <button onClick={markAllRead} className="flex items-center gap-1 text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                  <Check className="w-3.5 h-3.5" />
+                <button
+                  onClick={markAllRead}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-full bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 active:scale-95 transition-all"
+                >
+                  <Check className="w-3 h-3" />
                   {t("Mark all read", "全部已读")}
                 </button>
               )}
               {notifications.length > 0 && (
-                <button
-                  onClick={() => { if (confirm(t("Clear all notifications?", "确定清除所有通知？"))) clearAll(); }}
-                  className="flex items-center gap-1 text-xs text-red-500 hover:text-red-600 hover:underline"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  {t("Clear all", "清空")}
-                </button>
+                confirmClear ? (
+                  <span className="inline-flex items-center gap-1">
+                    <span className="text-[11px] text-gray-500 dark:text-gray-400">{t("Sure?", "确定？")}</span>
+                    <button
+                      onClick={async () => { setClearing(true); await clearAll(); setClearing(false); setConfirmClear(false); }}
+                      disabled={clearing}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-medium rounded-full bg-red-600 text-white hover:bg-red-700 active:scale-95 transition-all disabled:opacity-50"
+                    >
+                      {clearing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                      {t("Delete", "删除")}
+                    </button>
+                    <button
+                      onClick={() => setConfirmClear(false)}
+                      className="inline-flex items-center px-2 py-1 text-[11px] font-medium rounded-full bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 active:scale-95 transition-all"
+                    >
+                      {t("Cancel", "取消")}
+                    </button>
+                  </span>
+                ) : (
+                  <button
+                    onClick={() => setConfirmClear(true)}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-full bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-700 hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/20 active:scale-95 transition-all"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                    {t("Clear all", "清空")}
+                  </button>
+                )
               )}
             </div>
           </div>
