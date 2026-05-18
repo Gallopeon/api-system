@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Plus, Edit3, Trash2, Check, X, Settings, ChevronDown, ChevronRight, Code2, Shield, Zap, Globe, Gauge } from "lucide-react";
+import { Plus, Edit3, Trash2, Check, X, Settings, ChevronDown, ChevronRight, Code2, Shield, Zap, Gauge } from "lucide-react";
 import { cardClass, inputClass, labelClass, btnPrimary, btnSecondary } from "@/lib/constants";
 import type { PluginConfig } from "@/lib/types";
 
@@ -81,26 +81,51 @@ export default function AdvancedPluginsTab({ plugins, busy, createPlugin, update
       {plugins.length === 0 ? (
         <div className={`${cardClass} text-center py-10 text-gray-400`}><Settings className="w-10 h-10 mx-auto mb-3 opacity-40" /><p className="text-sm">{t("No items found", "暂无数据")}</p></div>
       ) : (
-        <div className={`${cardClass} p-0 overflow-hidden`}>
-          <table className="w-full text-sm"><thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800"><tr>{[t("", ""), t("Name", "名称"), t("Hook Point", "钩子点"), t("Priority", "优先级"), t("Status", "状态"), ...(canWrite ? [t("Actions", "操作")] : [])].map(h => th(h))}</tr></thead>
+        <div className={`${cardClass} p-0 overflow-auto`}>
+          <table className="w-full text-sm table-fixed min-w-[640px]"><thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800"><tr>{[t("", ""), t("Name", "名称"), t("Hook Point", "钩子点"), t("Priority", "优先级"), t("Status", "状态"), ...(canWrite ? [t("Actions", "操作")] : [])].map(h => th(h))}</tr></thead>
           <tbody className="divide-y dark:divide-gray-800">
             {plugins.map(p => {
               const hm = hookMeta[p.hook_point] || hookMeta.pre_transform;
               const desc = parseDesc(p.config_json || "");
               const open = expanded.has(p.id);
+              const editing = editId === p.id;
               return (<>
-                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition cursor-pointer" onClick={() => toggleExpand(p.id)}>
-                  {editId === p.id ? (
-                    <>{td(<button className="p-1" onClick={() => toggleExpand(p.id)}>{open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}</button>)}{td(<input className={inputClass} value={eName} onChange={e => setEName(e.target.value)} />)}{td(<select className={inputClass} value={eHook} onChange={e => setEHook(e.target.value)}><option value="pre_transform">pre_transform</option><option value="post_transform">post_transform</option><option value="pre_auth">pre_auth</option><option value="post_auth">post_auth</option><option value="pre_cache">pre_cache</option><option value="post_cache">post_cache</option></select>)}{td(<input className={inputClass} type="number" value={ePrio} onChange={e => setEPrio(e.target.value)} />)}{td(statusBadge(p.status, t))}{canWrite && td(<div className="flex gap-1"><button className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg" onClick={saveEdit}><Check className="w-3.5 h-3.5" /></button><button className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" onClick={(e) => { e.stopPropagation(); setEditId(null); }}><X className="w-3.5 h-3.5" /></button></div>)}</>
+                <tr key={p.id} className={`hover:bg-gray-50 dark:hover:bg-gray-900/50 transition ${editing ? "ring-2 ring-inset ring-blue-500/50" : ""}`}>
+                  {editing ? (
+                    <>
+                      {td(<button className="p-1" onClick={() => toggleExpand(p.id)}>{open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}</button>)}
+                      {td(<input className={inputClass} value={eName} onChange={e => setEName(e.target.value)} />)}
+                      {td(<select className={inputClass} value={eHook} onChange={e => setEHook(e.target.value)}><option value="pre_transform">pre_transform</option><option value="post_transform">post_transform</option><option value="pre_auth">pre_auth</option><option value="post_auth">post_auth</option><option value="pre_cache">pre_cache</option><option value="post_cache">post_cache</option></select>)}
+                      {td(<div className="flex gap-1"><input className={inputClass} type="number" value={ePrio} onChange={e => setEPrio(e.target.value)} /></div>)}
+                      {td(statusBadge(p.status, t))}
+                      {canWrite && td(<div className="flex gap-1"><button className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg" onClick={saveEdit} title={t("Save", "保存")}><Check className="w-3.5 h-3.5" /></button><button className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" onClick={(e) => { e.stopPropagation(); setEditId(null); }} title={t("Cancel", "取消")}><X className="w-3.5 h-3.5" /></button></div>)}
+                    </>
                   ) : (
-                    <>{td(<button className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><ChevronRight className={`w-4 h-4 transition-transform ${open ? "rotate-90" : ""}`} /></button>)}{td(<div><span className="font-semibold text-gray-900 dark:text-gray-100">{p.name}</span>{desc && <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-0.5">{desc}</p>}</div>)}{td(<span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium ${hm.color}`}>{hm.icon}{t(hm.label, hm.zh)}</span>)}{td(<span className="font-semibold tabular-nums">{p.priority}</span>)}{td(statusBadge(p.status, t))}{canWrite && td(<div className="flex items-center gap-1" onClick={e => e.stopPropagation()}><button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(p)}><Edit3 className="w-3.5 h-3.5" /></button><button className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" onClick={() => deletePlugin(p.id)} disabled={busy}><Trash2 className="w-3.5 h-3.5" /></button></div>)}</>
+                    <>
+                      {td(<button className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300" onClick={() => toggleExpand(p.id)}><ChevronRight className={`w-4 h-4 transition-transform ${open ? "rotate-90" : ""}`} /></button>)}
+                      {td(<div><span className="font-semibold text-gray-900 dark:text-gray-100">{p.name}</span>{desc && <p className="text-[10px] text-gray-400 uppercase tracking-wider mt-0.5">{desc}</p>}</div>)}
+                      {td(<span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium ${hm.color} max-w-full overflow-hidden`}>{hm.icon}<span className="truncate">{t(hm.label, hm.zh)}</span></span>)}
+                      {td(<span className="font-semibold tabular-nums">{p.priority}</span>)}
+                      {td(statusBadge(p.status, t))}
+                      {canWrite && td(<div className="flex items-center gap-1" onClick={e => e.stopPropagation()}><button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(p)} title={t("Edit", "编辑")}><Edit3 className="w-3.5 h-3.5" /></button><button className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" onClick={() => deletePlugin(p.id)} disabled={busy} title={t("Delete", "删除")}><Trash2 className="w-3.5 h-3.5" /></button></div>)}
+                    </>
                   )}
                 </tr>
-                {open && (
+                {(open || editing) && (
                   <tr key={`${p.id}-config`} className="bg-gray-50/50 dark:bg-gray-900/50">
                     <td colSpan={canWrite ? 6 : 5} className="px-4 py-3">
+                      {editing && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                          <div><label className={labelClass}>{t("Plugin Type", "插件类型")}</label><input className={inputClass} value={eType} onChange={e => setEType(e.target.value)} placeholder="lua" /></div>
+                          <div className="flex items-end"><label className="flex items-center gap-2 cursor-pointer text-sm"><input type="checkbox" checked={eJson.includes('"enabled":true')} onChange={e => { const checked = e.target.checked; setEJson(prev => { try { const obj = JSON.parse(prev); obj.enabled = checked; return JSON.stringify(obj, null, 2); } catch { return prev; } }); }} className="rounded" /><span className="text-gray-700 dark:text-gray-300">{t("Enabled", "启用")}</span></label></div>
+                        </div>
+                      )}
                       <div className="flex items-center gap-1.5 text-[10px] text-gray-400 uppercase tracking-wider mb-1.5"><Code2 className="w-3 h-3" />{t("Plugin Config", "插件配置")}</div>
-                      <pre className="text-xs text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg p-3 overflow-x-auto font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">{p.config_json ? (() => { try { return JSON.stringify(JSON.parse(p.config_json), null, 2); } catch { return p.config_json; } })() : "{}"}</pre>
+                      {editing ? (
+                        <textarea className={`${inputClass} font-mono text-xs`} rows={8} value={(() => { try { return JSON.stringify(JSON.parse(eJson), null, 2); } catch { return eJson; } })()} onChange={e => { try { JSON.parse(e.target.value); setEJson(e.target.value); } catch { setEJson(e.target.value); } }} />
+                      ) : (
+                        <pre className="text-xs text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 rounded-lg p-3 overflow-x-auto font-mono whitespace-pre-wrap max-h-48 overflow-y-auto">{p.config_json ? (() => { try { return JSON.stringify(JSON.parse(p.config_json), null, 2); } catch { return p.config_json; } })() : "{}"}</pre>
+                      )}
                     </td>
                   </tr>
                 )}
