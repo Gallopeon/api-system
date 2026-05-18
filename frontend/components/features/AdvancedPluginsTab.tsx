@@ -93,7 +93,7 @@ export default function AdvancedPluginsTab({ plugins, busy, createPlugin, update
                 <tr key={p.id} className={`hover:bg-gray-50 dark:hover:bg-gray-900/50 transition ${editing ? "ring-2 ring-inset ring-blue-500/50" : ""}`}>
                   {editing ? (
                     <>
-                      {td(<button className="p-1" onClick={() => toggleExpand(p.id)}>{open ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}</button>)}
+                      {td(<ChevronDown className="w-4 h-4 text-gray-400" />)}
                       {td(<input className={inputClass} value={eName} onChange={e => setEName(e.target.value)} />)}
                       {td(<select className={inputClass} value={eHook} onChange={e => setEHook(e.target.value)}><option value="pre_transform">pre_transform</option><option value="post_transform">post_transform</option><option value="pre_auth">pre_auth</option><option value="post_auth">post_auth</option><option value="pre_cache">pre_cache</option><option value="post_cache">post_cache</option></select>)}
                       {td(<div className="flex gap-1"><input className={inputClass} type="number" value={ePrio} onChange={e => setEPrio(e.target.value)} /></div>)}
