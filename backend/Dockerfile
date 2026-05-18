@@ -1,6 +1,7 @@
 FROM rust:1.94-slim-bookworm AS builder
 WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
+COPY .cargo ./.cargo
 COPY src ./src
 RUN cargo build --release --locked
 
