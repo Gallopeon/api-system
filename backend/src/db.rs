@@ -269,6 +269,7 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
     seed_settings(pool).await?;
     seed_admin(pool).await?;
     seed_plugins(pool).await?;
+    seed_protocols(pool).await?;
 
     Ok(())
 }
@@ -321,6 +322,79 @@ async fn seed_plugins(pool: &MySqlPool) -> Result<(), AppError> {
             "INSERT INTO plugin_configs (id, name, plugin_type, hook_point, config_json, priority, status) VALUES (?, ?, ?, ?, ?, ?, 'active')"
         )
         .bind(&id).bind(name).bind(plugin_type).bind(hook_point).bind(config_json).bind(priority)
+        .execute(pool).await?;
+    }
+    Ok(())
+}
+
+async fn seed_protocols(pool: &MySqlPool) -> Result<(), AppError> {
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM protocol_configs").fetch_one(pool).await.unwrap_or(0);
+    if count > 0 {
+        return Ok(());
+    }
+    let defaults: Vec<(&str, &str, &str)> = vec![
+        // ── GraphQL ──
+        (
+            "/admin/v1/graphql",
+            "graphql",
+            r#"{"type":"schema_federation","subgraphs":[{"name":"users","endpoint":"/graphql/users"},{"name":"orders","endpoint":"/graphql/orders"}],"introspection":true,"query_depth_limit":8,"complexity_limit":1000,"persisted_queries":true,"enabled":true}"#,
+        ),
+        (
+            "/api/public/graphql",
+            "graphql",
+            r#"{"type":"public_gateway","rate_limit_per_ip":60,"require_authentication":true,"allowed_mutations":["createOrder","updateProfile"],"blocked_introspection_fields":["__schema","__type"],"response_cache_ttl":30,"enabled":true}"#,
+        ),
+        // ── gRPC ──
+        (
+            "/grpc.UserService",
+            "grpc",
+            r#"{"type":"grpc_method_mapping","methods":[{"rpc":"GetUser","http_method":"GET","http_path":"/api/users/{id}"},{"rpc":"ListUsers","http_method":"GET","http_path":"/api/users"},{"rpc":"CreateUser","http_method":"POST","http_path":"/api/users"}],"proto_file":"user.proto","enable_reflection":true,"deadline_ms":5000,"enabled":true}"#,
+        ),
+        (
+            "/grpc.OrderService",
+            "grpc",
+            r#"{"type":"grpc_service_proxy","proto_file":"order.proto","health_check_path":"/grpc.health.v1.Health/Check","max_message_size_mb":8,"enable_tracing":true,"retry_policy":{"max_attempts":3,"backoff_ms":100,"retryable_statuses":["UNAVAILABLE","DEADLINE_EXCEEDED"]},"enabled":true}"#,
+        ),
+        // ── SSE ──
+        (
+            "/api/events/notifications",
+            "sse",
+            r#"{"type":"event_stream","auth_required":true,"event_types":["notification.new","notification.read"],"reconnect_delay_ms":3000,"max_retries":5,"heartbeat_interval_ms":15000,"idle_timeout_ms":120000,"enabled":true}"#,
+        ),
+        (
+            "/api/events/metrics",
+            "sse",
+            r#"{"type":"metrics_stream","event_types":["metrics.cpu","metrics.memory","metrics.rps"],"buffer_size":100,"flush_interval_ms":5000,"max_clients":50,"require_role":"admin","enabled":true}"#,
+        ),
+        // ── WebSocket ──
+        (
+            "/ws/chat",
+            "ws",
+            r#"{"type":"ws_room_broadcast","auth_via":"jwt_token","rooms":["general","support","alerts"],"max_message_size_kb":16,"max_connections_per_ip":5,"idle_timeout_sec":300,"enable_typing_indicator":true,"enabled":true}"#,
+        ),
+        (
+            "/ws/live",
+            "ws",
+            r#"{"type":"ws_realtime_push","auth_via":"api_key","message_types":["dashboard.update","rule.change","alert.triggered"],"compression":true,"max_connections_total":200,"ping_interval_sec":30,"enabled":true}"#,
+        ),
+        // ── REST ──
+        (
+            "/api/v2/users",
+            "rest",
+            r#"{"type":"api_versioning","version_header":"Accept-Version","default_version":"2.0","deprecated_versions":["1.0"],"sunset_header":true,"rate_limit_per_min":120,"response_envelope":{"enabled":true,"wrap_data":true,"include_metadata":true},"enabled":true}"#,
+        ),
+        (
+            "/api/public/catalog",
+            "rest",
+            r#"{"type":"public_catalog","pagination_style":"cursor","default_page_size":20,"max_page_size":100,"hateoas_links":true,"cache_control":"public, max-age=60","cors_allow_origins":["*"],"fields_filtering":true,"enabled":true}"#,
+        ),
+    ];
+    for (api_path, protocol, config_json) in &defaults {
+        let id = uuid::Uuid::new_v4().to_string();
+        sqlx::query(
+            "INSERT INTO protocol_configs (id, api_path, protocol, config_json, status) VALUES (?, ?, ?, ?, 'active')"
+        )
+        .bind(&id).bind(api_path).bind(protocol).bind(config_json)
         .execute(pool).await?;
     }
     Ok(())
