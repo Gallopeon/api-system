@@ -2,11 +2,6 @@
 FROM rust:1.94-slim-bookworm AS builder
 WORKDIR /app
 
-# Cache cargo registry and target across builds so only changed code recompiles
-RUN --mount=type=cache,target=/usr/local/cargo/registry \
-    --mount=type=cache,target=/app/target \
-    true
-
 # 1. Build dependencies only (layer cached unless Cargo.toml/Cargo.lock or .cargo/config changes)
 COPY Cargo.toml Cargo.lock ./
 COPY .cargo ./.cargo
