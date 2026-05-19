@@ -36,10 +36,12 @@ export default function AdvancedProtocolsTab({ protocols, busy, createProtocol, 
   const [show, setShow] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [descOpen, setDescOpen] = useState<Set<string>>(new Set());
   const [path, setPath] = useState(""); const [proto, setProto] = useState("graphql"); const [desc, setDesc] = useState(""); const [json, setJson] = useState("{}");
   const [ePath, setEPath] = useState(""); const [eProto, setEProto] = useState("graphql"); const [eDesc, setEDesc] = useState(""); const [eJson, setEJson] = useState("{}");
 
   const toggleExpand = (id: string) => setExpanded(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  const toggleDesc = (id: string) => setDescOpen(prev => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
 
   const startEdit = (p: ProtocolConfig) => { setEditId(p.id); setEPath(p.api_path); setEProto(p.protocol); setEDesc(p.description || ""); setEJson(p.config_json || "{}"); };
   const saveEdit = useCallback(async () => {
@@ -93,7 +95,7 @@ export default function AdvancedProtocolsTab({ protocols, busy, createProtocol, 
                   ) : (
                     <>
                       {td(<button className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><ChevronRight className={`w-4 h-4 transition-transform ${open ? "rotate-90" : ""}`} /></button>)}
-                      {td(<div className="flex items-center gap-1.5"><span className="font-mono text-xs text-gray-900 dark:text-gray-100">{p.api_path}</span>{p.description && <span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-700 text-[10px] font-bold text-gray-500 dark:text-gray-400 cursor-help leading-none select-none shrink-0" title={p.description}>?</span>}</div>)}
+                      {td(<div><div className="flex items-center gap-1.5"><span className="font-mono text-xs text-gray-900 dark:text-gray-100">{p.api_path}</span>{p.description && <button className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-700 text-[10px] font-bold text-gray-500 dark:text-gray-400 hover:bg-blue-100 hover:text-blue-600 dark:hover:bg-blue-900/40 dark:hover:text-blue-400 leading-none select-none shrink-0 transition-colors" onClick={e => { e.stopPropagation(); toggleDesc(p.id); }}>?</button>}</div>{descOpen.has(p.id) && p.description && <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 leading-snug">{p.description}</p>}</div>)}
                       {td(<span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium uppercase ${pm.color}`}>{p.protocol}</span>)}
                       {td(statusBadge(p.status, t))}
                       {canWrite && td(<div className="flex items-center gap-1" onClick={e => e.stopPropagation()}><button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(p)} title={t("Edit", "编辑")}><Edit3 className="w-3.5 h-3.5" /></button><button className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" onClick={() => deleteProtocol(p.id)} disabled={busy} title={t("Delete", "删除")}><Trash2 className="w-3.5 h-3.5" /></button></div>)}
