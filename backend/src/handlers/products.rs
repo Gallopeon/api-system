@@ -56,22 +56,70 @@ pub async fn list_products(
     let offset = params.offset.unwrap_or(0);
     let search = params.search.unwrap_or_default();
 
-    let (base_query, count_query) = if search.is_empty() {
+    let (base_query, count_query, count_binds, base_binds) = if search.is_empty() {
         (
             "SELECT id, name, description, rule_ids, status, tags, documentation_url, pricing_tiers, owner, created_at, updated_at FROM api_products ORDER BY created_at DESC LIMIT ? OFFSET ?".to_string(),
             "SELECT COUNT(*) FROM api_products".to_string(),
+            vec![],
+            vec![limit.to_string(), offset.to_string()],
         )
     } else {
+        let like = format!("%{}%", search.replace('%', "\\%").replace('_', "\\_"));
         (
-            format!("SELECT id, name, description, rule_ids, status, tags, documentation_url, pricing_tiers, owner, created_at, updated_at FROM api_products WHERE name LIKE '%{}%' OR description LIKE '%{}%' ORDER BY created_at DESC LIMIT ? OFFSET ?", search, search),
-            format!("SELECT COUNT(*) FROM api_products WHERE name LIKE '%{}%' OR description LIKE '%{}%'", search, search),
+            "SELECT id, name, description, rule_ids, status, tags, documentation_url, pricing_tiers, owner, created_at, updated_at FROM api_products WHERE name LIKE ? OR description LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?".to_string(),
+            "SELECT COUNT(*) FROM api_products WHERE name LIKE ? OR description LIKE ?".to_string(),
+            vec![like.clone(), like.clone()],
+            vec![like.clone(), like, limit.to_string(), offset.to_string()],
         )
     };
 
-    let total: i64 = sqlx::query_scalar(&count_query).fetch_one(&state.pool).await.unwrap_or(0);
-    let rows = sqlx::query(&base_query).bind(limit).bind(offset).fetch_all(&state.pool).await?;
+    let total: i64 = if count_binds.is_empty() {
+        sqlx::query_scalar(&count_query).fetch_one(&state.pool).await.unwrap_or(0)
+    } else {
+        let mut q = sqlx::query_scalar(&count_query);
+        for v in &count_binds { q = q.bind(v); }
+        q.fetch_one(&state.pool).await.unwrap_or(0)
+    };
 
-    let items: Vec<Value> = rows.iter().map(|r| product_row_to_json(r)).collect();
+    let mut q = sqlx::query(&base_query);
+    for v in &base_binds { q = q.bind(v); }
+    let rows = q.fetch_all(&state.pool).await?;
+
+    // Fetch subscription stats in one query
+    let product_ids: Vec<String> = rows.iter()
+        .map(|r: &sqlx::mysql::MySqlRow| r.try_get::<String, _>("id").unwrap_or_default())
+        .filter(|id| !id.is_empty())
+        .collect();
+
+    let mut stats_map: std::collections::HashMap<String, ProductStats> = std::collections::HashMap::new();
+    if !product_ids.is_empty() {
+        let placeholders = product_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let stats_query = format!(
+            "SELECT product_id, COUNT(*) as total, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active FROM subscriptions WHERE product_id IN ({}) GROUP BY product_id",
+            placeholders
+        );
+        let mut sq = sqlx::query(&stats_query);
+        for id in &product_ids { sq = sq.bind(id); }
+        let stat_rows = sq.fetch_all(&state.pool).await.unwrap_or_default();
+        for r in &stat_rows {
+            let pid: String = r.try_get("product_id").unwrap_or_default();
+            let total: i64 = r.try_get("total").unwrap_or(0);
+            let active: i64 = r.try_get("active").unwrap_or(0);
+            stats_map.insert(pid, ProductStats { subscription_count: total, active_subscription_count: active });
+        }
+    }
+
+    let items: Vec<Value> = rows.iter().map(|r| {
+        let mut val = product_row_to_json(r);
+        if let Some(obj) = val.as_object_mut() {
+            let pid = obj.get("id").and_then(|v| v.as_str()).unwrap_or("").to_string();
+            let stats = stats_map.get(&pid).cloned().unwrap_or_default();
+            obj.insert("subscription_count".into(), json!(stats.subscription_count));
+            obj.insert("active_subscription_count".into(), json!(stats.active_subscription_count));
+        }
+        val
+    }).collect();
+
     Ok(Json(json!({"items": items, "limit": limit, "offset": offset, "total": total})))
 }
 
@@ -86,7 +134,18 @@ pub async fn get_product(
     )
     .bind(&id).fetch_optional(&state.pool).await?
     .ok_or_else(|| AppError::NotFound(format!("product {} not found", id)))?;
-    Ok(Json(product_row_to_json(&row)))
+
+    let mut val = product_row_to_json(&row);
+    if let Some(obj) = val.as_object_mut() {
+        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM subscriptions WHERE product_id = ?")
+            .bind(&id).fetch_one(&state.pool).await.unwrap_or(0);
+        let active: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM subscriptions WHERE product_id = ? AND status = 'active'")
+            .bind(&id).fetch_one(&state.pool).await.unwrap_or(0);
+        obj.insert("subscription_count".into(), json!(total));
+        obj.insert("active_subscription_count".into(), json!(active));
+    }
+
+    Ok(Json(val))
 }
 
 pub async fn update_product(
@@ -169,37 +228,57 @@ pub struct ProductListQuery {
     pub search: Option<String>,
 }
 
+#[derive(Clone, Default)]
+struct ProductStats {
+    subscription_count: i64,
+    active_subscription_count: i64,
+}
+
 fn extract_json_field(payload: &Value, key: &str) -> Option<String> {
     payload.get(key).and_then(|v| if v.is_null() || v.as_array().map_or(false, |a| a.is_empty()) { None } else { Some(v.to_string()) })
 }
 
 fn product_row_to_json(r: &sqlx::mysql::MySqlRow) -> Value {
+    let rule_ids_raw: String = r.try_get::<String, _>("rule_ids").unwrap_or_default();
+    let tags_raw: String = r.try_get::<String, _>("tags").unwrap_or_default();
+    let pricing_raw: String = r.try_get::<String, _>("pricing_tiers").unwrap_or_default();
+
+    let rule_ids: Value = serde_json::from_str(&rule_ids_raw).unwrap_or_else(|_| {
+        if rule_ids_raw.is_empty() { Value::Null } else { Value::String(rule_ids_raw) }
+    });
+    let tags: Value = serde_json::from_str(&tags_raw).unwrap_or_else(|_| {
+        if tags_raw.is_empty() { Value::Null } else { Value::String(tags_raw) }
+    });
+    let pricing_tiers: Value = serde_json::from_str(&pricing_raw).unwrap_or_else(|_| {
+        if pricing_raw.is_empty() { Value::Null } else { Value::String(pricing_raw) }
+    });
+
     json!({
-        "id": r.try_get::<String,_>("id").unwrap_or_default(),
-        "name": r.try_get::<String,_>("name").unwrap_or_default(),
-        "description": r.try_get::<String,_>("description").unwrap_or_default(),
-        "rule_ids": r.try_get::<String,_>("rule_ids").unwrap_or_default(),
-        "status": r.try_get::<String,_>("status").unwrap_or_default(),
-        "tags": r.try_get::<String,_>("tags").unwrap_or_default(),
-        "documentation_url": r.try_get::<String,_>("documentation_url").unwrap_or_default(),
-        "pricing_tiers": r.try_get::<String,_>("pricing_tiers").unwrap_or_default(),
-        "owner": r.try_get::<String,_>("owner").unwrap_or_default(),
-        "created_at": r.try_get::<String,_>("created_at").unwrap_or_default(),
-        "updated_at": r.try_get::<String,_>("updated_at").unwrap_or_default(),
+        "id": r.try_get::<String, _>("id").unwrap_or_default(),
+        "name": r.try_get::<String, _>("name").unwrap_or_default(),
+        "description": r.try_get::<String, _>("description").unwrap_or_default(),
+        "rule_ids": rule_ids,
+        "status": r.try_get::<String, _>("status").unwrap_or_default(),
+        "tags": tags,
+        "documentation_url": r.try_get::<String, _>("documentation_url").unwrap_or_default(),
+        "pricing_tiers": pricing_tiers,
+        "owner": r.try_get::<String, _>("owner").unwrap_or_default(),
+        "created_at": r.try_get::<String, _>("created_at").unwrap_or_default(),
+        "updated_at": r.try_get::<String, _>("updated_at").unwrap_or_default(),
     })
 }
 
 fn sub_row_to_json(r: &sqlx::mysql::MySqlRow) -> Value {
     json!({
-        "id": r.try_get::<String,_>("id").unwrap_or_default(),
-        "api_key_id": r.try_get::<String,_>("api_key_id").unwrap_or_default(),
-        "product_id": r.try_get::<String,_>("product_id").unwrap_or_default(),
-        "plan": r.try_get::<String,_>("plan").unwrap_or_default(),
-        "rate_limit_rps": r.try_get::<Option<i32>,_>("rate_limit_rps").ok().flatten(),
-        "quota_daily": r.try_get::<Option<i32>,_>("quota_daily").ok().flatten(),
-        "status": r.try_get::<String,_>("status").unwrap_or_default(),
-        "expires_at": r.try_get::<Option<String>,_>("expires_at").ok().flatten(),
-        "created_at": r.try_get::<String,_>("created_at").unwrap_or_default(),
+        "id": r.try_get::<String, _>("id").unwrap_or_default(),
+        "api_key_id": r.try_get::<String, _>("api_key_id").unwrap_or_default(),
+        "product_id": r.try_get::<String, _>("product_id").unwrap_or_default(),
+        "plan": r.try_get::<String, _>("plan").unwrap_or_default(),
+        "rate_limit_rps": r.try_get::<Option<i32>, _>("rate_limit_rps").ok().flatten(),
+        "quota_daily": r.try_get::<Option<i32>, _>("quota_daily").ok().flatten(),
+        "status": r.try_get::<String, _>("status").unwrap_or_default(),
+        "expires_at": r.try_get::<Option<String>, _>("expires_at").ok().flatten(),
+        "created_at": r.try_get::<String, _>("created_at").unwrap_or_default(),
     })
 }
 

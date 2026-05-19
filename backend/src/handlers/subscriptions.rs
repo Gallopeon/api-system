@@ -24,9 +24,17 @@ pub async fn create_subscription(
     let plan = payload.get("plan").and_then(|v| v.as_str()).unwrap_or("free");
     let product_id = payload.get("product_id").and_then(|v| v.as_str()).unwrap_or("");
     let api_key_id = payload.get("api_key_id").and_then(|v| v.as_str()).unwrap_or("");
-    let rate_limit_rps = payload.get("rate_limit_rps").and_then(|v| v.as_i64());
-    let quota_daily = payload.get("quota_daily").and_then(|v| v.as_i64());
     let expires_at = payload.get("expires_at").and_then(|v| v.as_str());
+
+    // If rate_limit_rps / quota_daily not explicitly provided, resolve from product tiers
+    let mut rate_limit_rps = payload.get("rate_limit_rps").and_then(|v| v.as_i64());
+    let mut quota_daily = payload.get("quota_daily").and_then(|v| v.as_i64());
+
+    if rate_limit_rps.is_none() || quota_daily.is_none() {
+        let (resolved_rps, resolved_quota) = resolve_tier_config(&state.pool, product_id, plan).await?;
+        if rate_limit_rps.is_none() { rate_limit_rps = resolved_rps; }
+        if quota_daily.is_none() { quota_daily = resolved_quota; }
+    }
 
     sqlx::query(
         "INSERT INTO subscriptions (id, api_key_id, product_id, plan, rate_limit_rps, quota_daily, expires_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'active')"
@@ -36,7 +44,7 @@ pub async fn create_subscription(
     .execute(&state.pool).await?;
 
     spawn_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.create".into(), actor: auth.subject.clone(), success: true, message: Some(format!("subscribed key {} to product {} plan {}", api_key_id, product_id, plan)), detail: None });
-    Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
+    Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true, "plan": plan, "rate_limit_rps": rate_limit_rps, "quota_daily": quota_daily }))))
 }
 
 pub async fn list_subscriptions(
@@ -173,16 +181,14 @@ pub async fn upgrade_subscription(
         return Err(AppError::BadRequest("plan is required".into()));
     }
 
-    let current = sqlx::query("SELECT plan FROM subscriptions WHERE id = ?")
+    let current = sqlx::query("SELECT product_id, plan FROM subscriptions WHERE id = ?")
         .bind(&id).fetch_optional(&state.pool).await?
         .ok_or_else(|| AppError::NotFound(format!("subscription {} not found", id)))?;
     let old_plan: String = current.try_get("plan").unwrap_or_default();
 
-    let (rps, quota) = match new_plan {
-        "enterprise" => (Some(1000i64), Some(100000i64)),
-        "pro" => (Some(100i64), Some(10000i64)),
-        _ => (Some(10i64), Some(1000i64)),
-    };
+    // Resolve rate_limit_rps and quota_daily from product pricing_tiers
+    let product_id: String = current.try_get("product_id").unwrap_or_default();
+    let (rps, quota) = resolve_tier_config(&state.pool, &product_id, new_plan).await?;
 
     sqlx::query("UPDATE subscriptions SET plan = ?, rate_limit_rps = ?, quota_daily = ? WHERE id = ?")
         .bind(new_plan).bind(rps).bind(quota).bind(&id)
@@ -190,6 +196,37 @@ pub async fn upgrade_subscription(
 
     spawn_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.upgrade".into(), actor: auth.subject.clone(), success: true, message: Some(format!("plan {} -> {}", old_plan, new_plan)), detail: None });
     Ok(Json(json!({"updated": true, "plan": new_plan, "rate_limit_rps": rps, "quota_daily": quota})))
+}
+
+async fn resolve_tier_config(pool: &sqlx::MySqlPool, product_id: &str, plan: &str) -> Result<(Option<i64>, Option<i64>), AppError> {
+    if product_id.is_empty() {
+        return Ok((None, None));
+    }
+    let row = sqlx::query("SELECT pricing_tiers FROM api_products WHERE id = ?")
+        .bind(product_id).fetch_optional(pool).await?;
+    let tiers_str: Option<String> = match row {
+        Some(r) => r.try_get("pricing_tiers").ok(),
+        None => None,
+    };
+    if let Some(ref json_str) = tiers_str {
+        if let Ok(tiers) = serde_json::from_str::
+<Vec<Value>>(json_str) {
+            for tier in &tiers {
+                if tier.get("name").and_then(|v| v.as_str()).unwrap_or("") == plan {
+                    let rps = tier.get("rate_limit_rps").and_then(|v| v.as_i64());
+                    let quota = tier.get("quota_daily").and_then(|v| v.as_i64());
+                    return Ok((rps, quota));
+                }
+            }
+        }
+    }
+    // Fallback defaults
+    let (rps, quota) = match plan {
+        "enterprise" => (Some(1000i64), Some(100000i64)),
+        "pro" => (Some(100i64), Some(10000i64)),
+        _ => (Some(10i64), Some(1000i64)),
+    };
+    Ok((rps, quota))
 }
 
 pub async fn cancel_subscription(
