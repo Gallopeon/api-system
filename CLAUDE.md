@@ -328,7 +328,7 @@ frontend/
 │   ├── useApiKeys.ts               ← API Keys CRUD + toggle/delete (117 lines)
 │   ├── useRateLimits.ts            ← Rate Limits CRUD (143 lines)
 │   ├── useApiBuilder.ts            ← API Builder: rule CRUD + data entries + presets (216 lines)
-│   ├── useProducts.ts              ← Products CRUD + status toggle + search (72 lines)
+│   ├── useProducts.ts              ← Products CRUD + status toggle + search + rule loader (72 lines)
 │   ├── useSubscriptions.ts         ← Subscriptions CRUD + lifecycle + usage (136 lines)
 │   ├── useDashboard.ts             ← Metrics, AuditLog, Approvals, Analytics hooks (188 lines)
 │   ├── useAdvanced.ts              ← Re-exports all advanced hooks (7 lines)
@@ -363,8 +363,10 @@ frontend/
 │       ├── OpenApiPanel.tsx        ← Generate + import OpenAPI specs (165 lines)
 │       ├── LlmGatewayPanel.tsx     ← LLM route + providers + templates (267 lines)
 │       ├── AdvancedPanel.tsx       ← Tab router for advanced features (95 lines)
-│       ├── AdvancedProductsTab.tsx      ← Products CRUD + search + tags + toggle (151 lines)
-│       ├── AdvancedSubscriptionsTab.tsx ← Subscriptions CRUD + lifecycle + usage (225 lines)
+│       ├── AdvancedProductsTab.tsx      ← Products CRUD + search + tags + toggle (256 lines)
+│       ├── AdvancedSubscriptionsTab.tsx ← Subscriptions CRUD + lifecycle + usage (290 lines)
+│       ├── SubscriptionPlanSelect.tsx   ← Dynamic plan selector from product tiers (25 lines)
+│       ├── ProductFormWidgets.tsx       ← RuleSelector, StatusMenu, TagChips (95 lines)
 │       ├── AdvancedCircuitBreakersTab.tsx ← Circuit breakers CRUD (93 lines)
 │       ├── AdvancedProtocolsTab.tsx    ← Protocols CRUD (80 lines)
 │       ├── AdvancedClassificationsTab.tsx ← Data classifications CRUD (85 lines)
@@ -436,8 +438,8 @@ backend/src/
     ├── metrics.rs        ← ingest_metrics, get_analytics, get_top_apis, get_api_key_stats, get_metrics_overview, get_dashboard
     ├── audit.rs          ← list_audit_logs
     ├── auth_user.rs      ← login, get_my_profile, update_my_profile, change_my_password, list_users, create_user, get_user, update_user, delete_user, session/login_history handlers, TOTP handlers, preferences handlers
-    ├── products.rs       ← create/list/get/update/delete_product, list_product_subscriptions (211 lines)
-    ├── subscriptions.rs  ← create/list/get/update/delete_subscription, usage, upgrade, cancel, renew (254 lines)
+    ├── products.rs       ← create/list/get/update/delete_product, list_product_subscriptions, product stats (290 lines)
+    ├── subscriptions.rs  ← create/list/get/update/delete_subscription, usage, upgrade, cancel, renew, tier resolution (378 lines)
     ├── circuit_breakers.rs ← create/list/get/update/delete_circuit_breaker
     ├── protocols.rs      ← create/list/get/update/delete_protocol_config
     ├── classifications.rs ← create/list/get/update/delete_data_classification
@@ -518,8 +520,8 @@ The old `handlers.rs` monolith (~4600 lines) has been split into per-domain file
 | Audit | `handlers/audit.rs` | list_audit_logs |
 | Notifications | `handlers/notifications.rs` | list_my_notifications, mark_notification_read, get_unread_count |
 | Auth & Users | `handlers/auth_user.rs` | login, list_users (with filters), CRUD users, profile, password, sessions, login history, TOTP (setup/verify/disable/status), preferences |
-| Products | `handlers/products.rs` | products CRUD, product subscriptions list |
-| Subscriptions | `handlers/subscriptions.rs` | subscriptions CRUD, usage, upgrade, cancel, renew |
+| Products | `handlers/products.rs` | products CRUD, product subscriptions list, subscription stats, safe search params |
+| Subscriptions | `handlers/subscriptions.rs` | subscriptions CRUD, usage, upgrade (tier-aware), cancel, renew |
 | Circuit Breakers | `handlers/circuit_breakers.rs` | circuit breaker CRUD |
 | Protocols | `handlers/protocols.rs` | protocol config CRUD |
 | Classifications | `handlers/classifications.rs` | data classification CRUD |
