@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { Plus, Edit3, Trash2, Check, X, Code2, ChevronRight, HelpCircle } from "lucide-react";
+import { Plus, Edit3, Trash2, Check, X, Code2, ChevronRight } from "lucide-react";
 import { cardClass, inputClass, labelClass, btnPrimary, btnSecondary } from "@/lib/constants";
 import type { ProtocolConfig } from "@/lib/types";
 
@@ -93,7 +93,7 @@ export default function AdvancedProtocolsTab({ protocols, busy, createProtocol, 
                   ) : (
                     <>
                       {td(<button className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"><ChevronRight className={`w-4 h-4 transition-transform ${open ? "rotate-90" : ""}`} /></button>)}
-                      {td(<div className="flex items-center gap-1.5"><span className="font-mono text-xs text-gray-900 dark:text-gray-100">{p.api_path}</span>{p.description && <span className="relative group shrink-0"><HelpCircle className="w-3.5 h-3.5 text-gray-400 hover:text-blue-500 cursor-help transition-colors" /><div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-3 py-1.5 bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible pointer-events-none z-50 max-w-[280px] text-center whitespace-normal leading-relaxed">{p.description}</div></span>}</div>)}
+                      {td(<div className="flex items-center gap-1.5"><span className="font-mono text-xs text-gray-900 dark:text-gray-100">{p.api_path}</span>{p.description && <span className="relative group shrink-0"><span className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-gray-200 dark:bg-gray-700 text-[10px] font-bold text-gray-500 dark:text-gray-400 cursor-help leading-none select-none">?</span><div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-3 py-1.5 bg-gray-800 dark:bg-gray-200 text-white dark:text-gray-900 text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible pointer-events-none z-50 max-w-[280px] text-center whitespace-normal leading-relaxed">{p.description}</div></span>}</div>)}
                       {td(<span className={`inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-medium uppercase ${pm.color}`}>{p.protocol}</span>)}
                       {td(statusBadge(p.status, t))}
                       {canWrite && td(<div className="flex items-center gap-1" onClick={e => e.stopPropagation()}><button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(p)} title={t("Edit", "编辑")}><Edit3 className="w-3.5 h-3.5" /></button><button className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" onClick={() => deleteProtocol(p.id)} disabled={busy} title={t("Delete", "删除")}><Trash2 className="w-3.5 h-3.5" /></button></div>)}
