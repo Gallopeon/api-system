@@ -78,7 +78,7 @@ export default function AdvancedPanel({ accessToken, notifyError, notifySucc, ca
       </div>
 
       {activeTab === "products" && (
-        <AdvancedProductsTab products={prod.products} busy={prod.busy} createProduct={prod.createProduct} updateProduct={prod.updateProduct} toggleProductStatus={prod.toggleProductStatus} deleteProduct={prod.deleteProduct} loadProducts={prod.loadProducts} canWrite={canWriteProducts} notifyError={notifyError} t={t} />
+        <AdvancedProductsTab products={prod.products} rules={prod.rules} busy={prod.busy} createProduct={prod.createProduct} updateProduct={prod.updateProduct} toggleProductStatus={prod.toggleProductStatus} deleteProduct={prod.deleteProduct} loadProducts={prod.loadProducts} loadRules={prod.loadRules} canWrite={canWriteProducts} notifyError={notifyError} t={t} />
       )}
       {activeTab === "subscriptions" && (
         <AdvancedSubscriptionsTab subscriptions={sub.subscriptions} busy={sub.busy} apiKeys={sub.apiKeys} productsList={sub.products} usageMap={sub.usageMap} loadSubscriptions={sub.loadSubscriptions} loadApiKeys={sub.loadApiKeys} loadProductsList={sub.loadProductsList} createSubscription={sub.createSubscription} updateSubscription={sub.updateSubscription} upgradeSubscription={sub.upgradeSubscription} cancelSubscription={sub.cancelSubscription} renewSubscription={sub.renewSubscription} getSubscriptionUsage={sub.getSubscriptionUsage} deleteSubscription={sub.deleteSubscription} canWrite={canWriteProducts} notifyError={notifyError} t={t} />

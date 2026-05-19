@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
-import type { ApiProduct } from "@/lib/types";
+import type { ApiProduct, RuleSummary } from "@/lib/types";
 
 export function useProducts(
   accessToken: string | undefined,
@@ -8,6 +8,7 @@ export function useProducts(
   notifySucc: (msg: string) => void,
 ) {
   const [products, setProducts] = useState<ApiProduct[]>([]);
+  const [rules, setRules] = useState<RuleSummary[]>([]);
   const [busy, setBusy] = useState(false);
 
   const loadProducts = useCallback(async (search?: string) => {
@@ -19,6 +20,16 @@ export function useProducts(
         setProducts((d as { items?: ApiProduct[] }).items || []);
       }
     } catch (e) { notifyError?.("Failed to load products"); console.error("loadProducts failed:", e); }
+  }, [accessToken]);
+
+  const loadRules = useCallback(async () => {
+    try {
+      const r = await apiFetch("/admin/v1/rules?limit=200", {}, accessToken);
+      if (r.ok) {
+        const d = await r.json();
+        setRules((d as { items?: RuleSummary[] }).items || []);
+      }
+    } catch (e) { console.error("loadRules failed:", e); }
   }, [accessToken]);
 
   const createProduct = useCallback(async (data: Record<string, unknown>) => {
@@ -68,5 +79,5 @@ export function useProducts(
     finally { setBusy(false); }
   }, [accessToken, loadProducts, notifyError, notifySucc]);
 
-  return { products, busy, loadProducts, createProduct, updateProduct, toggleProductStatus, deleteProduct };
+  return { products, rules, busy, loadProducts, loadRules, createProduct, updateProduct, toggleProductStatus, deleteProduct };
 }

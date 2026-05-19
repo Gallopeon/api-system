@@ -252,6 +252,8 @@ export type ApiProduct = {
   documentation_url: string | null;
   pricing_tiers: PricingTier[] | null;
   owner: string;
+  subscription_count?: number;
+  active_subscription_count?: number;
   created_at: string;
   updated_at: string;
 };
