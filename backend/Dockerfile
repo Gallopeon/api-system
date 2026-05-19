@@ -12,17 +12,19 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     rm -rf src
 
 # 2. Build actual application (only recompiles changed source files)
+#    Binary must be copied out of the cache mount so COPY --from can find it
 COPY src ./src
 RUN --mount=type=cache,target=/usr/local/cargo/registry \
     --mount=type=cache,target=/app/target \
-    cargo build --release --locked
+    cargo build --release --locked && \
+    cp target/release/api-control-backend /app/api-control-backend
 
 FROM debian:bookworm-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
-COPY --from=builder /app/target/release/api-control-backend /usr/local/bin/api-control-backend
+COPY --from=builder /app/api-control-backend /usr/local/bin/api-control-backend
 EXPOSE 8080
 ENV APP_BIND=0.0.0.0:8080
 HEALTHCHECK --interval=15s --timeout=5s --retries=5 \
