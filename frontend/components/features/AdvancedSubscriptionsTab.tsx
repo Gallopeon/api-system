@@ -100,7 +100,7 @@ export default function AdvancedSubscriptionsTab(props: Props) {
     } else {
       setPlan(""); setRps(""); setQuota("");
     }
-  }, [prodId, selectedTiers.length > 0 ? selectedTiers[0].name : ""]);
+  }, [prodId, selectedTiers]);
 
   const getKeyName = (keyId: string) => apiKeys.find(k => k.id === keyId)?.name || keyId.substring(0, 12) + "...";
   const getProductName = (prodId: string) => productsList.find(p => p.id === prodId)?.name || prodId.substring(0, 12) + "...";
