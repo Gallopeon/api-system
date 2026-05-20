@@ -26,6 +26,13 @@ pub async fn create_subscription(
     let api_key_id = payload.get("api_key_id").and_then(|v| v.as_str()).unwrap_or("");
     let expires_at = payload.get("expires_at").and_then(|v| v.as_str());
 
+    // Derive user_id from the API key's owner
+    let user_id: String = sqlx::query_scalar("SELECT created_by FROM api_keys WHERE id = ?")
+        .bind(api_key_id)
+        .fetch_optional(&state.pool)
+        .await?
+        .unwrap_or_default();
+
     // If rate_limit_rps / quota_daily not explicitly provided, resolve from product tiers
     let mut rate_limit_rps = payload.get("rate_limit_rps").and_then(|v| v.as_i64());
     let mut quota_daily = payload.get("quota_daily").and_then(|v| v.as_i64());
@@ -37,14 +44,14 @@ pub async fn create_subscription(
     }
 
     sqlx::query(
-        "INSERT INTO subscriptions (id, api_key_id, product_id, plan, rate_limit_rps, quota_daily, expires_at, status) VALUES (?, ?, ?, ?, ?, ?, ?, 'active')"
+        "INSERT INTO subscriptions (id, api_key_id, product_id, plan, rate_limit_rps, quota_daily, expires_at, status, user_id) VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?)"
     )
     .bind(&id).bind(api_key_id).bind(product_id).bind(plan)
-    .bind(rate_limit_rps).bind(quota_daily).bind(expires_at)
+    .bind(rate_limit_rps).bind(quota_daily).bind(expires_at).bind(&user_id)
     .execute(&state.pool).await?;
 
-    spawn_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.create".into(), actor: auth.subject.clone(), success: true, message: Some(format!("subscribed key {} to product {} plan {}", api_key_id, product_id, plan)), detail: None });
-    Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true, "plan": plan, "rate_limit_rps": rate_limit_rps, "quota_daily": quota_daily }))))
+    spawn_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.create".into(), actor: auth.subject.clone(), success: true, message: Some(format!("subscribed key {} to product {} plan {} for user {}", api_key_id, product_id, plan, user_id)), detail: None });
+    Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true, "plan": plan, "rate_limit_rps": rate_limit_rps, "quota_daily": quota_daily, "user_id": user_id }))))
 }
 
 pub async fn list_subscriptions(
@@ -55,12 +62,24 @@ pub async fn list_subscriptions(
     ensure_permission(&auth, Permission::ProductsRead)?;
     let limit = params.limit.unwrap_or(50).min(200);
     let offset = params.offset.unwrap_or(0);
+    let admin = is_admin(&auth);
 
-    let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM subscriptions").fetch_one(&state.pool).await.unwrap_or(0);
-    let rows = sqlx::query(
-        "SELECT s.id, s.api_key_id, s.product_id, s.plan, s.rate_limit_rps, s.quota_daily, s.status, s.expires_at, s.created_at FROM subscriptions s ORDER BY s.created_at DESC LIMIT ? OFFSET ?"
-    )
-    .bind(limit).bind(offset).fetch_all(&state.pool).await?;
+    let (total, rows) = if admin {
+        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM subscriptions").fetch_one(&state.pool).await.unwrap_or(0);
+        let rows = sqlx::query(
+            "SELECT s.id, s.api_key_id, s.product_id, s.plan, s.rate_limit_rps, s.quota_daily, s.status, s.expires_at, s.created_at, s.user_id FROM subscriptions s ORDER BY s.created_at DESC LIMIT ? OFFSET ?"
+        )
+        .bind(limit).bind(offset).fetch_all(&state.pool).await?;
+        (total, rows)
+    } else {
+        let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM subscriptions WHERE user_id = ?")
+            .bind(&auth.subject).fetch_one(&state.pool).await.unwrap_or(0);
+        let rows = sqlx::query(
+            "SELECT s.id, s.api_key_id, s.product_id, s.plan, s.rate_limit_rps, s.quota_daily, s.status, s.expires_at, s.created_at, s.user_id FROM subscriptions s WHERE s.user_id = ? ORDER BY s.created_at DESC LIMIT ? OFFSET ?"
+        )
+        .bind(&auth.subject).bind(limit).bind(offset).fetch_all(&state.pool).await?;
+        (total, rows)
+    };
 
     let items: Vec<Value> = rows.iter().map(|r| sub_row_to_json(r)).collect();
     Ok(Json(json!({"items": items, "limit": limit, "offset": offset, "total": total})))
@@ -73,10 +92,19 @@ pub async fn get_subscription(
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsRead)?;
     let row = sqlx::query(
-        "SELECT s.id, s.api_key_id, s.product_id, s.plan, s.rate_limit_rps, s.quota_daily, s.status, s.expires_at, s.created_at FROM subscriptions s WHERE s.id = ?"
+        "SELECT s.id, s.api_key_id, s.product_id, s.plan, s.rate_limit_rps, s.quota_daily, s.status, s.expires_at, s.created_at, s.user_id FROM subscriptions s WHERE s.id = ?"
     )
     .bind(&id).fetch_optional(&state.pool).await?
     .ok_or_else(|| AppError::NotFound(format!("subscription {} not found", id)))?;
+
+    // Non-admin users can only access their own subscriptions
+    if !is_admin(&auth) {
+        let owner: String = row.try_get("user_id").unwrap_or_default();
+        if owner != auth.subject {
+            return Err(AppError::NotFound(format!("subscription {} not found", id)));
+        }
+    }
+
     Ok(Json(sub_row_to_json(&row)))
 }
 
@@ -87,6 +115,8 @@ pub async fn update_subscription(
     Json(payload): Json<Value>,
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsWrite)?;
+    ensure_subscription_owner(&state.pool, &auth, &id).await?;
+
     let mut set_clauses: Vec<String> = Vec::new();
     let mut bind_values: Vec<String> = Vec::new();
 
@@ -124,6 +154,7 @@ pub async fn delete_subscription(
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsWrite)?;
+    ensure_subscription_owner(&state.pool, &auth, &id).await?;
     sqlx::query("DELETE FROM subscriptions WHERE id = ?").bind(&id).execute(&state.pool).await?;
     spawn_audit_log(&state.pool, AuditEntry { rule_id: Some(id.clone()), action: "subscription.delete".into(), actor: auth.subject.clone(), success: true, message: Some("deleted subscription".into()), detail: None });
     Ok(Json(json!({"deleted": true})))
@@ -137,6 +168,7 @@ pub async fn get_subscription_usage(
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsRead)?;
+    ensure_subscription_owner(&state.pool, &auth, &id).await?;
     let sub = sqlx::query("SELECT api_key_id, quota_daily FROM subscriptions WHERE id = ?")
         .bind(&id).fetch_optional(&state.pool).await?
         .ok_or_else(|| AppError::NotFound(format!("subscription {} not found", id)))?;
@@ -176,6 +208,7 @@ pub async fn upgrade_subscription(
     Json(payload): Json<Value>,
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsWrite)?;
+    ensure_subscription_owner(&state.pool, &auth, &id).await?;
     let new_plan = payload.get("plan").and_then(|v| v.as_str()).unwrap_or("");
     if new_plan.is_empty() {
         return Err(AppError::BadRequest("plan is required".into()));
@@ -235,6 +268,7 @@ pub async fn cancel_subscription(
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsWrite)?;
+    ensure_subscription_owner(&state.pool, &auth, &id).await?;
     let affected = sqlx::query("UPDATE subscriptions SET status = 'cancelled' WHERE id = ? AND status = 'active'")
         .bind(&id).execute(&state.pool).await?;
     if affected.rows_affected() == 0 {
@@ -251,6 +285,7 @@ pub async fn renew_subscription(
     Json(payload): Json<Value>,
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsWrite)?;
+    ensure_subscription_owner(&state.pool, &auth, &id).await?;
     let new_expiry = payload.get("expires_at").and_then(|v| v.as_str()).unwrap_or("");
     if new_expiry.is_empty() {
         return Err(AppError::BadRequest("expires_at is required".into()));
@@ -324,10 +359,10 @@ pub async fn subscribe_me(
 
     let id = Uuid::new_v4().to_string();
     sqlx::query(
-        "INSERT INTO subscriptions (id, api_key_id, product_id, plan, rate_limit_rps, quota_daily, status) VALUES (?, ?, ?, ?, ?, ?, 'active')"
+        "INSERT INTO subscriptions (id, api_key_id, product_id, plan, rate_limit_rps, quota_daily, status, user_id) VALUES (?, ?, ?, ?, ?, ?, 'active', ?)"
     )
     .bind(&id).bind(api_key_id).bind(product_id).bind(plan)
-    .bind(rate_limit_rps).bind(quota_daily)
+    .bind(rate_limit_rps).bind(quota_daily).bind(&auth.subject)
     .execute(&state.pool).await?;
 
     spawn_audit_log(&state.pool, AuditEntry {
@@ -366,6 +401,7 @@ fn sub_row_to_json(r: &sqlx::mysql::MySqlRow) -> Value {
         "quota_daily": r.try_get::<Option<i32>,_>("quota_daily").ok().flatten(),
         "status": r.try_get::<String,_>("status").unwrap_or_default(),
         "expires_at": r.try_get::<Option<String>,_>("expires_at").ok().flatten(),
+        "user_id": r.try_get::<Option<String>,_>("user_id").ok().flatten(),
         "created_at": r.try_get::<String,_>("created_at").unwrap_or_default(),
     })
 }
@@ -375,4 +411,19 @@ fn try_append_str(set: &mut Vec<String>, binds: &mut Vec<String>, payload: &Valu
         set.push(format!("{} = ?", col));
         binds.push(v.to_string());
     }
+}
+
+async fn ensure_subscription_owner(pool: &sqlx::MySqlPool, auth: &AuthContext, sub_id: &str) -> Result<(), AppError> {
+    if is_admin(auth) {
+        return Ok(());
+    }
+    let owner: String = sqlx::query_scalar("SELECT user_id FROM subscriptions WHERE id = ?")
+        .bind(sub_id)
+        .fetch_optional(pool)
+        .await?
+        .unwrap_or_default();
+    if owner != auth.subject {
+        return Err(AppError::NotFound(format!("subscription {} not found", sub_id)));
+    }
+    Ok(())
 }

@@ -199,7 +199,6 @@ pub fn role_has_permission(role: Role, permission: Permission) -> bool {
                 | Permission::LlmRoute
                 | Permission::LlmManage
                 | Permission::ProductsRead
-                | Permission::ProductsWrite
                 | Permission::CircuitBreakersRead
                 | Permission::CircuitBreakersWrite
                 | Permission::ProtocolsRead
@@ -248,6 +247,10 @@ pub fn ensure_permission(auth: &AuthContext, permission: Permission) -> Result<(
             permission.as_str()
         )))
     }
+}
+
+pub fn is_admin(auth: &AuthContext) -> bool {
+    matches!(auth.role, Role::Admin)
 }
 
 pub fn resolve_actor(auth: &AuthContext, fallback_actor: Option<&str>) -> String {

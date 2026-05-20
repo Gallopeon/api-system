@@ -55,21 +55,40 @@ pub async fn list_products(
     let limit = params.limit.unwrap_or(50).min(200);
     let offset = params.offset.unwrap_or(0);
     let search = params.search.unwrap_or_default();
+    let admin = is_admin(&auth);
 
-    let (base_query, count_query, count_binds, base_binds) = if search.is_empty() {
+    let owner_filter = if admin { String::new() } else { "WHERE owner = ?".to_string() };
+    let owner_clause = if admin { String::new() } else { "AND owner = ?".to_string() };
+
+    let (base_query, count_query, count_binds, base_binds): (String, String, Vec<String>, Vec<String>) = if search.is_empty() {
         (
-            "SELECT id, name, description, rule_ids, status, tags, documentation_url, pricing_tiers, owner, created_at, updated_at FROM api_products ORDER BY created_at DESC LIMIT ? OFFSET ?".to_string(),
-            "SELECT COUNT(*) FROM api_products".to_string(),
-            vec![],
-            vec![limit.to_string(), offset.to_string()],
+            format!("SELECT id, name, description, rule_ids, status, tags, documentation_url, pricing_tiers, owner, created_at, updated_at FROM api_products {owner_filter} ORDER BY created_at DESC LIMIT ? OFFSET ?"),
+            format!("SELECT COUNT(*) FROM api_products {owner_filter}"),
+            if admin { vec![] } else { vec![auth.subject.clone()] },
+            {
+                let mut b: Vec<String> = if admin { vec![] } else { vec![auth.subject.clone()] };
+                b.push(limit.to_string());
+                b.push(offset.to_string());
+                b
+            },
         )
     } else {
         let like = format!("%{}%", search.replace('%', "\\%").replace('_', "\\_"));
         (
-            "SELECT id, name, description, rule_ids, status, tags, documentation_url, pricing_tiers, owner, created_at, updated_at FROM api_products WHERE name LIKE ? OR description LIKE ? ORDER BY created_at DESC LIMIT ? OFFSET ?".to_string(),
-            "SELECT COUNT(*) FROM api_products WHERE name LIKE ? OR description LIKE ?".to_string(),
-            vec![like.clone(), like.clone()],
-            vec![like.clone(), like, limit.to_string(), offset.to_string()],
+            format!("SELECT id, name, description, rule_ids, status, tags, documentation_url, pricing_tiers, owner, created_at, updated_at FROM api_products WHERE (name LIKE ? OR description LIKE ?) {owner_clause} ORDER BY created_at DESC LIMIT ? OFFSET ?"),
+            format!("SELECT COUNT(*) FROM api_products WHERE (name LIKE ? OR description LIKE ?) {owner_clause}"),
+            {
+                let mut b = vec![like.clone(), like.clone()];
+                if !admin { b.push(auth.subject.clone()); }
+                b
+            },
+            {
+                let mut b = vec![like.clone(), like];
+                if !admin { b.push(auth.subject.clone()); }
+                b.push(limit.to_string());
+                b.push(offset.to_string());
+                b
+            },
         )
     };
 
@@ -135,6 +154,14 @@ pub async fn get_product(
     .bind(&id).fetch_optional(&state.pool).await?
     .ok_or_else(|| AppError::NotFound(format!("product {} not found", id)))?;
 
+    // Non-admin users can only access their own products
+    if !is_admin(&auth) {
+        let owner: String = row.try_get("owner").unwrap_or_default();
+        if owner != auth.subject {
+            return Err(AppError::NotFound(format!("product {} not found", id)));
+        }
+    }
+
     let mut val = product_row_to_json(&row);
     if let Some(obj) = val.as_object_mut() {
         let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM subscriptions WHERE product_id = ?")
@@ -155,6 +182,17 @@ pub async fn update_product(
     Json(payload): Json<Value>,
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsWrite)?;
+
+    // Non-admin users can only update their own products
+    if !is_admin(&auth) {
+        let owner: String = sqlx::query_scalar("SELECT owner FROM api_products WHERE id = ?")
+            .bind(&id).fetch_optional(&state.pool).await?
+            .unwrap_or_default();
+        if owner != auth.subject {
+            return Err(AppError::NotFound(format!("product {} not found", id)));
+        }
+    }
+
     let mut set_clauses: Vec<String> = Vec::new();
     let mut bind_values: Vec<String> = Vec::new();
 
@@ -196,6 +234,17 @@ pub async fn delete_product(
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsWrite)?;
+
+    // Non-admin users can only delete their own products
+    if !is_admin(&auth) {
+        let owner: String = sqlx::query_scalar("SELECT owner FROM api_products WHERE id = ?")
+            .bind(&id).fetch_optional(&state.pool).await?
+            .unwrap_or_default();
+        if owner != auth.subject {
+            return Err(AppError::NotFound(format!("product {} not found", id)));
+        }
+    }
+
     sqlx::query("UPDATE subscriptions SET status = 'cancelled' WHERE product_id = ? AND status = 'active'")
         .bind(&id).execute(&state.pool).await?;
     sqlx::query("DELETE FROM api_products WHERE id = ?").bind(&id).execute(&state.pool).await?;
@@ -211,10 +260,17 @@ pub async fn list_product_subscriptions(
     Path(product_id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsRead)?;
-    let rows = sqlx::query(
-        "SELECT s.id, s.api_key_id, s.product_id, s.plan, s.rate_limit_rps, s.quota_daily, s.status, s.expires_at, s.created_at FROM subscriptions s WHERE s.product_id = ? ORDER BY s.created_at DESC"
-    )
-    .bind(&product_id).fetch_all(&state.pool).await?;
+    let rows = if is_admin(&auth) {
+        sqlx::query(
+            "SELECT s.id, s.api_key_id, s.product_id, s.plan, s.rate_limit_rps, s.quota_daily, s.status, s.expires_at, s.created_at, s.user_id FROM subscriptions s WHERE s.product_id = ? ORDER BY s.created_at DESC"
+        )
+        .bind(&product_id).fetch_all(&state.pool).await?
+    } else {
+        sqlx::query(
+            "SELECT s.id, s.api_key_id, s.product_id, s.plan, s.rate_limit_rps, s.quota_daily, s.status, s.expires_at, s.created_at, s.user_id FROM subscriptions s WHERE s.product_id = ? AND s.user_id = ? ORDER BY s.created_at DESC"
+        )
+        .bind(&product_id).bind(&auth.subject).fetch_all(&state.pool).await?
+    };
     let items: Vec<Value> = rows.iter().map(|r| sub_row_to_json(r)).collect();
     Ok(Json(json!({"product_id": product_id, "items": items})))
 }
@@ -278,6 +334,7 @@ fn sub_row_to_json(r: &sqlx::mysql::MySqlRow) -> Value {
         "quota_daily": r.try_get::<Option<i32>, _>("quota_daily").ok().flatten(),
         "status": r.try_get::<String, _>("status").unwrap_or_default(),
         "expires_at": r.try_get::<Option<String>, _>("expires_at").ok().flatten(),
+        "user_id": r.try_get::<Option<String>, _>("user_id").ok().flatten(),
         "created_at": r.try_get::<String, _>("created_at").unwrap_or_default(),
     })
 }

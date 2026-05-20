@@ -87,7 +87,6 @@ function rolePermissions(role: Role): Set<Permission> {
         PERMISSIONS.LlmRoute,
         PERMISSIONS.LlmManage,
         PERMISSIONS.ProductsRead,
-        PERMISSIONS.ProductsWrite,
         PERMISSIONS.CircuitBreakersRead,
         PERMISSIONS.CircuitBreakersWrite,
         PERMISSIONS.ProtocolsRead,

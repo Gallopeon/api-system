@@ -482,7 +482,7 @@ When adding new transform/validation/expression logic, add it to the appropriate
 |------|-------------|
 | **Admin** | All 31 permissions (full CRUD, user management, system settings) |
 | **Reviewer** | Read all, publish rules, review approvals, manage LLM, view user directory (`user:read`), self-profile (`user:self`). Cannot write rules or manage users. |
-| **Editor** | Read all, write rules/API keys/rate limits/products/circuit breakers/protocols/classifications/plugins, transform, view user directory (`user:read`), self-profile (`user:self`). Cannot publish, approve, or manage users. |
+| **Editor** | Read all, write rules/API keys/rate limits/circuit breakers/protocols/classifications/plugins, transform, view user directory (`user:read`), self-profile (`user:self`). Cannot publish, approve, manage users, or write products. |
 | **Viewer** | Read-only: rules, API keys, rate limits, approvals, metrics, audit, products, circuit breakers, LLM routing, view user directory (`user:read`), self-profile (`user:self`). Cannot write, publish, or approve. |
 
 **New permission**: `UserRead` (`user:read`) — allows viewing the user directory without the ability to create, edit, or delete users. This separates "seeing who is on the team" from "managing accounts". All authenticated roles now have `UserRead`; only Admin has `UserManage`.

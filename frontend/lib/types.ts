@@ -275,6 +275,7 @@ export type Subscription = {
   quota_daily: number | null;
   status: string;
   expires_at: string | null;
+  user_id?: string | null;
   created_at: string;
 };
 
