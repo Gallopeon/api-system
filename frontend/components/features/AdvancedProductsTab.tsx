@@ -157,26 +157,6 @@ export default function AdvancedProductsTab(props: Props) {
     return prices.length ? Math.max(...prices) : null;
   };
 
-  const FormFields = ({ isEdit }: { isEdit: boolean }) => {
-    const nm = isEdit ? eName : name; const setNm = isEdit ? setEName : setName;
-    const dc = isEdit ? eDesc : desc; const setDc = isEdit ? setEDesc : setDesc;
-    const st = isEdit ? eStatus : status; const setSt = isEdit ? setEStatus : setStatus;
-    const du = isEdit ? eDocUrl : docUrl; const setDu = isEdit ? setEDocUrl : setDocUrl;
-    const selTags = isEdit ? eSelectedTags : selectedTags; const setSelTags = isEdit ? setESelectedTags : setSelectedTags;
-    const tagInp = isEdit ? eTagInput : tagInput; const setTagInp = isEdit ? setETagInput : setTagInput;
-    const selRules = isEdit ? eSelectedRuleIds : selectedRuleIds; const setSelRules = isEdit ? setESelectedRuleIds : setSelectedRuleIds;
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div><label className={labelClass}>{t("Product Name", "产品名称")} <span className="text-red-500">*</span></label><input className={inputClass} value={nm} onChange={e => setNm(e.target.value)} placeholder={t("e.g. Enterprise Plan", "例如：企业版套餐")} /></div>
-        <div><label className={labelClass}>{t("Status", "状态")}</label><StatusMenu current={st} onChange={setSt} t={t} /></div>
-        <div><label className={labelClass}>{t("Documentation URL", "文档链接")}</label><div className="relative"><BookOpen className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-400" /><input className={`${inputClass} pl-8`} value={du} onChange={e => setDu(e.target.value)} placeholder="https://docs.example.com" /></div></div>
-        <div><label className={labelClass}>{t("Associated Rules", "关联规则")}</label><RuleSelector rules={rules} selected={selRules} onChange={setSelRules} t={t} />{selRules.length > 0 && <div className="mt-1.5 text-[10px] text-gray-400">{selRules.length} {t("rules selected", "条规则已选")}</div>}</div>
-        <div className="md:col-span-2"><label className={labelClass}>{t("Description", "描述")}</label><textarea className={inputClass} rows={2} value={dc} onChange={e => setDc(e.target.value)} placeholder={t("Product description...", "产品描述...")} /></div>
-        <div className="md:col-span-2"><label className={labelClass}>{t("Tags", "标签")}</label><div className="flex gap-2"><input className={inputClass} value={tagInp} onChange={e => setTagInp(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addTag(tagInp, setSelTags, selTags); setTagInp(""); } }} placeholder={t("Type tag and press Enter", "输入标签按回车")} /><button type="button" onClick={() => { addTag(tagInp, setSelTags, selTags); setTagInp(""); }} className="shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/40 transition whitespace-nowrap"><Plus className="w-3 h-3" />{t("Add", "添加")}</button></div><TagChips tags={selTags} onRemove={(tg: string) => removeTag(tg, setSelTags, selTags)} /></div>
-      </div>
-    );
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
@@ -193,7 +173,14 @@ export default function AdvancedProductsTab(props: Props) {
       {canWrite && showForm && (
         <div className={`${cardClass} space-y-4 border-l-4 border-l-blue-500`}>
           <h3 className="font-bold flex items-center gap-2"><Package className="w-4 h-4 text-blue-500" />{t("Create Product", "创建产品")}</h3>
-          <FormFields isEdit={false} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><label className={labelClass}>{t("Product Name", "产品名称")} <span className="text-red-500">*</span></label><input className={inputClass} value={name} onChange={e => setName(e.target.value)} placeholder={t("e.g. Enterprise Plan", "例如：企业版套餐")} /></div>
+            <div><label className={labelClass}>{t("Status", "状态")}</label><StatusMenu current={status} onChange={setStatus} t={t} /></div>
+            <div><label className={labelClass}>{t("Documentation URL", "文档链接")}</label><div className="relative"><BookOpen className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-400" /><input className={`${inputClass} pl-8`} value={docUrl} onChange={e => setDocUrl(e.target.value)} placeholder="https://docs.example.com" /></div></div>
+            <div><label className={labelClass}>{t("Associated Rules", "关联规则")}</label><RuleSelector rules={rules} selected={selectedRuleIds} onChange={setSelectedRuleIds} t={t} />{selectedRuleIds.length > 0 && <div className="mt-1.5 text-[10px] text-gray-400">{selectedRuleIds.length} {t("rules selected", "条规则已选")}</div>}</div>
+            <div className="md:col-span-2"><label className={labelClass}>{t("Description", "描述")}</label><textarea className={inputClass} rows={2} value={desc} onChange={e => setDesc(e.target.value)} placeholder={t("Product description...", "产品描述...")} /></div>
+            <div className="md:col-span-2"><label className={labelClass}>{t("Tags", "标签")}</label><div className="flex gap-2"><input className={inputClass} value={tagInput} onChange={e => setTagInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addTag(tagInput, setSelectedTags, selectedTags); setTagInput(""); } }} placeholder={t("Type tag and press Enter", "输入标签按回车")} /><button type="button" onClick={() => { addTag(tagInput, setSelectedTags, selectedTags); setTagInput(""); }} className="shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/40 transition whitespace-nowrap"><Plus className="w-3 h-3" />{t("Add", "添加")}</button></div><TagChips tags={selectedTags} onRemove={(tg: string) => removeTag(tg, setSelectedTags, selectedTags)} /></div>
+          </div>
           <PricingTierEditor tiers={tiers} onUpdate={setTiers} t={t} />
           <div className="flex gap-2"><button className={btnPrimary} onClick={handleCreate} disabled={busy}>{busy ? t("Creating…", "创建中…") : t("Save Product", "保存产品")}</button><button className={btnSecondary} onClick={() => setShowForm(false)}>{t("Cancel", "取消")}</button></div>
         </div>
@@ -202,7 +189,14 @@ export default function AdvancedProductsTab(props: Props) {
       {editId && (
         <div className={`${cardClass} space-y-4 border-l-4 border-l-amber-500`}>
           <h3 className="font-bold flex items-center gap-2"><Edit3 className="w-4 h-4 text-amber-500" />{t("Edit Product", "编辑产品")}</h3>
-          <FormFields isEdit={true} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><label className={labelClass}>{t("Product Name", "产品名称")} <span className="text-red-500">*</span></label><input className={inputClass} value={eName} onChange={e => setEName(e.target.value)} placeholder={t("e.g. Enterprise Plan", "例如：企业版套餐")} /></div>
+            <div><label className={labelClass}>{t("Status", "状态")}</label><StatusMenu current={eStatus} onChange={setEStatus} t={t} /></div>
+            <div><label className={labelClass}>{t("Documentation URL", "文档链接")}</label><div className="relative"><BookOpen className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-400" /><input className={`${inputClass} pl-8`} value={eDocUrl} onChange={e => setEDocUrl(e.target.value)} placeholder="https://docs.example.com" /></div></div>
+            <div><label className={labelClass}>{t("Associated Rules", "关联规则")}</label><RuleSelector rules={rules} selected={eSelectedRuleIds} onChange={setESelectedRuleIds} t={t} />{eSelectedRuleIds.length > 0 && <div className="mt-1.5 text-[10px] text-gray-400">{eSelectedRuleIds.length} {t("rules selected", "条规则已选")}</div>}</div>
+            <div className="md:col-span-2"><label className={labelClass}>{t("Description", "描述")}</label><textarea className={inputClass} rows={2} value={eDesc} onChange={e => setEDesc(e.target.value)} placeholder={t("Product description...", "产品描述...")} /></div>
+            <div className="md:col-span-2"><label className={labelClass}>{t("Tags", "标签")}</label><div className="flex gap-2"><input className={inputClass} value={eTagInput} onChange={e => setETagInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addTag(eTagInput, setESelectedTags, eSelectedTags); setETagInput(""); } }} placeholder={t("Type tag and press Enter", "输入标签按回车")} /><button type="button" onClick={() => { addTag(eTagInput, setESelectedTags, eSelectedTags); setETagInput(""); }} className="shrink-0 inline-flex items-center gap-1 px-3 py-2 rounded-lg text-xs font-medium bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100 hover:border-blue-300 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800 dark:hover:bg-blue-900/40 transition whitespace-nowrap"><Plus className="w-3 h-3" />{t("Add", "添加")}</button></div><TagChips tags={eSelectedTags} onRemove={(tg: string) => removeTag(tg, setESelectedTags, eSelectedTags)} /></div>
+          </div>
           <PricingTierEditor tiers={eTiers} onUpdate={setETiers} t={t} />
           <div className="flex gap-2"><button className={btnPrimary} onClick={saveEdit} disabled={busy}><Check className="w-4 h-4 mr-1" />{t("Save Changes", "保存更改")}</button><button className={btnSecondary} onClick={() => setEditId(null)}><X className="w-4 h-4 mr-1" />{t("Cancel", "取消")}</button></div>
         </div>
