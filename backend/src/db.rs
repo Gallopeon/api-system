@@ -154,22 +154,6 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
         KEY idx_sub_key (api_key_id), KEY idx_sub_product (product_id), KEY idx_sub_user (user_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
 
-    // If old subscriptions table lacks user_id column, drop and recreate
-    let has_sub_user: i64 = sqlx::query_scalar(
-        "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'subscriptions' AND COLUMN_NAME = 'user_id'"
-    ).fetch_one(pool).await.unwrap_or(0);
-    if has_sub_user == 0 {
-        sqlx::query("DROP TABLE IF EXISTS subscriptions").execute(pool).await?;
-        sqlx::query(r#"CREATE TABLE IF NOT EXISTS subscriptions (
-            id VARCHAR(36) PRIMARY KEY, api_key_id VARCHAR(36) NOT NULL, product_id VARCHAR(36) NOT NULL,
-            plan VARCHAR(32) NOT NULL DEFAULT 'free', rate_limit_rps INT NULL, quota_daily INT NULL,
-            status VARCHAR(32) NOT NULL DEFAULT 'active', expires_at TIMESTAMP NULL,
-            user_id VARCHAR(64) NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            KEY idx_sub_key (api_key_id), KEY idx_sub_product (product_id), KEY idx_sub_user (user_id)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
-    }
-
     sqlx::query(r#"CREATE TABLE IF NOT EXISTS circuit_breakers (
         id VARCHAR(36) PRIMARY KEY, api_path VARCHAR(255) NOT NULL UNIQUE,
         failure_threshold INT NOT NULL DEFAULT 5, recovery_timeout_sec INT NOT NULL DEFAULT 30,
