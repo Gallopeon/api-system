@@ -35,7 +35,7 @@ const statusBadge = (s: string, t: Props["t"]) => (
   </span>
 );
 const th = (t: string) => <th className="px-4 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t}</th>;
-const td = (c: React.ReactNode, cls = "") => <td className={`px-4 py-3 ${cls}`}>{c}</td>;
+const td = (c: React.ReactNode, cls = "", label?: string) => <td className={`px-4 py-3 ${cls}`} data-label={label}>{c}</td>;
 
 export default function AdvancedPluginsTab({ plugins, busy, createPlugin, updatePlugin, deletePlugin, canWrite, notifyError, t }: Props) {
   const [show, setShow] = useState(false);

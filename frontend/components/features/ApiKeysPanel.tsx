@@ -280,7 +280,7 @@ export default function ApiKeysPanel({
             <h3 className="font-bold text-sm text-gray-700 dark:text-gray-300">{t("API Keys", "API 密钥列表")} <span className="text-gray-400 font-normal">({apiKeys.length})</span></h3>
           </div>
           <div className="overflow-x-auto">
-            <table className="w-full text-sm text-left">
+            <table className="w-full text-sm text-left resp-table">
               <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800 text-gray-500 text-xs uppercase tracking-wider">
                 <tr>
                   <th className="px-5 py-3 font-medium">{t("Name / Prefix", "名称 / 前缀")}</th>
@@ -296,17 +296,17 @@ export default function ApiKeysPanel({
                   const dot = `w-1.5 h-1.5 rounded-full ${act ? "bg-green-500" : rev ? "bg-red-500" : "bg-yellow-500"}`;
                   return (
                     <tr key={k.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition group">
-                      <td className="px-5 py-3.5">
+                      <td className="px-5 py-3.5" data-label={t("Name / Prefix", "名称 / 前缀")}>
                         <div className="font-semibold text-gray-900 dark:text-gray-100">{k.name}</div>
                         <div className="text-xs text-gray-400 font-mono mt-0.5">{k.key_prefix}***</div>
                       </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-5 py-3.5" data-label={t("Status", "状态")}>
                         <span className={badge}>
                           <span className={dot} />
                           {act ? t("Active", "活跃") : rev ? t("Revoked", "已吊销") : t("Disabled", "已禁用")}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="px-5 py-3.5 text-right" data-label={t("Actions", "操作")}>
                         {canWrite ? (
                         <div className="flex items-center justify-end gap-1.5 opacity-70 group-hover:opacity-100 transition">
                           <button onClick={() => onToggleApiKey(k.id, k.status)} className={`p-2 rounded-lg transition ${act ? "text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20" : "text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"}`} title={act ? t("Disable", "禁用") : t("Enable", "启用")}>

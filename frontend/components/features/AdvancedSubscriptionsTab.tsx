@@ -59,7 +59,7 @@ const statusBadge = (s: string, t: Props["t"]) => {
 };
 
 const th = (t: string) => <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">{t}</th>;
-const td = (c: React.ReactNode, cls = "") => <td className={`px-3 py-3 ${cls}`}>{c}</td>;
+const td = (c: React.ReactNode, cls = "", label?: string) => <td className={`px-3 py-3 ${cls}`} data-label={label}>{c}</td>;
 
 export default function AdvancedSubscriptionsTab(props: Props) {
   const { subscriptions, busy, apiKeys, productsList, usageMap, loadSubscriptions, loadApiKeys, loadProductsList, createSubscription, updateSubscription, upgradeSubscription, cancelSubscription, renewSubscription, getSubscriptionUsage, deleteSubscription, canWrite, notifyError, t } = props;
@@ -215,7 +215,7 @@ export default function AdvancedSubscriptionsTab(props: Props) {
         <div className={`${cardClass} text-center py-10 text-gray-400`}><RefreshCw className="w-10 h-10 mx-auto mb-3 opacity-40" /><p className="text-sm">{t("No items found", "暂无数据")}</p></div>
       ) : (
         <div className={`${cardClass} p-0 overflow-x-auto`}>
-          <table className="w-full text-sm">
+          <table className="w-full text-sm resp-table">
             <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800">
               <tr>{[t("API Key", "API Key"), t("Product", "产品"), t("Plan", "套餐"), t("Rate/QoS", "速率/配额"), t("Usage", "用量"), t("Expires", "过期"), t("Status", "状态"), ...(canWrite ? [t("Actions", "操作")] : [])].map(h => th(h))}</tr>
             </thead>
@@ -224,24 +224,24 @@ export default function AdvancedSubscriptionsTab(props: Props) {
                 <tr key={s.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition">
                   {editId === s.id ? (
                     <>
-                      {td(<span className="font-mono text-xs text-gray-600">{getKeyName(s.api_key_id)}</span>)}
-                      {td(<span className="text-xs text-gray-600">{getProductName(s.product_id)}</span>)}
-                      {td(<SubscriptionPlanSelect value={ePlan} onChange={setEPlan} tiers={editTiers} t={t} />)}
-                      {td(<div className="flex gap-1"><input className={inputClass} type="number" value={eRps} onChange={e => setERps(e.target.value)} placeholder="RPS" style={{ width: 70 }} /><input className={inputClass} type="number" value={eQuota} onChange={e => setEQuota(e.target.value)} placeholder="Qty" style={{ width: 70 }} /></div>)}
-                      {td(<span className="text-xs">—</span>)}
-                      {td(<input className={inputClass} type="date" value={eExpiry} onChange={e => setEExpiry(e.target.value)} />)}
-                      {td(statusBadge(s.status, t))}
-                      {td(<div className="flex gap-1"><button className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg" onClick={saveEdit}><Check className="w-3.5 h-3.5" /></button><button className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" onClick={() => setEditId(null)}><X className="w-3.5 h-3.5" /></button></div>)}
+                      {td(<span className="font-mono text-xs text-gray-600">{getKeyName(s.api_key_id)}</span>, "", t("API Key", "API Key"))}
+                      {td(<span className="text-xs text-gray-600">{getProductName(s.product_id)}</span>, "", t("Product", "产品"))}
+                      {td(<SubscriptionPlanSelect value={ePlan} onChange={setEPlan} tiers={editTiers} t={t} />, "", t("Plan", "套餐"))}
+                      {td(<div className="flex gap-1"><input className={inputClass} type="number" value={eRps} onChange={e => setERps(e.target.value)} placeholder="RPS" style={{ width: 70 }} /><input className={inputClass} type="number" value={eQuota} onChange={e => setEQuota(e.target.value)} placeholder="Qty" style={{ width: 70 }} /></div>, "", t("Rate/QoS", "速率/配额"))}
+                      {td(<span className="text-xs">—</span>, "", t("Usage", "用量"))}
+                      {td(<input className={inputClass} type="date" value={eExpiry} onChange={e => setEExpiry(e.target.value)} />, "", t("Expires", "过期"))}
+                      {td(statusBadge(s.status, t), "", t("Status", "状态"))}
+                      {td(<div className="flex gap-1"><button className="p-1.5 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20 rounded-lg" onClick={saveEdit}><Check className="w-3.5 h-3.5" /></button><button className="p-1.5 text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg" onClick={() => setEditId(null)}><X className="w-3.5 h-3.5" /></button></div>, "", t("Actions", "操作"))}
                     </>
                   ) : (
                     <>
-                      {td(<span className="font-mono text-xs text-gray-600 dark:text-gray-400" title={s.api_key_id}>{getKeyName(s.api_key_id)}</span>)}
-                      {td(<span className="text-xs font-medium text-gray-700 dark:text-gray-300">{getProductName(s.product_id)}</span>)}
-                      {td(<span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold capitalize ${tierBadge(s.plan, parseTiers(productsList.find(p => p.id === s.product_id)))}`}>{s.plan}</span>)}
-                      {td(<div className="flex flex-col gap-0.5 text-[10px] text-gray-500">{s.rate_limit_rps ? <span>{t("RPS", "速率")}: {s.rate_limit_rps}</span> : null}{s.quota_daily ? <span>{t("Qty", "配额")}: {s.quota_daily.toLocaleString()}/day</span> : null}{!s.rate_limit_rps && !s.quota_daily && <span className="text-gray-400">—</span>}</div>)}
-                      {td(renderUsage(s))}
-                      {td(<span className={`text-xs ${s.expires_at && new Date(s.expires_at) < new Date() ? "text-red-500 font-medium" : "text-gray-500"}`}>{s.expires_at ? new Date(s.expires_at).toLocaleDateString() : <span className="text-gray-400">{t("Never", "无限制")}</span>}</span>)}
-                      {td(statusBadge(s.status, t))}
+                      {td(<span className="font-mono text-xs text-gray-600 dark:text-gray-400" title={s.api_key_id}>{getKeyName(s.api_key_id)}</span>, "", t("API Key", "API Key"))}
+                      {td(<span className="text-xs font-medium text-gray-700 dark:text-gray-300">{getProductName(s.product_id)}</span>, "", t("Product", "产品"))}
+                      {td(<span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold capitalize ${tierBadge(s.plan, parseTiers(productsList.find(p => p.id === s.product_id)))}`}>{s.plan}</span>, "", t("Plan", "套餐"))}
+                      {td(<div className="flex flex-col gap-0.5 text-[10px] text-gray-500">{s.rate_limit_rps ? <span>{t("RPS", "速率")}: {s.rate_limit_rps}</span> : null}{s.quota_daily ? <span>{t("Qty", "配额")}: {s.quota_daily.toLocaleString()}/day</span> : null}{!s.rate_limit_rps && !s.quota_daily && <span className="text-gray-400">—</span>}</div>, "", t("Rate/QoS", "速率/配额"))}
+                      {td(renderUsage(s), "", t("Usage", "用量"))}
+                      {td(<span className={`text-xs ${s.expires_at && new Date(s.expires_at) < new Date() ? "text-red-500 font-medium" : "text-gray-500"}`}>{s.expires_at ? new Date(s.expires_at).toLocaleDateString() : <span className="text-gray-400">{t("Never", "无限制")}</span>}</span>, "", t("Expires", "过期"))}
+                      {td(statusBadge(s.status, t), "", t("Status", "状态"))}
                       {canWrite && td(
                         <div className="flex items-center gap-0.5">
                           <button className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => getSubscriptionUsage(s.id)} title={t("Check Usage", "查看用量")}><BarChart3 className="w-3.5 h-3.5" /></button>
@@ -265,7 +265,7 @@ export default function AdvancedSubscriptionsTab(props: Props) {
                             </>
                           )}
                           <button className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" onClick={() => deleteSubscription(s.id)} disabled={busy} title={t("Delete", "删除")}><Trash2 className="w-3.5 h-3.5" /></button>
-                        </div>
+                        </div>, "", t("Actions", "操作")
                       )}
                     </>
                   )}
