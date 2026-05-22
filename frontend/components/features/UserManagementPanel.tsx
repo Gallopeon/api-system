@@ -61,13 +61,13 @@ export default function UserManagementPanel({
   };
 
   return (
-    <div className="max-w-5xl mx-auto space-y-6 animate-in fade-in zoom-in-95 duration-300">
-      <div className="flex justify-between items-end">
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight mb-2">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2">
             {t("User Management", "用户管理")}
           </h1>
-          <p className="text-gray-500">
+          <p className="text-gray-500 dark:text-gray-400 text-sm">
             {t("Manage users, roles, and access control.", "管理用户、角色和访问控制。")}
           </p>
         </div>
@@ -108,7 +108,7 @@ export default function UserManagementPanel({
               </select>
             </div>
           </div>
-          <div className="flex space-x-2 mt-4">
+          <div className="flex gap-2 mt-4">
             <button onClick={handleCreate} disabled={usersHook.busy} className={btnPrimary}>
               {t("Create", "创建")}
             </button>
@@ -147,7 +147,7 @@ export default function UserManagementPanel({
 
       {/* User Table */}
       <div className={`${cardClass} overflow-x-auto`}>
-        <table className="w-full text-sm">
+        <table className="w-full text-sm resp-table">
           <thead>
             <tr className="border-b border-gray-200 dark:border-gray-700 text-left">
               <th className="py-3 pr-4 font-medium text-gray-500">{t("User", "用户")}</th>
@@ -162,7 +162,7 @@ export default function UserManagementPanel({
             {usersHook.users.map((u) =>
               usersHook.editUserId === u.id ? (
                 <tr key={u.id} className="border-b border-gray-100 dark:border-gray-800 bg-blue-50/30 dark:bg-blue-900/10">
-                  <td className="py-3 pr-4">
+                  <td className="py-3 pr-4" data-label={t("User", "用户")}>
                     <div className="flex items-center space-x-2">
                       {u.avatar_url ? (
                         <Image src={u.avatar_url} width={32} height={32} className="w-8 h-8 rounded-full" alt="" unoptimized />
@@ -180,25 +180,25 @@ export default function UserManagementPanel({
                       placeholder={t("Display name", "显示名称")}
                     />
                   </td>
-                  <td className="py-3 pr-4 text-gray-500">{u.email || "—"}</td>
-                  <td className="py-3 pr-4">
+                  <td className="py-3 pr-4 text-gray-500" data-label={t("Email", "邮箱")}>{u.email || "—"}</td>
+                  <td className="py-3 pr-4" data-label={t("Role", "角色")}>
                     <select className={`${inputClass} text-xs py-1`} value={usersHook.editRole} onChange={(e) => usersHook.setEditRole(e.target.value)}>
                       {ROLES.map((r) => (
                         <option key={r} value={r}>{roleLabel(r)}</option>
                       ))}
                     </select>
                   </td>
-                  <td className="py-3 pr-4">
+                  <td className="py-3 pr-4" data-label={t("Status", "状态")}>
                     <select className={`${inputClass} text-xs py-1`} value={usersHook.editStatus} onChange={(e) => usersHook.setEditStatus(e.target.value)}>
                       {STATUSES.map((s) => (
                         <option key={s} value={s}>{s === "active" ? t("Active", "活跃") : t("Disabled", "禁用")}</option>
                       ))}
                     </select>
                   </td>
-                  <td className="py-3 pr-4 text-gray-500 text-xs">
+                  <td className="py-3 pr-4 text-gray-500 text-xs" data-label={t("Last Login", "最后登录")}>
                     {u.last_login_at ? new Date(u.last_login_at).toLocaleString() : t("Never", "从未")}
                   </td>
-                  <td className="py-3">
+                  <td className="py-3" data-label={t("Actions", "操作")}>
                     <div className="flex space-x-1">
                       {canManage && (
                         <button onClick={() => usersHook.updateUser(u.id)} disabled={usersHook.busy} className="text-xs text-blue-600 hover:text-blue-800 font-medium px-2 py-1">
@@ -213,7 +213,7 @@ export default function UserManagementPanel({
                 </tr>
               ) : (
                 <tr key={u.id} className="border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50">
-                  <td className="py-3 pr-4">
+                  <td className="py-3 pr-4" data-label={t("User", "用户")}>
                     <div className="flex items-center space-x-2">
                       {u.avatar_url ? (
                         <Image src={u.avatar_url} width={32} height={32} className="w-8 h-8 rounded-full" alt="" unoptimized />
@@ -230,8 +230,8 @@ export default function UserManagementPanel({
                       </div>
                     </div>
                   </td>
-                  <td className="py-3 pr-4 text-gray-500">{u.email || "—"}</td>
-                  <td className="py-3 pr-4">
+                  <td className="py-3 pr-4 text-gray-500" data-label={t("Email", "邮箱")}>{u.email || "—"}</td>
+                  <td className="py-3 pr-4" data-label={t("Role", "角色")}>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                       u.role === "admin"
                         ? "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300"
@@ -242,7 +242,7 @@ export default function UserManagementPanel({
                       {roleLabel(u.role)}
                     </span>
                   </td>
-                  <td className="py-3 pr-4">
+                  <td className="py-3 pr-4" data-label={t("Status", "状态")}>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                       u.status === "active"
                         ? "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300"
@@ -251,10 +251,10 @@ export default function UserManagementPanel({
                       {u.status === "active" ? t("Active", "活跃") : t("Disabled", "禁用")}
                     </span>
                   </td>
-                  <td className="py-3 pr-4 text-gray-500 text-xs">
+                  <td className="py-3 pr-4 text-gray-500 text-xs" data-label={t("Last Login", "最后登录")}>
                     {u.last_login_at ? new Date(u.last_login_at).toLocaleString() : t("Never", "从未")}
                   </td>
-                  <td className="py-3">
+                  <td className="py-3" data-label={t("Actions", "操作")}>
                     {canManage && (
                       <div className="flex space-x-1">
                         <button onClick={() => startEdit(u)} className="text-blue-500 hover:text-blue-700 p-1" title={t("Edit", "编辑") as string}>
