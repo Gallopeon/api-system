@@ -12,7 +12,7 @@ interface NavbarProps {
   userName: string;
   onSignOut: () => void;
   onToggleSidebar: () => void;
-  onNavigateToUserCenter: () => void;
+  onMenuSelect: (menu: string) => void;
   t: <T>(en: T, zh: T) => T;
 }
 
@@ -41,7 +41,7 @@ export default function Navbar({
   userName,
   onSignOut,
   onToggleSidebar,
-  onNavigateToUserCenter,
+  onMenuSelect,
   t,
 }: NavbarProps) {
   return (
@@ -126,7 +126,7 @@ export default function Navbar({
         </button>
 
         <button
-          onClick={onNavigateToUserCenter}
+          onClick={() => onMenuSelect("user-center")}
           className="hidden sm:inline-flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-full bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 hover:bg-gray-200 dark:hover:bg-zinc-700 hover:border-gray-300 dark:hover:border-zinc-600 transition-all shadow-sm text-xs lg:text-sm font-medium whitespace-nowrap group"
           title={t("User Center", "用户中心")}
         >

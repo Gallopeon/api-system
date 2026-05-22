@@ -174,7 +174,7 @@ export default function APIControlCenter() {
         userName={session?.user?.name || ""}
         onSignOut={() => signOut()}
         onToggleSidebar={toggleSidebar}
-        onNavigateToUserCenter={() => { setActiveMenu("user-center"); closeSidebar(); }}
+        onMenuSelect={setActiveMenu}
         t={t}
       />
 
@@ -426,6 +426,7 @@ export default function APIControlCenter() {
 
           {activeMenu === "user-center" && (
             <UserCenterPanel
+              accessToken={(session as any)?.accessToken}
               notifyError={notifyError}
               notifySucc={notifySucc}
               t={t}
