@@ -16,7 +16,7 @@ export default function UserLoginHistoryTab({ loginHistory, t }: Props) {
         <p className="text-gray-400">{t("No login history", "无登录记录")}</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm resp-table">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700 text-left">
                 <th className="py-2 pr-4 font-medium text-gray-500">{t("Time", "时间")}</th>
@@ -32,11 +32,11 @@ export default function UserLoginHistoryTab({ loginHistory, t }: Props) {
 
                 return (
                 <tr key={h.id} className="border-b border-gray-100 dark:border-gray-800">
-                  <td className="py-2 pr-4 text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                  <td className="py-2 pr-4 text-gray-600 dark:text-gray-400 whitespace-nowrap" data-label={t("Time", "时间")}>
                     {dateString}
                   </td>
-                  <td className="py-2 pr-4">{h.username_attempt}</td>
-                  <td className="py-2 pr-4">
+                  <td className="py-2 pr-4" data-label={t("Username", "用户名")}>{h.username_attempt}</td>
+                  <td className="py-2 pr-4" data-label={t("Status", "状态")}>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                       h.success
                         ? "bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300"
@@ -45,7 +45,7 @@ export default function UserLoginHistoryTab({ loginHistory, t }: Props) {
                       {h.success ? t("Success", "成功") : t("Failed", "失败")}
                     </span>
                   </td>
-                  <td className="py-2 text-gray-500 text-xs">{h.failure_reason || "—"}</td>
+                  <td className="py-2 text-gray-500 text-xs" data-label={t("Reason", "原因")}>{h.failure_reason || "—"}</td>
                 </tr>
               )})}
             </tbody>
