@@ -62,10 +62,10 @@ export default function ApiBuilderPanel(props: ApiBuilderPanelProps) {
   } = props;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
+    <div className="max-w-6xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">{t("API Builder", "API 构建器")}</h1>
-        <p className="text-gray-500 mt-1">{t("No-code CRUD & data builder — create, edit, delete rules, and test with visual field entries.", "无代码 CRUD 与数据构建器 —— 创建、编辑、删除规则，并使用可视化字段条目进行测试。")}</p>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t("API Builder", "API 构建器")}</h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1.5 text-sm">{t("No-code CRUD & data builder — create, edit, delete rules, and test with visual field entries.", "无代码 CRUD 与数据构建器 —— 创建、编辑、删除规则，并使用可视化字段条目进行测试。")}</p>
       </div>
 
       <ApiBuilderPresetsBar abPresets={abPresets} loadAbPreset={loadAbPreset} deleteAbPreset={deleteAbPreset} t={t} />

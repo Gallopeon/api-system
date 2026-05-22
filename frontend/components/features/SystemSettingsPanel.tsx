@@ -86,13 +86,13 @@ export default function SystemSettingsPanel({
   const otherSettings = settings.filter(s => !s.key.startsWith("smtp_"));
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-in fade-in zoom-in-95 duration-300">
-      <div className="flex justify-between items-end">
+    <div className="max-w-4xl mx-auto space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight mb-2">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2">
             {t("System Settings", "系统设置")}
           </h1>
-          <p className="text-gray-500">
+          <p className="text-gray-500 dark:text-gray-400 text-sm">
             {t("Runtime configuration — changes take effect immediately.", "运行时配置 — 修改即时生效。")}
           </p>
         </div>
@@ -120,7 +120,7 @@ export default function SystemSettingsPanel({
           )}
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm resp-table">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700 text-left">
                 <th className="py-2 pr-4 font-medium text-gray-500">{t("Setting", "配置项")}</th>
@@ -143,7 +143,7 @@ export default function SystemSettingsPanel({
       <div className={cardClass}>
         <h2 className="text-lg font-semibold mb-3">{t("General Settings", "通用设置")}</h2>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-sm resp-table">
             <thead>
               <tr className="border-b border-gray-200 dark:border-gray-700 text-left">
                 <th className="py-2 pr-4 font-medium text-gray-500">{t("Setting", "配置项")}</th>
@@ -175,13 +175,13 @@ export default function SystemSettingsPanel({
 
     return (
       <tr key={s.key} className={`border-b border-gray-100 dark:border-gray-800 ${isEditing ? "bg-blue-50/30 dark:bg-blue-900/10" : "hover:bg-gray-50 dark:hover:bg-gray-800/50"}`}>
-        <td className="py-2.5 pr-4">
+        <td className="py-2.5 pr-4" data-label={t("Setting", "配置项")}>
           <div className="flex items-center space-x-2">
             <span className="font-medium text-xs">{displayName}</span>
             {!s.editable && <Lock className="w-3 h-3 text-gray-400" />}
           </div>
         </td>
-        <td className="py-2.5 pr-4">
+        <td className="py-2.5 pr-4" data-label={t("Value", "值")}>
           {isEditing ? (
             <input
               className={`${inputClass} py-1 text-xs`}
@@ -196,9 +196,9 @@ export default function SystemSettingsPanel({
             </code>
           )}
         </td>
-        <td className="py-2.5 pr-4 text-xs text-gray-500">{s.description || "—"}</td>
+        <td className="py-2.5 pr-4 text-xs text-gray-500" data-label={t("Description", "说明")}>{s.description || "—"}</td>
         {canWrite && (
-        <td className="py-2.5">
+        <td className="py-2.5" data-label={t("Actions", "操作")}>
           {!s.editable ? (
             <span className="text-xs text-gray-400">{t("Read-only", "只读")}</span>
           ) : isEditing ? (

@@ -63,10 +63,10 @@ export default function PortalPanel(props: PortalPanelProps) {
   const { t, portalTab, onPortalTabChange } = props;
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
+    <div className="max-w-6xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">{t("Developer Portal", "开发者门户")}</h1>
-        <p className="text-gray-500 mt-1">{t("Explore APIs, manage your apps, and monitor usage.", "探索 API、管理您的应用并监控使用情况。")}</p>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t("Developer Portal", "开发者门户")}</h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1.5 text-sm">{t("Explore APIs, manage your apps, and monitor usage.", "探索 API、管理您的应用并监控使用情况。")}</p>
       </div>
 
       <div className="flex gap-2 bg-white dark:bg-black/40 border border-gray-200 dark:border-gray-800 rounded-xl p-1.5 shadow-sm">
