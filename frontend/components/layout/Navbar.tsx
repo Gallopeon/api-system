@@ -1,6 +1,6 @@
 "use client";
 
-import { Network, LogOut, Menu, UserCircle } from "lucide-react";
+import { Network, LogOut, Menu, UserCircle, ChevronDown } from "lucide-react";
 import NotificationCenter from "@/components/features/NotificationCenter";
 
 interface NavbarProps {
@@ -127,11 +127,14 @@ export default function Navbar({
 
         <button
           onClick={onNavigateToUserCenter}
-          className="hidden sm:inline-flex items-center gap-1.5 text-xs lg:text-sm font-medium text-gray-600 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-2 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 whitespace-nowrap"
+          className="hidden sm:inline-flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-full bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 hover:bg-gray-200 dark:hover:bg-zinc-700 hover:border-gray-300 dark:hover:border-zinc-600 transition-all shadow-sm text-xs lg:text-sm font-medium whitespace-nowrap group"
           title={t("User Center", "用户中心")}
         >
-          <UserCircle className="w-4 h-4" />
-          <span className="max-w-[160px] truncate">{userName || t("Admin", "管理员")}</span>
+          <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
+            <UserCircle className="w-4 h-4 text-white" />
+          </div>
+          <span className="max-w-[140px] truncate text-gray-700 dark:text-zinc-200">{userName || t("Admin", "管理员")}</span>
+          <ChevronDown className="w-3.5 h-3.5 text-gray-400 group-hover:text-blue-500 transition-colors shrink-0" />
         </button>
 
         <NotificationCenter accessToken={accessToken} t={t} />
