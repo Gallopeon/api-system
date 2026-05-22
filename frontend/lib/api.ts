@@ -6,6 +6,15 @@
 // callers that still pass an accessToken — it is silently ignored since the
 // proxy handles authentication server-side.
 
+let _onAuthError: (() => void) | null = null;
+
+/** Register a callback invoked when any API call returns 401. Call from page.tsx. */
+export function setAuthErrorHandler(fn: (() => void) | null) {
+  _onAuthError = fn;
+}
+
+let _last401Time = 0;
+
 const inFlight = new Map<string, Promise<Response>>();
 
 /** GET response cache with TTL (default 30s). Invalidated on mutation. */
@@ -67,6 +76,16 @@ export async function apiFetch(
 
   const promise = fetch(endpoint(path), { ...init, headers }).then((r) => {
     inFlight.delete(key);
+    // Detect JWT expiry: backend returns 401 when token is invalid/expired
+    if (r.status === 401 && _onAuthError) {
+      const now = Date.now();
+      // Debounce: only trigger once per 2 seconds to avoid flood on parallel requests
+      if (now - _last401Time > 2000) {
+        _last401Time = now;
+        cache.clear();
+        _onAuthError();
+      }
+    }
     // Cache successful GET responses
     if (method === "GET" && r.ok) {
       // Only cache if the response is cloneable (not consumed)

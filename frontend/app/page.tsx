@@ -8,6 +8,7 @@ import LoginPage from "@/components/features/LoginPage";
 // ---- Foundation ----
 import { getDefaultExpiry } from "@/lib/utils";
 import { hasPermission, canAccessMenu, PERMISSIONS, type Role } from "@/lib/permissions";
+import { setAuthErrorHandler } from "@/lib/api";
 
 // ---- Hooks ----
 import { useNotification } from "@/hooks/useNotification";
@@ -120,6 +121,14 @@ export default function APIControlCenter() {
   const [expr, setExpr] = useState("vip == true");
   const [exprIn, setExprIn] = useState('{"vip": true}');
   const [exprOut, setExprOut] = useState("-");
+
+  // Register 401 handler: auto sign-out on JWT expiry
+  useEffect(() => {
+    setAuthErrorHandler(() => {
+      signOut({ redirect: false });
+    });
+    return () => setAuthErrorHandler(null);
+  }, []);
 
   // Guard against localStorage manipulation: reset to dashboard if menu is not accessible
   useEffect(() => {
