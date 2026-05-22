@@ -1,5 +1,5 @@
 "use client";
-import React, { createContext, useContext, useState, ReactNode, useEffect } from "react";
+import React, { createContext, useContext, useState, ReactNode, useEffect, useCallback, useMemo } from "react";
 
 type Lang = "en" | "zh";
 
@@ -12,17 +12,19 @@ export const I18nProvider = ({ children }: { children: ReactNode }) => {
   const [lang, setLang] = useState<Lang>("zh");
 
   useEffect(() => {
-    const saved = localStorage.getItem("app_lang") as Lang;
-    if (saved) setLang(saved);
+    const saved = localStorage.getItem("app_lang");
+    if (saved === "en" || saved === "zh") setLang(saved);
   }, []);
 
-  const handleSetLang = (l: Lang) => {
+  const handleSetLang = useCallback((l: Lang) => {
     setLang(l);
     localStorage.setItem("app_lang", l);
-  };
+  }, []);
+
+  const value = useMemo(() => ({ lang, setLang: handleSetLang }), [lang, handleSetLang]);
 
   return (
-    <I18nContext.Provider value={{ lang, setLang: handleSetLang }}>
+    <I18nContext.Provider value={value}>
       {children}
     </I18nContext.Provider>
   );
