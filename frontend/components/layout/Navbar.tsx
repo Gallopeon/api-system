@@ -1,6 +1,5 @@
 "use client";
 
-import { useCallback } from "react";
 import { Network, LogOut, Menu, UserCircle, ChevronDown } from "lucide-react";
 import NotificationCenter from "@/components/features/NotificationCenter";
 
@@ -45,10 +44,6 @@ export default function Navbar({
   onMenuSelect,
   t,
 }: NavbarProps) {
-  const goToUserCenter = useCallback(() => {
-    onMenuSelect("user-center");
-  }, [onMenuSelect]);
-
   return (
     <nav className="h-14 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/60 backdrop-blur-md sticky top-0 z-40 flex items-center justify-between px-4 lg:px-6">
       {/* Left: hamburger + brand */}
@@ -131,9 +126,10 @@ export default function Navbar({
         </button>
 
         <button
-          onClick={goToUserCenter}
+          onClick={() => onMenuSelect("user-center")}
           className="hidden sm:inline-flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-full bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 hover:bg-gray-200 dark:hover:bg-zinc-700 hover:border-gray-300 dark:hover:border-zinc-600 transition-all shadow-sm text-xs lg:text-sm font-medium whitespace-nowrap group"
           title={t("User Center", "用户中心")}
+          type="button"
         >
           <div className="w-6 h-6 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
             <UserCircle className="w-4 h-4 text-white" />

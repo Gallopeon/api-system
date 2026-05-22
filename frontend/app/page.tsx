@@ -59,10 +59,10 @@ export default function APIControlCenter() {
     }
     return "dashboard";
   });
-  const setActiveMenu = (menu: string) => {
+  const setActiveMenu = useCallback((menu: string) => {
     setActiveMenuRaw(menu);
     localStorage.setItem("active_menu", menu);
-  };
+  }, []);
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const toggleSidebar = useCallback(() => setSidebarOpen((v) => !v), []);
