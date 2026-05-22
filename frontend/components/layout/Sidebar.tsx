@@ -17,6 +17,7 @@ import {
   TerminalSquare,
   UserCircle,
   Users,
+  X,
 } from "lucide-react";
 
 import { canAccessMenu, type Role } from "@/lib/permissions";
@@ -31,6 +32,8 @@ interface SidebarProps {
     preview_success_24h?: number;
   } | null;
   t: <T>(en: T, zh: T) => T;
+  open: boolean;
+  onClose: () => void;
 }
 
 const menuItems = [
@@ -54,50 +57,111 @@ const menuItems = [
   { id: "system-settings", icon: Settings, en: "System Settings", zh: "系统设置" },
 ];
 
-export default function Sidebar({ activeMenu, onMenuSelect, role, metrics, t }: SidebarProps) {
+function SidebarContent({
+  activeMenu,
+  onMenuSelect,
+  role,
+  metrics,
+  t,
+  onClose,
+}: Omit<SidebarProps, "open">) {
   const visibleItems = menuItems.filter((m) => canAccessMenu(role, m.id));
-  return (
-    <aside className="w-64 border-r border-gray-200 dark:border-gray-800 bg-white dark:bg-black/20 p-4 space-y-1">
-      <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2 mt-4">
-        {t("Menu", "菜单")}
-      </div>
-      {visibleItems.map((m) => (
-        <button
-          key={m.id}
-          onClick={() => onMenuSelect(m.id)}
-          className={`w-full flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-            activeMenu === m.id
-              ? "bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200"
-              : "text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-800"
-          }`}
-        >
-          <m.icon className="w-4 h-4" /> <span>{t(m.en, m.zh)}</span>
-        </button>
-      ))}
 
-      <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 ml-2 mt-8">
-        {t("Quick Stats", "快速统计")}
+  const handleMenuSelect = (menu: string) => {
+    onMenuSelect(menu);
+    onClose();
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Header - only visible on mobile drawer */}
+      <div className="flex items-center justify-between px-4 py-3 lg:hidden border-b border-gray-200 dark:border-zinc-800">
+        <span className="font-bold tracking-tight text-lg">
+          {t("API Control Center", "API 控制中心")}
+        </span>
+        <button
+          onClick={onClose}
+          className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors touch-btn"
+          aria-label={t("Close menu", "关闭菜单")}
+        >
+          <X className="w-5 h-5" />
+        </button>
       </div>
-      <div className="px-3 gap-y-2 flex flex-col text-sm text-gray-600 dark:text-gray-400">
-        <div className="flex justify-between">
-          <span>{t("Rules Defined", "已定义规则")}</span>
-          <span className="font-mono text-gray-900 dark:text-gray-100">
-            {metrics?.total_rules ?? 0}
-          </span>
+
+      {/* Menu */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
+        <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2">
+          {t("Menu", "菜单")}
         </div>
-        <div className="flex justify-between">
-          <span>{t("Audit Elements", "审计条目")}</span>
-          <span className="font-mono text-gray-900 dark:text-gray-100">
-            {metrics?.total_audit_events ?? 0}
-          </span>
+        {visibleItems.map((m) => (
+          <button
+            key={m.id}
+            onClick={() => handleMenuSelect(m.id)}
+            className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 touch-btn ${
+              activeMenu === m.id
+                ? "bg-blue-50 text-blue-700 dark:bg-blue-900/40 dark:text-blue-200 shadow-sm"
+                : "text-gray-600 hover:bg-gray-100 dark:text-zinc-400 dark:hover:bg-zinc-800"
+            }`}
+          >
+            <m.icon className="w-4 h-4 flex-shrink-0" />
+            <span className="truncate">{t(m.en, m.zh)}</span>
+          </button>
+        ))}
+
+        {/* Quick Stats */}
+        <div className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-2 pt-4">
+          {t("Quick Stats", "快速统计")}
         </div>
-        <div className="flex justify-between">
-          <span>{t("Traffic (24h)", "24小时流量")}</span>
-          <span className="font-mono text-gray-900 dark:text-gray-100">
-            {metrics?.preview_success_24h ?? 0}
-          </span>
+        <div className="px-3 space-y-2 text-sm text-gray-600 dark:text-zinc-400">
+          <div className="flex justify-between items-center">
+            <span>{t("Rules", "规则数")}</span>
+            <span className="font-mono font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
+              {metrics?.total_rules ?? 0}
+            </span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span>{t("Audit", "审计")}</span>
+            <span className="font-mono font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
+              {metrics?.total_audit_events ?? 0}
+            </span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span>{t("24h Traffic", "24h流量")}</span>
+            <span className="font-mono font-semibold text-gray-900 dark:text-gray-100 tabular-nums">
+              {metrics?.preview_success_24h ?? 0}
+            </span>
+          </div>
         </div>
-      </div>
-    </aside>
+      </nav>
+    </div>
+  );
+}
+
+export default function Sidebar(props: SidebarProps) {
+  const { open, onClose } = props;
+
+  return (
+    <>
+      {/* Desktop sidebar — always visible */}
+      <aside className="hidden lg:flex flex-col w-64 flex-shrink-0 border-r border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/60">
+        <SidebarContent {...props} />
+      </aside>
+
+      {/* Mobile/tablet overlay */}
+      {open && (
+        <div className="fixed inset-0 z-50 lg:hidden">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm animate-fade-in"
+            onClick={onClose}
+            aria-hidden="true"
+          />
+          {/* Drawer */}
+          <aside className="absolute left-0 top-0 bottom-0 w-72 max-w-[85vw] bg-white dark:bg-zinc-950 border-r border-gray-200 dark:border-zinc-800 shadow-2xl animate-slide-in-left">
+            <SidebarContent {...props} />
+          </aside>
+        </div>
+      )}
+    </>
   );
 }

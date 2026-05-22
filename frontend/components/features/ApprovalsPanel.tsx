@@ -127,7 +127,7 @@ export default function ApprovalsPanel({
         <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
           <UserCheck className="w-5 h-5 text-emerald-500" /> {t("Create Approval Request", "创建审批申请")}
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
           <div>
             <label className={labelClass}>{t("Target Rule", "目标规则")} <span className="text-red-500">*</span></label>
             <select className={inputClass} value={approvalRuleId} onChange={(e) => onSetApprovalRuleId(e.target.value)}>
@@ -156,7 +156,7 @@ export default function ApprovalsPanel({
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <div className={`${cardClass} text-center py-4 bg-gradient-to-br from-blue-50 to-white dark:from-blue-950/30 dark:to-zinc-900 border border-blue-100 dark:border-blue-900/30`}>
           <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">{displayData.length}</div>
           <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{t("Total", "全部记录")}</div>
@@ -208,7 +208,7 @@ export default function ApprovalsPanel({
       {/* Table */}
       <div className={`${cardClass} p-0 overflow-hidden rounded-xl shadow-sm`}>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left">
+          <table className="w-full text-sm text-left resp-table">
             <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800 text-gray-500 text-xs uppercase tracking-wider">
               <tr>
                 <th className="px-5 py-3 font-medium">{t("Rule", "规则")}</th>
@@ -225,18 +225,18 @@ export default function ApprovalsPanel({
                 const ruleName = rules.find((r) => r.id === a.rule_id)?.name;
                 return (
                   <tr key={a.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition group">
-                    <td className="px-5 py-3.5">
+                    <td className="px-5 py-3.5" data-label={t("Rule", "规则")}>
                       <div className="font-mono text-xs text-gray-700 dark:text-gray-300">{a.rule_id.substring(0, 8)}...</div>
                       <div className="text-xs text-gray-400 mt-0.5">{ruleName || "—"}</div>
                     </td>
-                    <td className="px-5 py-3.5">
+                    <td className="px-5 py-3.5" data-label={t("Version", "版本")}>
                       <span className="inline-flex items-center gap-1 font-mono text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded-md">v{a.version}</span>
                     </td>
-                    <td className="px-5 py-3.5 text-gray-700 dark:text-gray-300">{a.requestor}</td>
-                    <td className="px-5 py-3.5 text-gray-500">{a.reviewer || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
-                    <td className="px-5 py-3.5">{statusBadge(a.status)}</td>
-                    <td className="px-5 py-3.5 text-xs text-gray-500 max-w-xs truncate">{a.comment || "—"}</td>
-                    <td className="px-5 py-3.5 text-right">
+                    <td className="px-5 py-3.5 text-gray-700 dark:text-gray-300" data-label={t("Requestor", "申请人")}>{a.requestor}</td>
+                    <td className="px-5 py-3.5 text-gray-500" data-label={t("Reviewer", "审批人")}>{a.reviewer || <span className="text-gray-300 dark:text-gray-600">—</span>}</td>
+                    <td className="px-5 py-3.5" data-label={t("Status", "状态")}>{statusBadge(a.status)}</td>
+                    <td className="px-5 py-3.5 text-xs text-gray-500 max-w-xs truncate" data-label={t("Comment", "备注")}>{a.comment || "—"}</td>
+                    <td className="px-5 py-3.5 text-right" data-label={t("Actions", "操作")}>
                       <div className="flex items-center justify-end gap-1">
                         {a.status === "pending" && canReview ? (
                           <div className="flex items-center gap-1 opacity-70 group-hover:opacity-100 transition">

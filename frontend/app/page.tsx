@@ -64,6 +64,10 @@ export default function APIControlCenter() {
     localStorage.setItem("active_menu", menu);
   }, []);
 
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const toggleSidebar = useCallback(() => setSidebarOpen((v) => !v), []);
+  const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+
   // Permission flags for role-based UI gating
   const can = {
     writeRule: hasPermission(userRole, PERMISSIONS.RuleWrite),
@@ -169,13 +173,22 @@ export default function APIControlCenter() {
         onToggleLang={() => setLang(lang === "zh" ? "en" : "zh")}
         userName={session?.user?.name || ""}
         onSignOut={() => signOut()}
+        onToggleSidebar={toggleSidebar}
         t={t}
       />
 
       <div className="flex-1 flex overflow-hidden">
-        <Sidebar activeMenu={activeMenu} onMenuSelect={setActiveMenu} role={userRole} metrics={metrics} t={t} />
+        <Sidebar
+          activeMenu={activeMenu}
+          onMenuSelect={setActiveMenu}
+          role={userRole}
+          metrics={metrics}
+          t={t}
+          open={sidebarOpen}
+          onClose={closeSidebar}
+        />
 
-        <main className="flex-1 overflow-y-auto p-6 lg:p-10 relative">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 relative">
           <Toast msg={notif.msg} type={notif.type} onClose={clearNotif} />
           <ErrorBoundary>
 

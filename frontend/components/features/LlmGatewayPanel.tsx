@@ -51,7 +51,7 @@ export default function LlmGatewayPanel({ canManage, notifyError, notifySucc, t,
             <label className={labelClass}>{t("Prompt", "提示词")} *</label>
             <textarea className={inputClass} rows={4} value={hook.rtPrompt} onChange={e => hook.setRtPrompt(e.target.value)} placeholder={t("Enter your prompt...", "输入您的提示词...")} />
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>{t("Model (optional)", "模型（可选）")}</label>
               <input className={inputClass} value={hook.rtModel} onChange={e => hook.setRtModel(e.target.value)} placeholder="gpt-4o" />
@@ -61,7 +61,7 @@ export default function LlmGatewayPanel({ canManage, notifyError, notifySucc, t,
               <input className={inputClass} type="number" value={hook.rtMaxTokens} onChange={e => hook.setRtMaxTokens(e.target.value)} />
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>{t("Temperature", "温度")}</label>
               <input className={inputClass} type="number" step="0.1" min="0" max="2" value={hook.rtTemp} onChange={e => hook.setRtTemp(e.target.value)} />
@@ -83,7 +83,7 @@ export default function LlmGatewayPanel({ canManage, notifyError, notifySucc, t,
       {hook.routeResult && (
         <div className={`${cardClass} border-l-4 border-l-green-500`}>
           <h2 className="text-lg font-bold mb-3 flex items-center gap-2"><Check className="w-5 h-5 text-green-500" /> {t("Response", "响应结果")}</h2>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4 text-sm">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4 text-sm">
             <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-2"><div className="text-gray-500 text-xs">{t("Provider", "提供商")}</div><div className="font-semibold">{hook.routeResult.provider}</div></div>
             <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-2"><div className="text-gray-500 text-xs">{t("Model", "模型")}</div><div className="font-semibold truncate">{hook.routeResult.model}</div></div>
             <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-2"><div className="text-gray-500 text-xs">{t("Tokens", "Token")}</div><div className="font-semibold">{hook.routeResult.input_tokens}+{hook.routeResult.output_tokens}</div></div>
@@ -102,7 +102,7 @@ export default function LlmGatewayPanel({ canManage, notifyError, notifySucc, t,
         {hook.editProvId ? <Edit3 className="w-5 h-5 text-purple-500" /> : <Plus className="w-5 h-5 text-purple-500" />}
         {hook.editProvId ? t("Edit Provider", "编辑提供商") : t("Add Provider", "添加提供商")}
       </h2>
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-4">
         <div><label className={labelClass}>{t("Name", "名称")} *</label><input className={inputClass} value={hook.pName} onChange={e => hook.setPName(e.target.value)} placeholder="OpenAI" /></div>
         <div>
           <label className={labelClass}>{t("Type", "类型")}</label>
@@ -134,24 +134,24 @@ export default function LlmGatewayPanel({ canManage, notifyError, notifySucc, t,
       {providerForm}
       <div className="flex justify-end"><button onClick={hook.loadProviders} className={btnSecondary}><RefreshCw className="w-4 h-4 mr-1" />{t("Refresh", "刷新")}</button></div>
       <div className={`${cardClass} p-0 overflow-hidden`}>
-        <table className="w-full text-sm text-left">
-          <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800 text-gray-500">
+        <table className="w-full text-sm text-left resp-table">
+          <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800 text-gray-500 text-xs uppercase tracking-wider">
             <tr>
-              <th className="px-4 py-3">{t("Name / Model", "名称 / 模型")}</th>
-              <th className="px-4 py-3">{t("Type", "类型")}</th>
-              <th className="px-4 py-3">{t("Cost (In/Out)", "成本 (进/出)")}</th>
-              <th className="px-4 py-3">{t("Status", "状态")}</th>
-              <th className="px-4 py-3 text-right">{t("Actions", "操作")}</th>
+              <th className="px-4 py-3 font-medium">{t("Name / Model", "名称 / 模型")}</th>
+              <th className="px-4 py-3 font-medium">{t("Type", "类型")}</th>
+              <th className="px-4 py-3 font-medium">{t("Cost (In/Out)", "成本 (进/出)")}</th>
+              <th className="px-4 py-3 font-medium">{t("Status", "状态")}</th>
+              <th className="px-4 py-3 text-right font-medium">{t("Actions", "操作")}</th>
             </tr>
           </thead>
           <tbody className="divide-y dark:divide-gray-800">
             {hook.providers.map(p => (
-              <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-900 transition">
-                <td className="px-4 py-3"><div className="font-semibold">{p.name}</div><div className="text-xs text-gray-400 font-mono">{p.model_name}</div></td>
-                <td className="px-4 py-3"><span className="text-xs font-mono bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{p.provider_type}</span></td>
-                <td className="px-4 py-3 font-mono text-xs">${p.cost_per_1k_input.toFixed(4)} / ${p.cost_per_1k_output.toFixed(4)}</td>
-                <td className="px-4 py-3">{statusBadge(p.status)}</td>
-                <td className="px-4 py-3">
+              <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition">
+                <td className="px-4 py-3" data-label={t("Name / Model", "名称 / 模型")}><div className="font-semibold">{p.name}</div><div className="text-xs text-gray-400 font-mono">{p.model_name}</div></td>
+                <td className="px-4 py-3" data-label={t("Type", "类型")}><span className="text-xs font-mono bg-gray-100 dark:bg-gray-800 px-1.5 py-0.5 rounded">{p.provider_type}</span></td>
+                <td className="px-4 py-3 font-mono text-xs" data-label={t("Cost", "成本")}>${p.cost_per_1k_input.toFixed(4)} / ${p.cost_per_1k_output.toFixed(4)}</td>
+                <td className="px-4 py-3" data-label={t("Status", "状态")}>{statusBadge(p.status)}</td>
+                <td className="px-4 py-3" data-label={t("Actions", "操作")}>
                   <div className="flex items-center justify-end gap-1">
                     <button onClick={() => hook.toggleProvider(p.id, p.status)} className={`p-1.5 rounded-lg transition ${p.status === "active" ? "text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20" : "text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"}`} title={p.status === "active" ? "Disable" : "Enable"}>
                       {p.status === "active" ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
@@ -195,22 +195,22 @@ export default function LlmGatewayPanel({ canManage, notifyError, notifySucc, t,
       {templateForm}
       <div className="flex justify-end"><button onClick={hook.loadTemplates} className={btnSecondary}><RefreshCw className="w-4 h-4 mr-1" />{t("Refresh", "刷新")}</button></div>
       <div className={`${cardClass} p-0 overflow-hidden`}>
-        <table className="w-full text-sm text-left">
-          <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800 text-gray-500">
+        <table className="w-full text-sm text-left resp-table">
+          <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800 text-gray-500 text-xs uppercase tracking-wider">
             <tr>
-              <th className="px-4 py-3">{t("Name", "名称")}</th>
-              <th className="px-4 py-3">{t("Template Preview", "模板预览")}</th>
-              <th className="px-4 py-3">{t("Version", "版本")}</th>
-              <th className="px-4 py-3 text-right">{t("Actions", "操作")}</th>
+              <th className="px-4 py-3 font-medium">{t("Name", "名称")}</th>
+              <th className="px-4 py-3 font-medium">{t("Template Preview", "模板预览")}</th>
+              <th className="px-4 py-3 font-medium">{t("Version", "版本")}</th>
+              <th className="px-4 py-3 text-right font-medium">{t("Actions", "操作")}</th>
             </tr>
           </thead>
           <tbody className="divide-y dark:divide-gray-800">
             {hook.templates.map(tmpl => (
-              <tr key={tmpl.id} className="hover:bg-gray-50 dark:hover:bg-gray-900 transition">
-                <td className="px-4 py-3"><div className="font-semibold">{tmpl.name}</div><div className="text-xs text-gray-400">{tmpl.variables?.join(", ") || t("no variables", "无变量")}</div></td>
-                <td className="px-4 py-3"><div className="max-w-xs truncate text-xs font-mono text-gray-500">{tmpl.template_text}</div></td>
-                <td className="px-4 py-3 font-mono text-xs">v{tmpl.version}</td>
-                <td className="px-4 py-3">
+              <tr key={tmpl.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition">
+                <td className="px-4 py-3" data-label={t("Name", "名称")}><div className="font-semibold">{tmpl.name}</div><div className="text-xs text-gray-400">{tmpl.variables?.join(", ") || t("no variables", "无变量")}</div></td>
+                <td className="px-4 py-3" data-label={t("Template Preview", "模板预览")}><div className="max-w-xs truncate text-xs font-mono text-gray-500">{tmpl.template_text}</div></td>
+                <td className="px-4 py-3 font-mono text-xs" data-label={t("Version", "版本")}>v{tmpl.version}</td>
+                <td className="px-4 py-3" data-label={t("Actions", "操作")}>
                   <div className="flex items-center justify-end gap-1">
                     <button onClick={() => hook.editTemplate(tmpl)} className="p-1.5 rounded-lg text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition"><Edit3 className="w-4 h-4" /></button>
                     <button onClick={() => hook.deleteTemplate(tmpl.id)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition"><Trash2 className="w-4 h-4" /></button>
@@ -245,14 +245,14 @@ export default function LlmGatewayPanel({ canManage, notifyError, notifySucc, t,
   );
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
+    <div className="max-w-6xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold">{t("AI / LLM Gateway", "AI / LLM 网关")}</h1>
-        <p className="text-gray-500 mt-1">{t("Multi-model routing, prompt governance, and token cost tracking.", "多模型路由、Prompt 治理和 Token 成本追踪。")}</p>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t("AI / LLM Gateway", "AI / LLM 网关")}</h1>
+        <p className="text-gray-500 dark:text-gray-400 mt-1.5 text-sm">{t("Multi-model routing, prompt governance, and token cost tracking.", "多模型路由、Prompt 治理和 Token 成本追踪。")}</p>
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 p-1 rounded-xl">
+      <div className="flex gap-1 bg-gray-100 dark:bg-gray-900 p-1 rounded-xl overflow-x-auto">
         {TABS.filter(tab => !tab.admin || canManage).map(tab => (
           <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition flex-1 justify-center ${activeTab === tab.id ? "bg-white dark:bg-gray-800 shadow text-gray-900 dark:text-white" : "text-gray-500 hover:text-gray-700 dark:hover:text-gray-300"}`}>
             <tab.icon className="w-4 h-4" />{t(tab.en, tab.zh)}

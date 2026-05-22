@@ -34,9 +34,9 @@ export default function OpenApiPanel({ ruleForImport, canWrite, notifyError, not
   } = useOpenApi(notifyError, notifySucc);
 
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
-      <h1 className="text-3xl font-bold">{t("OpenAPI Spec Generator", "OpenAPI 规范生成器")}</h1>
-      <p className="text-gray-500 -mt-2">{t("Auto-generate OpenAPI 3.1 specifications from rule configurations, and import OpenAPI specs to create rules.", "从规则配置自动生成 OpenAPI 3.1 规范，以及导入 OpenAPI 规范创建规则。")}</p>
+    <div className="max-w-6xl mx-auto space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t("OpenAPI Spec Generator", "OpenAPI 规范生成器")}</h1>
+      <p className="text-gray-500 dark:text-gray-400 -mt-2 text-sm">{t("Auto-generate OpenAPI 3.1 specifications from rule configurations, and import OpenAPI specs to create rules.", "从规则配置自动生成 OpenAPI 3.1 规范，以及导入 OpenAPI 规范创建规则。")}</p>
 
       {/* Generate Section */}
       <div className={`${cardClass} border-l-4 border-l-blue-500`}>

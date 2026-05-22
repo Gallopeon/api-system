@@ -47,8 +47,8 @@ export default function RulesPanel({
   canWrite, canPublish, t,
 }: RulesPanelProps) {
   return (
-    <div className="max-w-6xl mx-auto flex flex-col md:flex-row gap-8 animate-in fade-in duration-300">
-      <div className="w-full md:w-1/3 flex flex-col space-y-4">
+    <div className="max-w-6xl mx-auto flex flex-col lg:flex-row gap-6 lg:gap-8">
+      <div className="w-full lg:w-1/3 flex flex-col space-y-4">
         <div className="flex justify-between items-center">
           <h2 className="text-xl font-bold">{t("Rule Library", "规则库")}</h2>
         </div>
@@ -85,13 +85,13 @@ export default function RulesPanel({
         </div>
       </div>
 
-      <div className={`w-full md:w-2/3 ${cardClass} flex flex-col`}>
+      <div className={`w-full lg:w-2/3 ${cardClass} flex flex-col`}>
         <h2 className="text-xl font-bold mb-6">
           {selectedRuleId
             ? `Edit Rule: ${ruleName}`
             : t("New Rule Configuration", "新规则配置")}
         </h2>
-        <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
           <div>
             <label className={labelClass}>{t("Rule Name", "规则名称")}</label>
             <input className={inputClass} value={ruleName} onChange={(e) => setRuleName(e.target.value)} />
@@ -141,7 +141,7 @@ export default function RulesPanel({
             <label className={labelClass}>{t("Mask Targets (comma separated)", "脱敏目标 (逗号分隔)")}</label>
             <input className={inputClass} value={masked} onChange={(e) => setMasked(e.target.value)} placeholder={t("password, credit_card", "password, credit_card")} />
           </div>
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             <div>
               <label className={labelClass}>{t("Computed Literals (JSON)", "计算字面量 (JSON)")}</label>
               <textarea className={`${inputClass} font-mono text-xs`} rows={5} value={computed} onChange={(e) => setComputed(e.target.value)} />
@@ -158,7 +158,7 @@ export default function RulesPanel({
         </div>
 
         {canWrite && (
-        <div className="mt-6 flex justify-end space-x-3 pt-4 border-t border-gray-100 dark:border-gray-800">
+        <div className="mt-6 flex flex-col sm:flex-row sm:justify-end gap-3 pt-4 border-t border-gray-100 dark:border-gray-800">
           {selectedRuleId && (
             <button
               onClick={onDeleteRule}

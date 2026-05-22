@@ -41,9 +41,9 @@ export default function RateLimitsPanel({
   onCreate, onToggle, onDelete, onRefresh, canWrite, t,
 }: RateLimitsPanelProps) {
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
-      <div className="flex items-center justify-between">
-        <div><h1 className="text-3xl font-bold">{t("Rate Limit Management", "限流管理")}</h1><p className="text-gray-500 mt-1">{t("Configure per-API rate limits, burst control, and usage quotas.", "配置每个 API 的速率限制、突发控制和用量配额。")}</p></div>
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div><h1 className="text-2xl sm:text-3xl font-bold tracking-tight">{t("Rate Limit Management", "限流管理")}</h1><p className="text-gray-500 dark:text-gray-400 mt-1.5 text-sm">{t("Configure per-API rate limits, burst control, and usage quotas.", "配置每个 API 的速率限制、突发控制和用量配额。")}</p></div>
         <button onClick={onRefresh} className={`${btnSecondary} whitespace-nowrap shrink-0`}><RotateCcw className="w-4 h-4 mr-2" /> {t("Refresh", "刷新")}</button>
       </div>
 
@@ -68,25 +68,25 @@ export default function RateLimitsPanel({
       )}
 
       <div className={`${cardClass} p-0 overflow-hidden`}>
-        <table className="w-full text-sm text-left">
-          <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800 text-gray-500">
+        <table className="w-full text-sm text-left resp-table">
+          <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800 text-gray-500 text-xs uppercase tracking-wider">
             <tr>
-              <th className="px-4 py-3">{t("Name / Path", "名称 / 路径")}</th>
-              <th className="px-4 py-3">{t("Window", "窗口")}</th>
-              <th className="px-4 py-3">{t("Rate (max+burst)", "速率 (最大+突发)")}</th>
-              <th className="px-4 py-3">{t("Status", "状态")}</th>
-              {canWrite && <th className="px-4 py-3 text-right">{t("Actions", "操作")}</th>}
+              <th className="px-4 py-3 font-medium">{t("Name / Path", "名称 / 路径")}</th>
+              <th className="px-4 py-3 font-medium">{t("Window", "窗口")}</th>
+              <th className="px-4 py-3 font-medium">{t("Rate (max+burst)", "速率 (最大+突发)")}</th>
+              <th className="px-4 py-3 font-medium">{t("Status", "状态")}</th>
+              {canWrite && <th className="px-4 py-3 text-right font-medium">{t("Actions", "操作")}</th>}
             </tr>
           </thead>
           <tbody className="divide-y dark:divide-gray-800">
             {rateLimits.map((rl) => (
-              <tr key={rl.id} className="hover:bg-gray-50 dark:hover:bg-gray-900 transition">
-                <td className="px-4 py-3"><div className="font-semibold">{rl.name}</div><div className="text-xs text-gray-400 font-mono">{rl.api_path}</div></td>
-                <td className="px-4 py-3 font-mono text-xs">{rl.window_seconds}s</td>
-                <td className="px-4 py-3 font-mono text-xs">{rl.max_requests} + {rl.burst_size}</td>
-                <td className="px-4 py-3"><span className={`text-xs px-2 py-0.5 rounded font-semibold ${rl.status === "active" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"}`}>{rl.status}</span></td>
+              <tr key={rl.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition">
+                <td className="px-4 py-3" data-label={t("Name / Path", "名称 / 路径")}><div className="font-semibold">{rl.name}</div><div className="text-xs text-gray-400 font-mono">{rl.api_path}</div></td>
+                <td className="px-4 py-3 font-mono text-xs" data-label={t("Window", "窗口")}>{rl.window_seconds}s</td>
+                <td className="px-4 py-3 font-mono text-xs" data-label={t("Rate", "速率")}>{rl.max_requests} + {rl.burst_size}</td>
+                <td className="px-4 py-3" data-label={t("Status", "状态")}><span className={`text-xs px-2 py-0.5 rounded font-semibold ${rl.status === "active" ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"}`}>{rl.status}</span></td>
                 {canWrite && (
-                <td className="px-4 py-3 text-right">
+                <td className="px-4 py-3 text-right" data-label={t("Actions", "操作")}>
                   <div className="flex items-center justify-end gap-1">
                     <button onClick={() => onToggle(rl.id, rl.status)} className={`p-1.5 rounded-lg transition ${rl.status === "active" ? "text-yellow-500 hover:bg-yellow-50 dark:hover:bg-yellow-900/20" : "text-green-500 hover:bg-green-50 dark:hover:bg-green-900/20"}`}>
                       {rl.status === "active" ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}

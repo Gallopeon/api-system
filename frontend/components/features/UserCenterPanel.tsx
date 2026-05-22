@@ -148,10 +148,10 @@ export default function UserCenterPanel({
   ];
 
   return (
-    <div className="max-w-3xl mx-auto space-y-6 animate-in fade-in zoom-in-95 duration-300">
+    <div className="max-w-3xl mx-auto space-y-6">
       <div>
-        <h1 className="text-3xl font-bold tracking-tight mb-2">{t("User Center", "用户中心")}</h1>
-        <p className="text-gray-500">{t("Manage your profile, security, and sessions.", "管理您的个人资料、安全和会话。")}</p>
+        <h1 className="text-2xl sm:text-3xl font-bold tracking-tight mb-2">{t("User Center", "用户中心")}</h1>
+        <p className="text-gray-500 dark:text-gray-400 text-sm">{t("Manage your profile, security, and sessions.", "管理您的个人资料、安全和会话。")}</p>
       </div>
 
       <div className="flex flex-wrap gap-1.5 border-b border-gray-200 dark:border-gray-800 pb-px">

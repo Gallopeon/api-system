@@ -28,12 +28,12 @@ export default function VersionsPanel({
   setFromVer, setToVer, setRollbackVer, canPublish, t,
 }: VersionsPanelProps) {
   return (
-    <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
-      <h1 className="text-3xl font-bold">
+    <div className="max-w-6xl mx-auto space-y-6">
+      <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">
         {t("Rule Versions & Blueprint Diff", "规则版本与蓝图对比")}
       </h1>
-      <div className={`${cardClass} flex items-end space-x-4`}>
-        <div className="w-1/3">
+      <div className={`${cardClass} flex flex-col sm:flex-row sm:items-end gap-4`}>
+        <div className="w-full sm:w-1/2 lg:w-1/3">
           <label className={labelClass}>{t("Select Target Rule", "选择目标规则")}</label>
           <select className={inputClass} value={selectedRuleId} onChange={(e) => onSelectRule(e.target.value)}>
             <option value="">-- {t("select rule", "选择规则")} --</option>
@@ -50,7 +50,7 @@ export default function VersionsPanel({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className={cardClass}>
             <h3 className="font-bold mb-4">{t("Rollback Machine", "回归机器")}</h3>
-            <div className="flex space-x-3 mb-6">
+            <div className="flex flex-col sm:flex-row gap-3 mb-6">
               <select className={inputClass} value={rollbackVer} onChange={(e) => setRollbackVer(e.target.value)}>
                 {versions.map((v) => (
                   <option key={v.version} value={v.version}>
@@ -86,11 +86,11 @@ export default function VersionsPanel({
 
           <div className={`${cardClass} flex flex-col`}>
             <h3 className="font-bold mb-4">{t("Diff Visualizer", "对比视图")}</h3>
-            <div className="flex space-x-3 mb-4 items-center">
+            <div className="flex flex-col sm:flex-row gap-3 mb-4 items-stretch sm:items-center">
               <select className={inputClass} value={fromVer} onChange={(e) => setFromVer(e.target.value)}>
                 {versions.map((v) => <option key={v.version} value={v.version}>v{v.version}</option>)}
               </select>
-              <ArrowLeftRight className="text-gray-400" />
+              <ArrowLeftRight className="text-gray-400 hidden sm:block" />
               <select className={inputClass} value={toVer} onChange={(e) => setToVer(e.target.value)}>
                 {versions.map((v) => <option key={v.version} value={v.version}>v{v.version}</option>)}
               </select>
