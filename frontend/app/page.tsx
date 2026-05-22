@@ -174,6 +174,7 @@ export default function APIControlCenter() {
         userName={session?.user?.name || ""}
         onSignOut={() => signOut()}
         onToggleSidebar={toggleSidebar}
+        onNavigateToUserCenter={() => { setActiveMenu("user-center"); closeSidebar(); }}
         t={t}
       />
 

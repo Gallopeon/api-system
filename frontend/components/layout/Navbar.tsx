@@ -1,6 +1,6 @@
 "use client";
 
-import { Network, LogOut, Menu } from "lucide-react";
+import { Network, LogOut, Menu, UserCircle } from "lucide-react";
 import NotificationCenter from "@/components/features/NotificationCenter";
 
 interface NavbarProps {
@@ -12,6 +12,7 @@ interface NavbarProps {
   userName: string;
   onSignOut: () => void;
   onToggleSidebar: () => void;
+  onNavigateToUserCenter: () => void;
   t: <T>(en: T, zh: T) => T;
 }
 
@@ -40,6 +41,7 @@ export default function Navbar({
   userName,
   onSignOut,
   onToggleSidebar,
+  onNavigateToUserCenter,
   t,
 }: NavbarProps) {
   return (
@@ -123,10 +125,14 @@ export default function Navbar({
           </div>
         </button>
 
-        <span className="text-gray-500 dark:text-zinc-400 text-xs lg:text-sm hidden sm:inline truncate max-w-[100px]">
-          {t("Hi, ", "你好, ")}
-          {userName || t("Admin", "管理员")}
-        </span>
+        <button
+          onClick={onNavigateToUserCenter}
+          className="hidden sm:inline-flex items-center gap-1.5 text-xs lg:text-sm font-medium text-gray-600 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400 transition-colors px-2 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 whitespace-nowrap"
+          title={t("User Center", "用户中心")}
+        >
+          <UserCircle className="w-4 h-4" />
+          <span className="max-w-[160px] truncate">{userName || t("Admin", "管理员")}</span>
+        </button>
 
         <NotificationCenter accessToken={accessToken} t={t} />
 
