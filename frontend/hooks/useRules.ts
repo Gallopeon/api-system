@@ -7,6 +7,7 @@ import type {
   RuleListResponse,
   RuleVersionsResponse,
   RuleVersion,
+  RuleDiffResponse,
   TransformRuleConfig,
 } from "@/lib/types";
 import { parseArray, parseRenames, formatRenames, parseJson } from "@/lib/utils";
@@ -38,6 +39,7 @@ export function useRules(
   const [toVer, setToVer] = useState("");
   const [rollbackVer, setRollbackVer] = useState("");
   const [diffJson, setDiffJson] = useState("{}");
+  const [diffResult, setDiffResult] = useState<RuleDiffResponse | null>(null);
 
   const loadRules = useCallback(async () => {
     try {
@@ -213,11 +215,10 @@ export function useRules(
         `/admin/v1/rules/${selectedRuleId}/diff?from=${fromVer}&to=${toVer}`,
       );
       if (!r.ok) throw new Error("Diff failed");
-      const d = await r.json();
+      const d = (await r.json()) as RuleDiffResponse;
       setDiffJson(JSON.stringify(d, null, 2));
-      notifySucc(
-        `Diff loaded: ${(d as { changes_count: number }).changes_count} changes`,
-      );
+      setDiffResult(d);
+      notifySucc(`${d.changes_count} changes found`);
     } catch (e) {
       notifyError((e as Error).message);
     }
@@ -282,6 +283,7 @@ export function useRules(
     toVer,
     rollbackVer,
     diffJson,
+    diffResult,
     // Setters
     setRules,
     setSelectedRuleId,

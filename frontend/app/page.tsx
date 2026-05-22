@@ -232,6 +232,7 @@ export default function APIControlCenter() {
               selectedRuleId={rulesHook.selectedRuleId} rules={rulesHook.rules}
               versions={rulesHook.versions} fromVer={rulesHook.fromVer} toVer={rulesHook.toVer}
               rollbackVer={rulesHook.rollbackVer} diffJson={rulesHook.diffJson}
+              diffResult={rulesHook.diffResult}
               onSelectRule={rulesHook.selectRule} onRollback={rulesHook.rollback} onComputeDiff={rulesHook.computeDiff}
               setFromVer={rulesHook.setFromVer} setToVer={rulesHook.setToVer} setRollbackVer={rulesHook.setRollbackVer}
               canPublish={can.publishRule} t={t}
