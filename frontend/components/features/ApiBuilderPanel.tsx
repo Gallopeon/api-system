@@ -40,15 +40,18 @@ type StepState = "pending" | "active" | "done";
 export default function ApiBuilderPanel(props: ApiBuilderPanelProps) {
   const { abPresets, loadAbPreset, deleteAbPreset, abName, abApiPath, abRuleId, abEntries, t } = props;
 
-  // Compute workflow progress
+  // Compute workflow progress — strictly sequential
   const hasRule = !!(abName && abApiPath) || !!abRuleId;
   const hasEntries = abEntries.length > 0;
   const hasOutput = abEntries.some((e) => !!e.output);
 
   const steps: { label: string; zh: string; state: StepState }[] = [
+    // Step 1: active until rule is configured
     { label: "Configure Rule", zh: "配置规则", state: hasRule ? "done" : "active" },
+    // Step 2: pending until step 1 done, active when rule exists, done when outputs produced
     { label: "Add Test Data", zh: "添加测试数据", state: hasOutput ? "done" : hasRule ? "active" : "pending" },
-    { label: "Transform & Verify", zh: "转换验证", state: hasOutput ? "done" : hasEntries ? "active" : "pending" },
+    // Step 3: pending until step 1+2 done, active when both ready, done when output exists
+    { label: "Transform & Verify", zh: "转换验证", state: hasOutput ? "done" : (hasRule && hasEntries) ? "active" : "pending" },
   ];
 
   const stepStyle: Record<StepState, string> = {
