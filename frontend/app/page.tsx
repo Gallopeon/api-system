@@ -172,6 +172,8 @@ export default function APIControlCenter() {
         lang={lang}
         onToggleLang={() => setLang(lang === "zh" ? "en" : "zh")}
         userName={session?.user?.name || ""}
+        userRole={userRole || undefined}
+        userEmail={(session?.user as any)?.email || undefined}
         onSignOut={() => signOut()}
         onToggleSidebar={toggleSidebar}
         onMenuSelect={setActiveMenu}
