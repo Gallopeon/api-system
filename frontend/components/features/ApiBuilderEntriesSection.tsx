@@ -326,6 +326,15 @@ export default function ApiBuilderEntriesSection(props: ApiBuilderEntriesSection
                 {entry.busy && <Loader2 className="w-4 h-4 animate-spin text-blue-500 shrink-0" />}
                 {hasOutput && !entry.busy && <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />}
                 <span className="text-xs text-gray-400 shrink-0">{entry.fields.length} {t("fields", "字段")}</span>
+                {abEntries.length > 1 && (
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setAbEntries((prev) => prev.filter((en) => en.id !== entry.id)); }}
+                    className={`${iconBtn} text-gray-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20`}
+                    title={t("Delete entry", "删除此条目") as string}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
 
               {!isCollapsed && (
@@ -383,8 +392,9 @@ export default function ApiBuilderEntriesSection(props: ApiBuilderEntriesSection
                   </button>
 
                   {/* Output */}
-                  <div className="flex items-start gap-4">
-                    <div className="flex flex-col gap-2 shrink-0">
+                  <div className="space-y-3">
+                    {/* Action bar */}
+                    <div className="flex items-center gap-2">
                       <button
                         onClick={() => transformAbEntry(entry, idx)}
                         disabled={entry.busy || entry.fields.length === 0}
@@ -396,34 +406,37 @@ export default function ApiBuilderEntriesSection(props: ApiBuilderEntriesSection
                       </button>
                       <button
                         onClick={() => { navigator.clipboard.writeText(abEntryToJson(entry)); notifySucc(t("Copied!", "已复制！")); }}
-                        className="text-xs text-gray-400 hover:text-blue-500 flex items-center gap-1 transition-colors"
+                        className="text-xs text-gray-400 hover:text-blue-500 transition-colors px-2"
                       >
-                        <Copy className="w-3 h-3" />{t("Copy Input", "复制输入")}
+                        <Copy className="w-3 h-3 inline mr-1" />{t("Copy Input", "复制输入")}
                       </button>
-                      {hasOutput && (
-                        <button
-                          onClick={() => { navigator.clipboard.writeText(entry.output); notifySucc(t("Copied!", "已复制！")); }}
-                          className="text-xs text-gray-400 hover:text-blue-500 flex items-center gap-1 transition-colors"
-                        >
-                          <Copy className="w-3 h-3" />{t("Copy Output", "复制输出")}
-                        </button>
-                      )}
-                      {abEntries.length > 1 && (
-                        <button
-                          onClick={() => setAbEntries((prev) => prev.filter((e) => e.id !== entry.id))}
-                          className="text-xs text-gray-400 hover:text-red-500 flex items-center gap-1 transition-colors"
-                        >
-                          <Trash2 className="w-3 h-3" />{t("Remove", "删除")}
-                        </button>
-                      )}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-xs text-gray-400 mb-1">{t("Transform Result", "转换结果")}</div>
-                      <div className="bg-zinc-900 dark:bg-black border border-zinc-700 rounded-xl p-3 max-h-56 overflow-auto">
+
+                    {/* Output panel */}
+                    <div className="rounded-xl overflow-hidden border border-zinc-200 dark:border-zinc-700 bg-zinc-900 dark:bg-black shadow-inner">
+                      {/* Output header */}
+                      <div className="flex items-center justify-between px-3 py-2 bg-zinc-800/50 dark:bg-zinc-800/30 border-b border-zinc-700/50">
+                        <span className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.5)]" />
+                          {t("Transform Result", "转换结果")}
+                        </span>
+                        {hasOutput && (
+                          <button
+                            onClick={() => { navigator.clipboard.writeText(entry.output); notifySucc(t("Copied!", "已复制！")); }}
+                            className="text-[10px] text-zinc-500 hover:text-zinc-300 transition-colors flex items-center gap-1"
+                          >
+                            <Copy className="w-3 h-3" />{t("Copy", "复制")}
+                          </button>
+                        )}
+                      </div>
+                      {/* Output body */}
+                      <div className="p-3 max-h-72 overflow-auto">
                         {entry.output ? (
                           <OutputView raw={entry.output} />
                         ) : (
-                          <span className="text-zinc-500 text-xs italic">{"// " + t("Click Transform to see result", "点击「转换」查看结果")}</span>
+                          <div className="flex items-center justify-center py-8">
+                            <span className="text-zinc-600 text-xs">{t("Click Transform to preview the rule output", "点击「转换」预览规则输出结果")}</span>
+                          </div>
                         )}
                       </div>
                     </div>
