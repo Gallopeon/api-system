@@ -308,7 +308,7 @@ pwsh scripts/k8s-rollout.ps1 -Namespace api-control-plane -Service backend -Imag
 ```
 frontend/
 ├── app/
-│   ├── page.tsx                    ← 420 lines, route entry + login
+│   ├── page.tsx                    ← 460 lines, route entry + login
 │   ├── layout.tsx                  ← Root layout
 │   ├── providers.tsx               ← NextAuth SessionProvider
 │   ├── i18n.tsx                    ← useI18n() context hook
@@ -342,8 +342,8 @@ frontend/
 │   └── useUsers.ts                 ← User management CRUD hook (138 lines)
 ├── components/
 │   ├── layout/
-│   │   ├── Navbar.tsx              ← Top bar: health status + lang + user (117 lines)
-│   │   └── Sidebar.tsx             ← Menu + quick stats (98 lines)
+│   │   ├── Navbar.tsx              ← Top bar: health + lang + user + hamburger (175 lines)
+│   │   └── Sidebar.tsx             ← Menu + quick stats + mobile drawer (140 lines)
 │   ├── ui/
 │   │   └── Toast.tsx               ← Notification toast with auto-dismiss (52 lines)
 │   └── features/
