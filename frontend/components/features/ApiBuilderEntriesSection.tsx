@@ -27,49 +27,115 @@ interface ApiBuilderEntriesSectionProps {
 
 const iconBtn = "p-1.5 rounded-lg transition-colors touch-btn";
 
-/* ── Output renderer: parse JSON and show as key-value table ── */
-function OutputView({ raw }: { raw: string }) {
-  if (!raw) return <span className="text-gray-500 text-xs italic">—</span>;
-  try {
-    const obj = JSON.parse(raw);
-    // If it's a PreviewResponse with output field, show only the output
-    const data = obj.output ?? obj;
-    if (typeof data === "object" && data !== null && !Array.isArray(data)) {
-      const entries = Object.entries(data as Record<string, unknown>);
-      return (
-        <div className="overflow-x-auto">
-          <table className="w-full text-xs">
-            <thead>
-              <tr className="border-b border-zinc-700">
-                <th className="text-left py-1.5 pr-3 text-zinc-500 font-medium uppercase tracking-wider">Key</th>
-                <th className="text-left py-1.5 text-zinc-500 font-medium uppercase tracking-wider">Value</th>
-              </tr>
-            </thead>
-            <tbody>
-              {entries.map(([k, v]) => (
-                <tr key={k} className="border-b border-zinc-800/50">
-                  <td className="py-1.5 pr-3 font-mono text-emerald-300 whitespace-nowrap">{k}</td>
-                  <td className="py-1.5 font-mono text-zinc-300 break-all">{fmtVal(v)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-    }
-    // Fallback: pretty-printed JSON
-    return <pre className="text-emerald-400 whitespace-pre-wrap leading-relaxed text-xs">{JSON.stringify(data, null, 2)}</pre>;
-  } catch {
-    return <pre className="text-emerald-400 whitespace-pre-wrap leading-relaxed text-xs">{raw}</pre>;
-  }
+/* ── Output renderer: recursive tree with syntax highlighting ── */
+function valClass(v: unknown): string {
+  if (v === null || v === undefined) return "text-zinc-500 italic";
+  if (typeof v === "boolean") return v ? "text-emerald-400" : "text-red-400";
+  if (typeof v === "number") return "text-amber-300";
+  if (typeof v === "string") return "text-sky-300";
+  return "text-zinc-300";
 }
 
 function fmtVal(v: unknown): string {
   if (v === null || v === undefined) return "null";
   if (typeof v === "boolean") return v ? "true" : "false";
+  if (typeof v === "string") {
+    if (v.length > 120) return `"${v.slice(0, 120)}…"`;
+    return `"${v}"`;
+  }
   if (typeof v === "number") return String(v);
-  if (typeof v === "string") return v;
   return JSON.stringify(v);
+}
+
+function TreeNode({ label, value, depth }: { label?: string; value: unknown; depth: number }) {
+  const [open, setOpen] = useState(depth < 2);
+  const pad = depth * 12;
+
+  if (value !== null && typeof value === "object" && !Array.isArray(value)) {
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (entries.length === 0) return <Row label={label} value="{}" cls="text-zinc-500" pad={pad} />;
+    return (
+      <div>
+        <button onClick={() => setOpen(!open)} className="flex items-center gap-1 hover:text-white transition-colors text-left w-full" style={{ paddingLeft: pad }}>
+          {open ? <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" /> : <ChevronRight className="w-3 h-3 text-zinc-500 shrink-0" />}
+          {label !== undefined && <span className="text-emerald-400 font-mono text-[11px] shrink-0">{label}:&nbsp;</span>}
+          <span className="text-zinc-500 text-[11px]">{open ? "{" : `{${entries.length} keys}`}</span>
+        </button>
+        {open && (
+          <div className="border-l border-zinc-700/50 ml-3 mt-0.5">
+            {entries.map(([k, v]) => (
+              <TreeNode key={k} label={k} value={v} depth={depth + 1} />
+            ))}
+            <div style={{ paddingLeft: pad + 12 }} className="text-zinc-500 text-[11px]">{"}"}</div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (Array.isArray(value)) {
+    if (value.length === 0) return <Row label={label} value="[]" cls="text-zinc-500" pad={pad} />;
+    return (
+      <div>
+        <button onClick={() => setOpen(!open)} className="flex items-center gap-1 hover:text-white transition-colors text-left w-full" style={{ paddingLeft: pad }}>
+          {open ? <ChevronDown className="w-3 h-3 text-zinc-500 shrink-0" /> : <ChevronRight className="w-3 h-3 text-zinc-500 shrink-0" />}
+          {label !== undefined && <span className="text-emerald-400 font-mono text-[11px] shrink-0">{label}:&nbsp;</span>}
+          <span className="text-zinc-500 text-[11px]">{open ? "[" : `[${value.length} items]`}</span>
+        </button>
+        {open && (
+          <div className="border-l border-zinc-700/50 ml-3 mt-0.5">
+            {value.map((item, i) => (
+              <TreeNode key={i} label={String(i)} value={item} depth={depth + 1} />
+            ))}
+            <div style={{ paddingLeft: pad + 12 }} className="text-zinc-500 text-[11px]">{"]"}</div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return <Row label={label} value={fmtVal(value)} cls={valClass(value)} pad={pad} />;
+}
+
+function Row({ label, value, cls, pad }: { label?: string; value: string; cls: string; pad: number }) {
+  return (
+    <div className="flex items-start py-[1px] hover:bg-zinc-800/30 rounded-sm" style={{ paddingLeft: pad }}>
+      {label !== undefined && <span className="text-emerald-400 font-mono text-[11px] shrink-0 mr-1">{label}:</span>}
+      <span className={`font-mono text-[11px] break-all leading-relaxed ${cls}`}>{value}</span>
+    </div>
+  );
+}
+
+function OutputView({ raw }: { raw: string }) {
+  if (!raw) return <span className="text-zinc-500 text-xs italic">—</span>;
+  try {
+    const obj = JSON.parse(raw);
+    const data = obj.output ?? obj;
+    if (typeof data === "object" && data !== null) {
+      return (
+        <div className="py-1">
+          {Object.keys(obj).filter((k) => k !== "output").length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3 pb-2 border-b border-zinc-700/50">
+              {obj.rule_id && (
+                <span className="text-[10px] text-zinc-500">
+                  Rule: <span className="text-zinc-300 font-mono">{String(obj.rule_id).slice(0, 12)}…</span>
+                </span>
+              )}
+              {obj.selected_variant && (
+                <span className="text-[10px] text-zinc-500">
+                  Variant: <span className="text-purple-400 font-mono">{String(obj.selected_variant)}</span>
+                </span>
+              )}
+            </div>
+          )}
+          <TreeNode value={data} depth={0} />
+        </div>
+      );
+    }
+    return <pre className="text-emerald-400 whitespace-pre-wrap leading-relaxed text-xs">{JSON.stringify(data, null, 2)}</pre>;
+  } catch {
+    return <pre className="text-emerald-400 whitespace-pre-wrap leading-relaxed text-xs">{raw}</pre>;
+  }
 }
 
 /* ── Import helpers ── */
