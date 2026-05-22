@@ -88,49 +88,52 @@ export default function ApiBuilderEntriesSection(props: ApiBuilderEntriesSection
             )}
           </div>
 
-          {/* Toolbar */}
-          <div className="flex items-center gap-2 flex-wrap">
-            {/* Presets */}
-            {Object.keys(abPresets).length > 0 && (
-              <select
-                className={`${inputClass} !w-28 text-xs !py-1.5`}
-                defaultValue=""
-                onChange={(e) => { if (e.target.value) { loadAbPreset(e.target.value); e.target.value = ""; } }}
+          {/* Toolbar: left = data tools, right = entry actions */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 w-full">
+            {/* Left: data management */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <button onClick={() => setImportOpen(!importOpen)} className={`${btnSecondary} !text-xs !py-1.5`}>
+                <Upload className="w-3.5 h-3.5 mr-1" />{t("Import JSON", "导入 JSON")}
+              </button>
+              {Object.keys(abPresets).length > 0 && (
+                <select
+                  className={`${inputClass} !w-28 text-xs !py-1.5`}
+                  defaultValue=""
+                  onChange={(e) => { if (e.target.value) { loadAbPreset(e.target.value); e.target.value = ""; } }}
+                >
+                  <option value="">{t("Load preset", "加载预设")}</option>
+                  {Object.keys(abPresets).map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              )}
+              <button
+                onClick={() => { const name = window.prompt(t("Preset name:", "预设名称:") as string); if (name) saveAbPreset(name); }}
+                className={`${btnSecondary} !text-xs !py-1.5`}
               >
-                <option value="">{t("Load...", "加载预设")}</option>
-                {Object.keys(abPresets).map((p) => <option key={p} value={p}>{p}</option>)}
-              </select>
-            )}
-            <button
-              onClick={() => { const name = window.prompt(t("Preset name:", "预设名称:") as string); if (name) saveAbPreset(name); }}
-              className={`${btnSecondary} !text-xs !py-1.5`}
-            >
-              <Database className="w-3.5 h-3.5 mr-1" />{t("Save", "保存预设")}
-            </button>
+                <Database className="w-3.5 h-3.5 mr-1" />{t("Save Preset", "保存预设")}
+              </button>
+            </div>
 
-            {/* Bulk Import */}
-            <button onClick={() => setImportOpen(!importOpen)} className={`${btnSecondary} !text-xs !py-1.5`}>
-              <Upload className="w-3.5 h-3.5 mr-1" />{t("Import JSON", "导入 JSON")}
-            </button>
-
-            <div className="h-5 w-px bg-gray-300 dark:bg-zinc-700" />
-
-            <button onClick={() => setAbEntries([])} className={`${btnSecondary} !text-xs !py-1.5`}>
-              <RotateCcw className="w-3.5 h-3.5 mr-1" />{t("Clear", "清空")}
-            </button>
-            <button
-              onClick={() => {
-                const newId = Math.max(...abEntries.map((e) => e.id), 0) + 1;
-                setAbEntryCounter(newId + 1);
-                const fields = abWhitelist.length > 0
-                  ? abWhitelist.map((f) => ({ key: f, value: "" }))
-                  : [{ key: "", value: "" }];
-                setAbEntries((prev) => [...prev, { id: newId, name: "", fields, output: "", busy: false }]);
-              }}
-              className={`${btnPrimary} !bg-emerald-600 hover:!bg-emerald-700 !text-xs !py-1.5`}
-            >
-              <Plus className="w-3.5 h-3.5 mr-1" />{t("Add Entry", "添加条目")}
-            </button>
+            {/* Right: entry actions */}
+            <div className="flex items-center gap-2">
+              {abEntries.length > 0 && (
+                <button onClick={() => setAbEntries([])} className={`${btnSecondary} !text-xs !py-1.5 !text-red-500 hover:!bg-red-50 dark:hover:!bg-red-950/20`}>
+                  <Trash2 className="w-3.5 h-3.5 mr-1" />{t("Clear All", "清空全部")}
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  const newId = Math.max(...abEntries.map((e) => e.id), 0) + 1;
+                  setAbEntryCounter(newId + 1);
+                  const fields = abWhitelist.length > 0
+                    ? abWhitelist.map((f) => ({ key: f, value: "" }))
+                    : [{ key: "", value: "" }];
+                  setAbEntries((prev) => [...prev, { id: newId, name: "", fields, output: "", busy: false }]);
+                }}
+                className={`${btnPrimary} !bg-emerald-600 hover:!bg-emerald-700 !text-xs !py-1.5`}
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />{t("Add Entry", "添加条目")}
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Check, SlidersHorizontal, Plus, Trash2, X } from "lucide-react";
+import { AlertTriangle, Check, SlidersHorizontal, Plus, Trash2, X, XCircle, ArrowDownToLine } from "lucide-react";
 import { cardClass, inputClass, labelClass, btnPrimary, btnSecondary, btnDanger } from "@/lib/constants";
 import type { RuleSummary } from "@/lib/types";
 import type { AbEntry } from "@/hooks/useApiBuilder";
@@ -56,8 +56,9 @@ export default function ApiBuilderRuleSection(props: ApiBuilderRuleSectionProps)
           {abRuleId && (
             <button
               onClick={() => { setAbRuleId(""); setAbRuleFields([]); resetAbCrud(); }}
-              className="text-xs text-gray-500 hover:text-red-500 transition-colors shrink-0"
+              className="inline-flex items-center gap-1 text-xs font-medium rounded-lg px-3 py-1.5 bg-gray-100 dark:bg-zinc-800 text-gray-600 dark:text-gray-400 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-600 dark:hover:text-red-400 hover:border-red-200 dark:hover:border-red-800 border border-gray-200 dark:border-zinc-700 transition-colors shrink-0"
             >
+              <XCircle className="w-3.5 h-3.5" />
               {t("Detach & Reset", "解除并重置")}
             </button>
           )}
@@ -68,6 +69,16 @@ export default function ApiBuilderRuleSection(props: ApiBuilderRuleSectionProps)
             {abRuleFields.map((f) => (
               <span key={f} className="text-[10px] bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded font-mono border border-blue-100 dark:border-blue-900/30">{f}</span>
             ))}
+            <button
+              onClick={() => {
+                setAbWhitelist(abRuleFields);
+                notifySucc(t("Whitelist synced from rule fields", "已从规则字段同步到白名单"));
+              }}
+              className="inline-flex items-center gap-1 text-[10px] font-medium rounded-lg px-2 py-1 bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-400 hover:bg-purple-100 dark:hover:bg-purple-900/40 border border-purple-200 dark:border-purple-800 transition-colors ml-1 shrink-0"
+            >
+              <ArrowDownToLine className="w-3 h-3" />
+              {t("Sync to Editor", "同步到编辑器")}
+            </button>
           </div>
         )}
       </div>
