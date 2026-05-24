@@ -103,7 +103,41 @@ pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(
         "INSERT INTO user_sessions (id, user_id, token_jti, token_expires_at, client_ip, user_agent) VALUES (?, ?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 86400 SECOND), ?, ?)"
     ).bind(&session_id).bind(&user_id).bind(&jti).bind(client_ip).bind(user_agent).execute(&state.pool).await;
 
-    Ok(Json(LoginResponse { token, user: row_to_user(&row) }))
+    // If suspicious, force TOTP enrollment if not already enabled
+    if risk.is_suspicious {
+        let totp_enabled: Option<i8> = sqlx::query_scalar(
+            "SELECT enabled FROM user_totp WHERE user_id = ?"
+        ).bind(&user_id).fetch_optional(&state.pool).await.ok().flatten();
+        if totp_enabled.unwrap_or(0) == 0 {
+            // Force TOTP: return a restricted token with short TTL + totp_required flag
+            let (restricted_token, _) = create_jwt(&payload.username, role, None, &state.auth.jwt_secret, 900, &user_group)?;
+            return Ok(Json(LoginResponse {
+                token: restricted_token,
+                user: row_to_user(&row),
+                risk: Some(LoginRisk { score: risk.score, is_suspicious: true, reasons: risk.reasons }),
+            }));
+        }
+    }
+
+    // Dispatch security notification for suspicious logins
+    if risk.is_suspicious {
+        spawn_audit_log(&state.pool, AuditEntry {
+            rule_id: None,
+            action: "security_alert".to_string(),
+            actor: payload.username.clone(),
+            success: true,
+            message: Some(format!("Suspicious login detected for '{}' (risk score {})", payload.username, risk.score)),
+            detail: Some(json!({"user_id": user_id, "risk_score": risk.score, "reasons": risk.reasons, "ip": client_ip})),
+        });
+    }
+
+    Ok(Json(LoginResponse {
+        token,
+        user: row_to_user(&row),
+        risk: if risk.is_suspicious {
+            Some(LoginRisk { score: risk.score, is_suspicious: true, reasons: risk.reasons.clone() })
+        } else { None },
+    }))
 }
 
 fn build_totp_from_db(encoded_secret: &str, account_name: &str) -> Result<totp_rs::TOTP, AppError> {

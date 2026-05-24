@@ -15,6 +15,15 @@ pub struct LoginRequest {
 pub struct LoginResponse {
     pub token: String,
     pub user: UserResponse,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub risk: Option<LoginRisk>,
+}
+
+#[derive(Debug, Serialize)]
+pub struct LoginRisk {
+    pub score: u32,
+    pub is_suspicious: bool,
+    pub reasons: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
