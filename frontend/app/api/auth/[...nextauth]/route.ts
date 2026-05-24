@@ -13,11 +13,12 @@ const handler = NextAuth({
         const apiBase = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://127.0.0.1:8080";
         try {
           const creds = credentials as Record<string, string> | undefined;
-          const body: { username: string; password: string; totp_code?: string } = {
+          const body: { username: string; password: string; totp_code?: string; device_fingerprint?: string } = {
             username: creds?.username || "",
             password: creds?.password || "",
           };
           if (creds?.totp_code) body.totp_code = creds.totp_code;
+          if (creds?.device_fingerprint) body.device_fingerprint = creds.device_fingerprint;
           const forwardHeaders: Record<string, string> = { "Content-Type": "application/json" };
           const xff = (req as any)?.headers?.["x-forwarded-for"];
           if (xff) forwardHeaders["x-forwarded-for"] = Array.isArray(xff) ? xff[0] : String(xff);

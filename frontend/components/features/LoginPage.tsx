@@ -118,6 +118,22 @@ function TotpInput({ onSubmit, loading, t }: { onSubmit: (code: string) => void;
   );
 }
 
+function generateDeviceId(): string {
+  const screen = `${window.screen.width}x${window.screen.height}x${window.screen.colorDepth}`;
+  const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "unknown";
+  const platform = navigator.platform || "unknown";
+  const language = navigator.language || "unknown";
+  const raw = `${screen}|${tz}|${platform}|${language}`;
+  // Simple hash: use btoa of raw
+  let hash = 0;
+  for (let i = 0; i < raw.length; i++) {
+    const ch = raw.charCodeAt(i);
+    hash = ((hash << 5) - hash) + ch;
+    hash |= 0; // Convert to 32bit integer
+  }
+  return Math.abs(hash).toString(16).padStart(8, "0");
+}
+
 export default function LoginPage({ t }: LoginPageProps) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -125,6 +141,8 @@ export default function LoginPage({ t }: LoginPageProps) {
   const [loginError, setLoginError] = useState("");
   const [loading, setLoading] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
+
+  const deviceFingerprint = typeof window !== "undefined" ? generateDeviceId() : "";
 
   const handleCredentials = useCallback(async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,6 +152,7 @@ export default function LoginPage({ t }: LoginPageProps) {
       redirect: false,
       username,
       password,
+      device_fingerprint: deviceFingerprint,
     });
     setLoading(false);
     if (!res?.error) {
@@ -159,6 +178,7 @@ export default function LoginPage({ t }: LoginPageProps) {
       username,
       password,
       totp_code: code,
+      device_fingerprint: deviceFingerprint,
     });
     setLoading(false);
     if (!res?.error) {
