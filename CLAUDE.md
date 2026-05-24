@@ -71,7 +71,7 @@ backend/src/
 ├── config.rs      ← Settings, AppState, AuthSettings, env parsing, CORS, tracing
 ├── db.rs          ← pool init, schema bootstrap, seed functions
 ├── auth.rs        ← AuthContext, middleware, RBAC, JWT, AppError
-├── types/         ← Request/response structs, split by domain (rule, api_key, rate_limit, metrics, approval, llm, user, system, validation)
+├── types/         ← Request/response structs, split by domain (rule, api_key, rate_limit, metrics, approval, llm, user, system, validation, permission_template)
 ├── handlers/      ← HTTP handlers, ONE file per domain entity
 └── engine/        ← Pure business logic, ZERO HTTP dependencies
 ```
@@ -339,6 +339,7 @@ frontend/
 │   ├── useLlmGateway.ts            ← LLM Gateway: providers, templates, routing (177 lines)
 │   ├── usePortal.ts                 ← Portal data: catalog, my keys, subscriptions, usage (159 lines)
 │   ├── useUserProfile.ts           ← User profile hook (257 lines)
+│   ├── usePermissionTemplates.ts   ← Permission templates CRUD (~105 lines)
 │   └── useUsers.ts                 ← User management CRUD hook (138 lines)
 ├── components/
 │   ├── layout/
@@ -384,6 +385,7 @@ frontend/
 │       ├── UserLoginHistoryTab.tsx ← Login history table (53 lines)
 │       ├── UserPreferencesTab.tsx  ← Theme/lang/notification prefs (82 lines)
 │       └── UserManagementPanel.tsx ← Admin user management (280 lines)
+│       └── PermissionTemplatesPanel.tsx ← Permission template CRUD (~195 lines)
 ```
 
 ### Frontend patterns

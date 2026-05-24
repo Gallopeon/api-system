@@ -5,6 +5,7 @@ import Image from "next/image";
 import { Plus, Trash2, Edit3, UserCircle, Users } from "lucide-react";
 import { cardClass, inputClass, labelClass, btnPrimary, btnSecondary } from "@/lib/constants";
 import { useUsers } from "@/hooks/useUsers";
+import { usePermissionTemplates } from "@/hooks/usePermissionTemplates";
 import type { UserResponse } from "@/lib/types";
 
 interface UserManagementPanelProps {
@@ -25,9 +26,11 @@ export default function UserManagementPanel({
 }: UserManagementPanelProps) {
   const [showCreate, setShowCreate] = useState(false);
   const usersHook = useUsers(notifyError, notifySucc);
+  const tplHook = usePermissionTemplates();
 
   useEffect(() => {
     usersHook.loadUsers();
+    tplHook.loadTemplates();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -41,6 +44,7 @@ export default function UserManagementPanel({
     usersHook.setEditRole(u.role);
     usersHook.setEditStatus(u.status);
     usersHook.setEditDisplayName(u.display_name || "");
+    usersHook.setEditTemplateId(u.permission_template_id || "");
   };
 
   const cancelEdit = () => {
@@ -48,6 +52,7 @@ export default function UserManagementPanel({
     usersHook.setEditRole("");
     usersHook.setEditStatus("");
     usersHook.setEditDisplayName("");
+    usersHook.setEditTemplateId("");
   };
 
   const roleLabel = (role: string) => {
@@ -107,6 +112,15 @@ export default function UserManagementPanel({
                 ))}
               </select>
             </div>
+            <div>
+              <label className={labelClass}>{t("Permission Template", "权限模板")}</label>
+              <select className={inputClass} value={usersHook.newTemplateId} onChange={(e) => usersHook.setNewTemplateId(e.target.value)}>
+                <option value="">{t("Default (role-based)", "默认（基于角色）")}</option>
+                {tplHook.templates.map((tpl) => (
+                  <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
+                ))}
+              </select>
+            </div>
           </div>
           <div className="flex gap-2 mt-4">
             <button onClick={handleCreate} disabled={usersHook.busy} className={btnPrimary}>
@@ -153,6 +167,7 @@ export default function UserManagementPanel({
               <th className="py-3 pr-4 font-medium text-gray-500">{t("User", "用户")}</th>
               <th className="py-3 pr-4 font-medium text-gray-500">{t("Email", "邮箱")}</th>
               <th className="py-3 pr-4 font-medium text-gray-500">{t("Role", "角色")}</th>
+              <th className="py-3 pr-4 font-medium text-gray-500">{t("Permission Template", "权限模板")}</th>
               <th className="py-3 pr-4 font-medium text-gray-500">{t("Status", "状态")}</th>
               <th className="py-3 pr-4 font-medium text-gray-500">{t("Last Login", "最后登录")}</th>
               <th className="py-3 font-medium text-gray-500">{t("Actions", "操作")}</th>
@@ -192,6 +207,14 @@ export default function UserManagementPanel({
                     <select className={`${inputClass} text-xs py-1`} value={usersHook.editStatus} onChange={(e) => usersHook.setEditStatus(e.target.value)}>
                       {STATUSES.map((s) => (
                         <option key={s} value={s}>{s === "active" ? t("Active", "活跃") : t("Disabled", "禁用")}</option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="py-3 pr-4" data-label={t("Permission Template", "权限模板")}>
+                    <select className={`${inputClass} text-xs py-1`} value={usersHook.editTemplateId} onChange={(e) => usersHook.setEditTemplateId(e.target.value)}>
+                      <option value="">{t("Default", "默认")}</option>
+                      {tplHook.templates.map((tpl) => (
+                        <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
                       ))}
                     </select>
                   </td>
@@ -242,6 +265,15 @@ export default function UserManagementPanel({
                       {roleLabel(u.role)}
                     </span>
                   </td>
+                  <td className="py-3 pr-4" data-label={t("Permission Template", "权限模板")}>
+                    {u.permission_template_id ? (
+                      <span className="text-xs px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-full">
+                        {tplHook.templates.find(t => t.id === u.permission_template_id)?.name || u.permission_template_id.slice(0, 8)}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-gray-400">{t("Default", "默认")}</span>
+                    )}
+                  </td>
                   <td className="py-3 pr-4" data-label={t("Status", "状态")}>
                     <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                       u.status === "active"
@@ -273,7 +305,7 @@ export default function UserManagementPanel({
             )}
             {usersHook.users.length === 0 && (
               <tr>
-                <td colSpan={6} className="py-8 text-center text-gray-400">
+                <td colSpan={7} className="py-8 text-center text-gray-400">
                   <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   {t("No users found", "未找到用户")}
                 </td>

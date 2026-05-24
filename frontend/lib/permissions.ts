@@ -159,6 +159,7 @@ export function canAccessMenu(role: Role | undefined | null, menuId: string): bo
     manual: [],
     "user-center": [PERMISSIONS.UserSelf],
     "user-management": [PERMISSIONS.UserManage],
+    "permission-templates": [PERMISSIONS.SystemRead, PERMISSIONS.SystemWrite],
     "system-settings": [PERMISSIONS.SystemRead, PERMISSIONS.SystemWrite],
   };
   const required = map[menuId];

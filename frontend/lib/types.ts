@@ -345,6 +345,20 @@ export type PluginConfigListResponse = { items: PluginConfig[]; limit: number; o
 
 // ---- User & Auth types ----
 
+export type PermissionTemplate = {
+  id: string;
+  name: string;
+  description: string | null;
+  permissions: string[];
+  is_builtin: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type PermissionTemplateListResponse = {
+  items: PermissionTemplate[];
+};
+
 export type UserResponse = {
   id: string;
   username: string;
@@ -353,6 +367,8 @@ export type UserResponse = {
   avatar_url: string | null;
   role: string;
   status: string;
+  permission_template_id: string | null;
+  custom_permissions: string[] | null;
   last_login_at: string | null;
   created_at: string;
   updated_at: string;

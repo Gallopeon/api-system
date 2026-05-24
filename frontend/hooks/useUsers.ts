@@ -18,12 +18,14 @@ export function useUsers(
   const [newEmail, setNewEmail] = useState("");
   const [newDisplayName, setNewDisplayName] = useState("");
   const [newRole, setNewRole] = useState("viewer");
+  const [newTemplateId, setNewTemplateId] = useState("");
 
   // Edit form state
   const [editUserId, setEditUserId] = useState("");
   const [editRole, setEditRole] = useState("");
   const [editStatus, setEditStatus] = useState("");
   const [editDisplayName, setEditDisplayName] = useState("");
+  const [editTemplateId, setEditTemplateId] = useState("");
 
   const loadUsers = useCallback(async () => {
     setBusy(true);
@@ -61,6 +63,7 @@ export function useUsers(
           email: newEmail || undefined,
           display_name: newDisplayName || undefined,
           role: newRole,
+          permission_template_id: newTemplateId || undefined,
         }),
       });
       if (!r.ok) {
@@ -73,6 +76,7 @@ export function useUsers(
       setNewEmail("");
       setNewDisplayName("");
       setNewRole("viewer");
+      setNewTemplateId("");
       await loadUsers();
     } catch (e) {
       notifyError?.((e as Error).message);
@@ -89,6 +93,7 @@ export function useUsers(
         if (editRole) body.role = editRole;
         if (editStatus) body.status = editStatus;
         if (editDisplayName) body.display_name = editDisplayName;
+        if (editTemplateId) body.permission_template_id = editTemplateId;
         const r = await apiFetch(`/admin/v1/users/${userId}`, {
           method: "PUT",
           body: JSON.stringify(body),
@@ -102,6 +107,7 @@ export function useUsers(
         setEditRole("");
         setEditStatus("");
         setEditDisplayName("");
+        setEditTemplateId("");
         await loadUsers();
       } catch (e) {
         notifyError?.((e as Error).message);
@@ -138,10 +144,10 @@ export function useUsers(
   return {
     users, busy, filterRole, filterStatus, search,
     setFilterRole, setFilterStatus, setSearch,
-    newUsername, newPassword, newEmail, newDisplayName, newRole,
-    setNewUsername, setNewPassword, setNewEmail, setNewDisplayName, setNewRole,
-    editUserId, editRole, editStatus, editDisplayName,
-    setEditUserId, setEditRole, setEditStatus, setEditDisplayName,
+    newUsername, newPassword, newEmail, newDisplayName, newRole, newTemplateId,
+    setNewUsername, setNewPassword, setNewEmail, setNewDisplayName, setNewRole, setNewTemplateId,
+    editUserId, editRole, editStatus, editDisplayName, editTemplateId,
+    setEditUserId, setEditRole, setEditStatus, setEditDisplayName, setEditTemplateId,
     loadUsers, createUser, updateUser, deleteUser,
   };
 }
