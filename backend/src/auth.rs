@@ -304,7 +304,7 @@ async fn load_user_permissions(pool: &sqlx::MySqlPool, username: &str) -> Result
 
     if let Some(tid) = template_id {
         let template_perms: Option<String> = sqlx::query_scalar(
-            "SELECT permissions FROM permission_templates WHERE id = ?"
+            "SELECT CAST(permissions AS CHAR) FROM permission_templates WHERE id = ?"
         )
         .bind(&tid)
         .fetch_optional(pool)
