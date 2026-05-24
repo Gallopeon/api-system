@@ -231,10 +231,11 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
         KEY idx_users_username (username), KEY idx_users_email (email), KEY idx_users_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
 
-    // Migrate users table: add permission_template_id and custom_permissions
+    // Migrate users table: add permission_template_id, custom_permissions, user_group
     for (col, def) in &[
         ("permission_template_id", "VARCHAR(36) NULL"),
         ("custom_permissions", "JSON NULL"),
+        ("user_group", "VARCHAR(32) NOT NULL DEFAULT 'admin_group'"),
     ] {
         let has_col: i64 = sqlx::query_scalar(
             "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = ?"

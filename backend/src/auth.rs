@@ -52,6 +52,7 @@ pub struct AuthContext {
     pub tenant_id: Option<String>,
     pub jti: Option<String>,
     pub permissions: Vec<String>,
+    pub user_group: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -64,6 +65,12 @@ pub struct JwtClaims {
     pub tenant_id: Option<String>,
     #[serde(default)]
     pub jti: Option<String>,
+    #[serde(default = "default_user_group")]
+    pub user_group: String,
+}
+
+fn default_user_group() -> String {
+    "admin_group".to_string()
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -279,6 +286,7 @@ pub fn create_jwt(
     tenant_id: Option<&str>,
     secret: &str,
     ttl_seconds: i64,
+    user_group: &str,
 ) -> Result<(String, String), AppError> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -292,6 +300,7 @@ pub fn create_jwt(
         "iat": now,
         "jti": jti,
         "tenant_id": tenant_id,
+        "user_group": user_group,
     });
     let token = encode(
         &Header::new(Algorithm::HS256),
@@ -400,6 +409,7 @@ async fn try_authenticate(state: &AppState, headers: &HeaderMap) -> Option<AuthC
         tenant_id: claims.tenant_id,
         jti: claims.jti,
         permissions,
+        user_group: claims.user_group,
     })
 }
 

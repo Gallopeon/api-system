@@ -30,6 +30,8 @@ pub struct CreateUserRequest {
     #[serde(default)]
     pub custom_permissions: Option<Vec<String>>,
     #[serde(default)]
+    pub user_group: Option<String>,
+    #[serde(default)]
     pub actor: Option<String>,
 }
 
@@ -49,6 +51,8 @@ pub struct UpdateUserRequest {
     pub permission_template_id: Option<String>,
     #[serde(default)]
     pub custom_permissions: Option<Vec<String>>,
+    #[serde(default)]
+    pub user_group: Option<String>,
     #[serde(default)]
     pub actor: Option<String>,
 }
@@ -70,6 +74,7 @@ pub struct UserResponse {
     pub status: String,
     pub permission_template_id: Option<String>,
     pub custom_permissions: Option<Vec<String>>,
+    pub user_group: Option<String>,
     pub last_login_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,

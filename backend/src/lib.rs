@@ -220,6 +220,7 @@ async fn data_plane_middleware(
         tenant_id: None,
         jti: None,
         permissions: vec![],
+        user_group: "admin_group".to_string(),
     });
     next.run(request).await
 }
