@@ -365,7 +365,6 @@ export type UserResponse = {
   email: string | null;
   display_name: string | null;
   avatar_url: string | null;
-  role: string;
   status: string;
   permission_template_id: string | null;
   custom_permissions: string[] | null;

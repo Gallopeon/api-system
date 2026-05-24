@@ -20,12 +20,11 @@ import {
   X,
 } from "lucide-react";
 
-import { canAccessMenu, type Role } from "@/lib/permissions";
+import { canAccessMenu } from "@/lib/permissions";
 
 interface SidebarProps {
   activeMenu: string;
   onMenuSelect: (menu: string) => void;
-  role: Role | null;
   userGroup: string | null;
   metrics: {
     total_rules?: number;
@@ -64,17 +63,12 @@ const USER_GROUP_MENUS = new Set(["portal", "user-center", "manual", "dashboard"
 function SidebarContent({
   activeMenu,
   onMenuSelect,
-  role,
   userGroup,
   metrics,
   t,
   onClose,
 }: Omit<SidebarProps, "open">) {
-  const visibleItems = menuItems.filter((m) => {
-    if (!canAccessMenu(role, m.id)) return false;
-    if (userGroup === "user_group" && !USER_GROUP_MENUS.has(m.id)) return false;
-    return true;
-  });
+  const visibleItems = menuItems.filter((m) => canAccessMenu(userGroup, m.id));
 
   const handleMenuSelect = (menu: string) => {
     onMenuSelect(menu);

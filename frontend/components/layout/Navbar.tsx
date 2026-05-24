@@ -11,7 +11,6 @@ interface NavbarProps {
   lang: string;
   onToggleLang: () => void;
   userName: string;
-  userRole?: string;
   userEmail?: string;
   onSignOut: () => void;
   onToggleSidebar: () => void;
@@ -35,13 +34,6 @@ function HealthDot({ state, ok }: { state: string; ok: string }) {
   );
 }
 
-const roleBadge: Record<string, { cls: string; en: string; zh: string }> = {
-  admin:    { cls: "bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300", en: "Admin", zh: "管理员" },
-  reviewer: { cls: "bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300", en: "Reviewer", zh: "审核者" },
-  editor:   { cls: "bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300", en: "Editor", zh: "编辑者" },
-  viewer:   { cls: "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400", en: "Viewer", zh: "观察者" },
-};
-
 export default function Navbar({
   liveState,
   readyState,
@@ -49,7 +41,6 @@ export default function Navbar({
   lang,
   onToggleLang,
   userName,
-  userRole,
   userEmail,
   onSignOut,
   onToggleSidebar,
@@ -69,8 +60,6 @@ export default function Navbar({
   }, [open]);
 
   const displayName = userName || t("Admin", "管理员");
-  const role = userRole || "admin";
-  const rb = roleBadge[role] || roleBadge.viewer;
 
   return (
     <nav className="h-14 border-b border-gray-200 dark:border-zinc-800 bg-white dark:bg-zinc-950/60 backdrop-blur-md sticky top-0 z-40 flex items-center justify-between px-4 lg:px-6">
@@ -164,12 +153,6 @@ export default function Navbar({
                   </div>
                   <div className="min-w-0">
                     <div className="font-semibold text-sm text-gray-900 dark:text-gray-100 truncate">{displayName}</div>
-                    <div className="flex items-center gap-1.5 mt-0.5">
-                      <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium ${rb.cls}`}>
-                        <Shield className="w-2.5 h-2.5 inline mr-0.5" />
-                        {t(rb.en, rb.zh)}
-                      </span>
-                    </div>
                     {userEmail && (
                       <div className="text-xs text-gray-400 dark:text-gray-500 mt-1 truncate">{userEmail}</div>
                     )}

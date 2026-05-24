@@ -7,7 +7,7 @@ import LoginPage from "@/components/features/LoginPage";
 
 // ---- Foundation ----
 import { getDefaultExpiry } from "@/lib/utils";
-import { hasPermission, canAccessMenu, PERMISSIONS, type Role } from "@/lib/permissions";
+import { canAccessMenu } from "@/lib/permissions";
 import { setAuthErrorHandler } from "@/lib/api";
 
 // ---- Hooks ----
@@ -54,7 +54,6 @@ export default function APIControlCenter() {
   const { lang, setLang } = useI18n();
   const t = useCallback(<T,>(en: T, zh: T): T => (lang === "zh" ? zh : en), [lang]);
   const { data: session, status } = useSession();
-  const userRole = (session?.user?.role as Role) || null;
   const userGroup = ((session?.user as any)?.userGroup as string) || "admin_group";
   const isUserGroup = userGroup === "user_group";
   const [activeMenu, setActiveMenuRaw] = useState(() => {
@@ -76,22 +75,22 @@ export default function APIControlCenter() {
   const toggleSidebar = useCallback(() => setSidebarOpen((v) => !v), []);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
-  // Permission flags for role-based UI gating
+  // admin_group has all capabilities; user_group gets restricted view
   const can = {
-    writeRule: hasPermission(userRole, PERMISSIONS.RuleWrite),
-    publishRule: hasPermission(userRole, PERMISSIONS.RulePublish),
-    executeTransform: hasPermission(userRole, PERMISSIONS.TransformExecute),
-    writeApiKey: hasPermission(userRole, PERMISSIONS.ApiKeyWrite),
-    writeRateLimit: hasPermission(userRole, PERMISSIONS.RateLimitWrite),
-    reviewApproval: hasPermission(userRole, PERMISSIONS.ApprovalReview),
-    manageLlm: hasPermission(userRole, PERMISSIONS.LlmManage),
-    writeProducts: hasPermission(userRole, PERMISSIONS.ProductsWrite),
-    writeCircuitBreakers: hasPermission(userRole, PERMISSIONS.CircuitBreakersWrite),
-    writeProtocols: hasPermission(userRole, PERMISSIONS.ProtocolsWrite),
-    writeClassifications: hasPermission(userRole, PERMISSIONS.ClassificationsWrite),
-    writePlugins: hasPermission(userRole, PERMISSIONS.PluginsWrite),
-    writeSystem: hasPermission(userRole, PERMISSIONS.SystemWrite),
-    manageUsers: hasPermission(userRole, PERMISSIONS.UserManage),
+    writeRule: !isUserGroup,
+    publishRule: !isUserGroup,
+    executeTransform: !isUserGroup,
+    writeApiKey: !isUserGroup,
+    writeRateLimit: !isUserGroup,
+    reviewApproval: !isUserGroup,
+    manageLlm: !isUserGroup,
+    writeProducts: !isUserGroup,
+    writeCircuitBreakers: !isUserGroup,
+    writeProtocols: !isUserGroup,
+    writeClassifications: !isUserGroup,
+    writePlugins: !isUserGroup,
+    writeSystem: !isUserGroup,
+    manageUsers: !isUserGroup,
   };
 
   // Cross-tab state
@@ -142,11 +141,11 @@ export default function APIControlCenter() {
     const userGroupMenus = ["portal", "user-center", "manual", "dashboard"];
     if (isUserGroup && !userGroupMenus.includes(activeMenu)) {
       setActiveMenu("portal");
-    } else if (userRole && !canAccessMenu(userRole, activeMenu)) {
-      setActiveMenu("dashboard");
+    } else if (!canAccessMenu(userGroup, activeMenu)) {
+      setActiveMenu(isUserGroup ? "portal" : "dashboard");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userRole, activeMenu]);
+  }, [userGroup, activeMenu]);
 
   // ---- Init ----
   useEffect(() => {
@@ -191,7 +190,6 @@ export default function APIControlCenter() {
         lang={lang}
         onToggleLang={() => setLang(lang === "zh" ? "en" : "zh")}
         userName={session?.user?.name || ""}
-        userRole={userRole || undefined}
         userEmail={(session?.user as any)?.email || undefined}
         onSignOut={() => signOut()}
         onToggleSidebar={toggleSidebar}
@@ -203,7 +201,6 @@ export default function APIControlCenter() {
         <Sidebar
           activeMenu={activeMenu}
           onMenuSelect={setActiveMenu}
-          role={userRole}
           userGroup={userGroup}
           metrics={metrics}
           t={t}

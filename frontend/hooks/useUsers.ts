@@ -7,7 +7,7 @@ export function useUsers(
   notifySucc?: (msg: string) => void,
 ) {
   const [users, setUsers] = useState<UserResponse[]>([]);
-  const [filterRole, setFilterRole] = useState("");
+  const [filterUserGroup, setFilterUserGroup] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
@@ -17,13 +17,11 @@ export function useUsers(
   const [newPassword, setNewPassword] = useState("");
   const [newEmail, setNewEmail] = useState("");
   const [newDisplayName, setNewDisplayName] = useState("");
-  const [newRole, setNewRole] = useState("viewer");
   const [newTemplateId, setNewTemplateId] = useState("");
   const [newUserGroup, setNewUserGroup] = useState("admin_group");
 
   // Edit form state
   const [editUserId, setEditUserId] = useState("");
-  const [editRole, setEditRole] = useState("");
   const [editStatus, setEditStatus] = useState("");
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editTemplateId, setEditTemplateId] = useState("");
@@ -33,7 +31,7 @@ export function useUsers(
     setBusy(true);
     try {
       const params = new URLSearchParams();
-      if (filterRole) params.set("role", filterRole);
+      if (filterUserGroup) params.set("user_group", filterUserGroup);
       if (filterStatus) params.set("status", filterStatus);
       if (search) params.set("search", search);
       params.set("limit", "50");
@@ -48,7 +46,7 @@ export function useUsers(
     } finally {
       setBusy(false);
     }
-  }, [filterRole, filterStatus, search]);
+  }, [filterUserGroup, filterStatus, search]);
 
   const createUser = useCallback(async () => {
     if (!newUsername || !newPassword) {
@@ -64,7 +62,6 @@ export function useUsers(
           password: newPassword,
           email: newEmail || undefined,
           display_name: newDisplayName || undefined,
-          role: newRole,
           permission_template_id: newTemplateId || undefined,
           user_group: newUserGroup || undefined,
         }),
@@ -78,7 +75,6 @@ export function useUsers(
       setNewPassword("");
       setNewEmail("");
       setNewDisplayName("");
-      setNewRole("viewer");
       setNewTemplateId("");
       setNewUserGroup("admin_group");
       await loadUsers();
@@ -87,14 +83,13 @@ export function useUsers(
     } finally {
       setBusy(false);
     }
-  }, [newUsername, newPassword, newEmail, newDisplayName, newRole, loadUsers, notifyError, notifySucc]);
+  }, [newUsername, newPassword, newEmail, newDisplayName, newTemplateId, newUserGroup, loadUsers, notifyError, notifySucc]);
 
   const updateUser = useCallback(
     async (userId: string) => {
       setBusy(true);
       try {
         const body: Record<string, string> = {};
-        if (editRole) body.role = editRole;
         if (editStatus) body.status = editStatus;
         if (editDisplayName) body.display_name = editDisplayName;
         if (editTemplateId) body.permission_template_id = editTemplateId;
@@ -109,7 +104,6 @@ export function useUsers(
         }
         notifySucc?.("User updated");
         setEditUserId("");
-        setEditRole("");
         setEditStatus("");
         setEditDisplayName("");
         setEditTemplateId("");
@@ -121,7 +115,7 @@ export function useUsers(
         setBusy(false);
       }
     },
-    [editRole, editStatus, editDisplayName, loadUsers, notifyError, notifySucc],
+    [editStatus, editDisplayName, editTemplateId, editUserGroup, loadUsers, notifyError, notifySucc],
   );
 
   const deleteUser = useCallback(
@@ -148,12 +142,12 @@ export function useUsers(
   );
 
   return {
-    users, busy, filterRole, filterStatus, search,
-    setFilterRole, setFilterStatus, setSearch,
-    newUsername, newPassword, newEmail, newDisplayName, newRole, newTemplateId, newUserGroup,
-    setNewUsername, setNewPassword, setNewEmail, setNewDisplayName, setNewRole, setNewTemplateId, setNewUserGroup,
-    editUserId, editRole, editStatus, editDisplayName, editTemplateId, editUserGroup,
-    setEditUserId, setEditRole, setEditStatus, setEditDisplayName, setEditTemplateId, setEditUserGroup,
+    users, busy, filterUserGroup, filterStatus, search,
+    setFilterUserGroup, setFilterStatus, setSearch,
+    newUsername, newPassword, newEmail, newDisplayName, newTemplateId, newUserGroup,
+    setNewUsername, setNewPassword, setNewEmail, setNewDisplayName, setNewTemplateId, setNewUserGroup,
+    editUserId, editStatus, editDisplayName, editTemplateId, editUserGroup,
+    setEditUserId, setEditStatus, setEditDisplayName, setEditTemplateId, setEditUserGroup,
     loadUsers, createUser, updateUser, deleteUser,
   };
 }

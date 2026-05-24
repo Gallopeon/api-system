@@ -15,7 +15,6 @@ interface UserManagementPanelProps {
   t: <T>(en: T, zh: T) => T;
 }
 
-const ROLES = ["admin", "reviewer", "editor", "viewer"];
 const STATUSES = ["active", "disabled"];
 
 export default function UserManagementPanel({
@@ -41,7 +40,6 @@ export default function UserManagementPanel({
 
   const startEdit = (u: UserResponse) => {
     usersHook.setEditUserId(u.id);
-    usersHook.setEditRole(u.role);
     usersHook.setEditStatus(u.status);
     usersHook.setEditDisplayName(u.display_name || "");
     usersHook.setEditTemplateId(u.permission_template_id || "");
@@ -50,21 +48,10 @@ export default function UserManagementPanel({
 
   const cancelEdit = () => {
     usersHook.setEditUserId("");
-    usersHook.setEditRole("");
     usersHook.setEditStatus("");
     usersHook.setEditDisplayName("");
     usersHook.setEditTemplateId("");
     usersHook.setEditUserGroup("");
-  };
-
-  const roleLabel = (role: string) => {
-    const m: Record<string, string> = {
-      admin: t("Admin", "管理员"),
-      reviewer: t("Reviewer", "审核者"),
-      editor: t("Editor", "编辑者"),
-      viewer: t("Viewer", "观察者"),
-    };
-    return m[role] || role;
   };
 
   return (
@@ -75,7 +62,7 @@ export default function UserManagementPanel({
             {t("User Management", "用户管理")}
           </h1>
           <p className="text-gray-500 dark:text-gray-400 text-sm">
-            {t("Manage users, roles, and access control.", "管理用户、角色和访问控制。")}
+            {t("Manage users, permissions, and access control.", "管理用户、权限和访问控制。")}
           </p>
         </div>
         {canManage && (
@@ -107,17 +94,9 @@ export default function UserManagementPanel({
               <input className={inputClass} value={usersHook.newDisplayName} onChange={(e) => usersHook.setNewDisplayName(e.target.value)} />
             </div>
             <div>
-              <label className={labelClass}>{t("Role", "角色")}</label>
-              <select className={inputClass} value={usersHook.newRole} onChange={(e) => usersHook.setNewRole(e.target.value)}>
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>{roleLabel(r)}</option>
-                ))}
-              </select>
-            </div>
-            <div>
               <label className={labelClass}>{t("Permission Template", "权限模板")}</label>
               <select className={inputClass} value={usersHook.newTemplateId} onChange={(e) => usersHook.setNewTemplateId(e.target.value)}>
-                <option value="">{t("Default (role-based)", "默认（基于角色）")}</option>
+                <option value="">{t("Default (no template)", "默认（无模板）")}</option>
                 {tplHook.templates.map((tpl) => (
                   <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
                 ))}
@@ -151,12 +130,6 @@ export default function UserManagementPanel({
           onChange={(e) => usersHook.setSearch(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && usersHook.loadUsers()}
         />
-        <select className={`${inputClass} max-w-[140px]`} value={usersHook.filterRole} onChange={(e) => { usersHook.setFilterRole(e.target.value); setTimeout(() => usersHook.loadUsers(), 0); }}>
-          <option value="">{t("All Roles", "全部角色")}</option>
-          {ROLES.map((r) => (
-            <option key={r} value={r}>{roleLabel(r)}</option>
-          ))}
-        </select>
         <select className={`${inputClass} max-w-[140px]`} value={usersHook.filterStatus} onChange={(e) => { usersHook.setFilterStatus(e.target.value); setTimeout(() => usersHook.loadUsers(), 0); }}>
           <option value="">{t("All Status", "全部状态")}</option>
           {STATUSES.map((s) => (
@@ -175,7 +148,6 @@ export default function UserManagementPanel({
             <tr className="border-b border-gray-200 dark:border-gray-700 text-left">
               <th className="py-3 pr-4 font-medium text-gray-500">{t("User", "用户")}</th>
               <th className="py-3 pr-4 font-medium text-gray-500">{t("Email", "邮箱")}</th>
-              <th className="py-3 pr-4 font-medium text-gray-500">{t("Role", "角色")}</th>
               <th className="py-3 pr-4 font-medium text-gray-500">{t("Permission Template", "权限模板")}</th>
               <th className="py-3 pr-4 font-medium text-gray-500">{t("Status", "状态")}</th>
               <th className="py-3 pr-4 font-medium text-gray-500">{t("Last Login", "最后登录")}</th>
@@ -205,13 +177,6 @@ export default function UserManagementPanel({
                     />
                   </td>
                   <td className="py-3 pr-4 text-gray-500" data-label={t("Email", "邮箱")}>{u.email || "—"}</td>
-                  <td className="py-3 pr-4" data-label={t("Role", "角色")}>
-                    <select className={`${inputClass} text-xs py-1`} value={usersHook.editRole} onChange={(e) => usersHook.setEditRole(e.target.value)}>
-                      {ROLES.map((r) => (
-                        <option key={r} value={r}>{roleLabel(r)}</option>
-                      ))}
-                    </select>
-                  </td>
                   <td className="py-3 pr-4" data-label={t("Status", "状态")}>
                     <select className={`${inputClass} text-xs py-1`} value={usersHook.editStatus} onChange={(e) => usersHook.setEditStatus(e.target.value)}>
                       {STATUSES.map((s) => (
@@ -263,17 +228,6 @@ export default function UserManagementPanel({
                     </div>
                   </td>
                   <td className="py-3 pr-4 text-gray-500" data-label={t("Email", "邮箱")}>{u.email || "—"}</td>
-                  <td className="py-3 pr-4" data-label={t("Role", "角色")}>
-                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                      u.role === "admin"
-                        ? "bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300"
-                        : u.role === "editor"
-                        ? "bg-blue-100 dark:bg-blue-900 text-blue-700 dark:text-blue-300"
-                        : "bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300"
-                    }`}>
-                      {roleLabel(u.role)}
-                    </span>
-                  </td>
                   <td className="py-3 pr-4" data-label={t("Permission Template", "权限模板")}>
                     {u.permission_template_id ? (
                       <span className="text-xs px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300 rounded-full">
@@ -314,7 +268,7 @@ export default function UserManagementPanel({
             )}
             {usersHook.users.length === 0 && (
               <tr>
-                <td colSpan={7} className="py-8 text-center text-gray-400">
+                <td colSpan={6} className="py-8 text-center text-gray-400">
                   <Users className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   {t("No users found", "未找到用户")}
                 </td>

@@ -42,7 +42,7 @@ export default function UserProfileTab({
           )}
           <div>
             <div className="font-semibold text-lg">{profile.display_name || profile.username}</div>
-            <div className="text-sm text-gray-500">@{profile.username} · {t("Role:", "角色：")} {profile.role}</div>
+            <div className="text-sm text-gray-500">@{profile.username} · {t("Group:", "用户组：")} {profile.user_group === "user_group" ? t("User", "用户") : t("Admin", "管理")}</div>
           </div>
         </div>
         <div>
