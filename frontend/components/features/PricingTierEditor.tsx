@@ -60,12 +60,13 @@ export default function PricingTierEditor({ tiers, onUpdate, t }: Props) {
                   {t(labelEn, labelZh)} {required && <span className="text-red-400">*</span>}
                 </label>
                 <input
-                  className={`${inputClass} py-1.5 text-xs`}
+                  className={inputClass}
                   type={type || "text"}
                   value={tier[key]}
                   onChange={e => updateField(i, key, e.target.value)}
                   placeholder={placeholder}
                   min={type === "number" ? "0" : undefined}
+                  step={key === "price_monthly" ? "0.01" : "1"}
                 />
               </div>
             ))}
