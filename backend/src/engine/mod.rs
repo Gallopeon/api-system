@@ -8,6 +8,7 @@ pub mod crypto;
 pub mod metrics;
 pub mod notify;
 pub mod retention;
+pub mod risk;
 
 pub use transform::*;
 pub use expression::*;
@@ -19,3 +20,4 @@ pub use crypto::*;
 pub use metrics::*;
 pub use notify::*;
 pub use retention::*;
+pub use risk::*;

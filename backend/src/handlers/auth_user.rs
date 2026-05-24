@@ -71,21 +71,33 @@ pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(
     let role = parse_role(&role_str);
     let user_group: String = row.try_get("user_group").unwrap_or_else(|_| "admin_group".to_string());
 
-    let (token, jti) = create_jwt(&payload.username, role, None, &state.auth.jwt_secret, 86400, &user_group)?;
-
-    // Reset failed attempts on success, update last login, record successful login
-    sqlx::query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE id = ?")
-        .bind(&user_id).execute(&state.pool).await?;
-    let _ = sqlx::query(
-        "INSERT INTO login_history (user_id, username_attempt, success) VALUES (?, ?, 1)"
-    ).bind(&user_id).bind(&payload.username).execute(&state.pool).await;
-
-    // Record active session
+    // Extract client IP and UA earlier for risk assessment
     let client_ip = headers.get("x-forwarded-for")
         .or_else(|| headers.get("x-real-ip"))
         .and_then(|v| v.to_str().ok())
         .unwrap_or("unknown");
     let user_agent = headers.get("user-agent").and_then(|v| v.to_str().ok());
+    let ua_str = user_agent.unwrap_or("");
+
+    // Zero-trust: assess login risk
+    let risk = crate::engine::risk::assess_login_risk(
+        &state.pool, &user_id, client_ip,
+        payload.device_fingerprint.as_deref(),
+        Some(ua_str),
+    ).await;
+
+    let (token, jti) = create_jwt(&payload.username, role, None, &state.auth.jwt_secret, 86400, &user_group)?;
+
+    // Reset failed attempts on success, update last login, record successful login with risk score
+    sqlx::query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE id = ?")
+        .bind(&user_id).execute(&state.pool).await?;
+    let _ = sqlx::query(
+        "INSERT INTO login_history (user_id, username_attempt, success, device_fingerprint, risk_score, is_suspicious) VALUES (?, ?, 1, ?, ?, ?)"
+    ).bind(&user_id).bind(&payload.username)
+     .bind(&payload.device_fingerprint)
+     .bind(risk.score as i32)
+     .bind(risk.is_suspicious)
+     .execute(&state.pool).await;
     let session_id = Uuid::new_v4().to_string();
     let _ = sqlx::query(
         "INSERT INTO user_sessions (id, user_id, token_jti, token_expires_at, client_ip, user_agent) VALUES (?, ?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 86400 SECOND), ?, ?)"
@@ -601,6 +613,57 @@ pub async fn update_my_preferences(State(state): State<Arc<AppState>>, Extension
         lang: merged.get("lang").and_then(|v| v.as_str()).unwrap_or("zh").to_string(),
         notifications: merged.get("notifications").cloned(),
     }))
+}
+
+// ==================== Devices ====================
+
+pub async fn list_my_devices(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthContext>,
+) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
+    let rows = sqlx::query(
+        "SELECT id, fingerprint_hash, device_name, user_agent_hash, last_ip, trust_level, is_trusted, created_at, last_seen_at FROM user_devices WHERE user_id = (SELECT id FROM users WHERE username = ?) ORDER BY last_seen_at DESC"
+    )
+    .bind(&auth.subject)
+    .fetch_all(&state.pool).await?;
+    let items: Vec<Value> = rows.iter().map(|r| {
+        let created_at: DateTime<Utc> = r.try_get("created_at").unwrap_or(DateTime::UNIX_EPOCH);
+        let last_seen: DateTime<Utc> = r.try_get("last_seen_at").unwrap_or(DateTime::UNIX_EPOCH);
+        json!({
+            "id": r.try_get::<String,_>("id").unwrap_or_default(),
+            "fingerprint_hash": r.try_get::<String,_>("fingerprint_hash").unwrap_or_default(),
+            "device_name": r.try_get::<String,_>("device_name").unwrap_or_default(),
+            "last_ip": r.try_get::<String,_>("last_ip").unwrap_or_default(),
+            "trust_level": r.try_get::<String,_>("trust_level").unwrap_or_default(),
+            "is_trusted": r.try_get::<i8,_>("is_trusted").unwrap_or(0) == 1,
+            "first_seen": created_at.to_rfc3339(),
+            "last_seen": last_seen.to_rfc3339(),
+        })
+    }).collect();
+    Ok(Json(json!({"items": items})))
+}
+
+pub async fn trust_device(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthContext>,
+    Path(device_id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
+    sqlx::query("UPDATE user_devices SET trust_level = 'trusted' WHERE id = ? AND user_id = (SELECT id FROM users WHERE username = ?)")
+        .bind(&device_id).bind(&auth.subject).execute(&state.pool).await?;
+    Ok(Json(json!({"trusted": true})))
+}
+
+pub async fn revoke_device(
+    State(state): State<Arc<AppState>>,
+    Extension(auth): Extension<AuthContext>,
+    Path(device_id): Path<String>,
+) -> Result<impl IntoResponse, AppError> {
+    ensure_permission(&auth, Permission::UserSelf)?;
+    sqlx::query("DELETE FROM user_devices WHERE id = ? AND user_id = (SELECT id FROM users WHERE username = ?)")
+        .bind(&device_id).bind(&auth.subject).execute(&state.pool).await?;
+    Ok(Json(json!({"revoked": true})))
 }
 
 // ==================== Helpers ====================

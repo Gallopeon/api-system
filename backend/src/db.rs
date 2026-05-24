@@ -252,12 +252,24 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
         fingerprint_hash VARCHAR(64) NOT NULL, device_name VARCHAR(128) NULL,
         user_agent_hash VARCHAR(64) NULL, last_ip VARCHAR(45) NULL,
         trust_level VARCHAR(32) NOT NULL DEFAULT 'unknown',
+        is_trusted TINYINT(1) NOT NULL DEFAULT 0,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         KEY idx_dev_user (user_id), KEY idx_dev_fp (fingerprint_hash),
         UNIQUE KEY uq_dev_user_fp (user_id, fingerprint_hash),
         CONSTRAINT fk_dev_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
+
+    // Migrate user_devices: add is_trusted if missing
+    {
+        let has: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'user_devices' AND COLUMN_NAME = 'is_trusted'"
+        ).fetch_one(pool).await.unwrap_or(0);
+        if has == 0 {
+            sqlx::query("ALTER TABLE user_devices ADD COLUMN is_trusted TINYINT(1) NOT NULL DEFAULT 0")
+                .execute(pool).await?;
+        }
+    }
 
     sqlx::query(r#"CREATE TABLE IF NOT EXISTS user_sessions (
         id VARCHAR(36) PRIMARY KEY, user_id VARCHAR(36) NOT NULL, token_jti VARCHAR(64) NOT NULL UNIQUE,

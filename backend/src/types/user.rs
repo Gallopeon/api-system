@@ -7,6 +7,8 @@ pub struct LoginRequest {
     pub password: String,
     #[serde(default)]
     pub totp_code: Option<String>,
+    #[serde(default)]
+    pub device_fingerprint: Option<String>,
 }
 
 #[derive(Debug, Serialize)]

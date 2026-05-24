@@ -135,6 +135,9 @@ pub async fn run() -> anyhow::Result<()> {
         .route("/admin/v1/users/me/notifications/read", post(mark_notification_read))
         .route("/admin/v1/users/me/notifications/:id", delete(delete_notification))
         .route("/admin/v1/users/me/notifications/unread-count", get(get_unread_count))
+        .route("/admin/v1/users/me/devices", get(list_my_devices))
+        .route("/admin/v1/users/me/devices/:id/trust", post(trust_device))
+        .route("/admin/v1/users/me/devices/:id", delete(revoke_device))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
     let public_router = Router::new()
