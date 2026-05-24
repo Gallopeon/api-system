@@ -11,6 +11,7 @@ use serde_json::json;
 use thiserror::Error;
 use tracing::error;
 use uuid::Uuid;
+use sqlx::Row;
 
 use crate::AppState;
 
@@ -50,6 +51,7 @@ pub struct AuthContext {
     pub role: Role,
     pub tenant_id: Option<String>,
     pub jti: Option<String>,
+    pub permissions: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -237,8 +239,18 @@ pub fn role_has_permission(role: Role, permission: Permission) -> bool {
     }
 }
 
+/// Check permission using template + custom overrides (Phase 1), fallback to role-based
+pub fn user_has_permission(auth: &AuthContext, permission: Permission) -> bool {
+    if !auth.permissions.is_empty() {
+        let perm_str = permission.as_str();
+        auth.permissions.contains(&perm_str.to_string())
+    } else {
+        role_has_permission(auth.role, permission)
+    }
+}
+
 pub fn ensure_permission(auth: &AuthContext, permission: Permission) -> Result<(), AppError> {
-    if role_has_permission(auth.role, permission) {
+    if user_has_permission(auth, permission) {
         Ok(())
     } else {
         Err(AppError::Forbidden(format!(
@@ -378,13 +390,64 @@ async fn try_authenticate(state: &AppState, headers: &HeaderMap) -> Option<AuthC
 
     let role = Role::from_claim(&claims.role)?;
 
+    // Load user permissions from template + custom overrides
+    let permissions = load_user_permissions(&state.pool, &claims.sub).await.unwrap_or_default();
+
     Some(AuthContext {
         authenticated: true,
         subject: claims.sub,
         role,
         tenant_id: claims.tenant_id,
         jti: claims.jti,
+        permissions,
     })
+}
+
+async fn load_user_permissions(pool: &sqlx::MySqlPool, username: &str) -> Result<Vec<String>, AppError> {
+    let row = sqlx::query(
+        "SELECT permission_template_id, custom_permissions FROM users WHERE username = ?"
+    )
+    .bind(username)
+    .fetch_optional(pool)
+    .await?;
+
+    let Some(row) = row else { return Ok(vec![]); };
+
+    let template_id: Option<String> = row.try_get("permission_template_id").ok().flatten();
+    let custom_raw: Option<String> = row.try_get("custom_permissions").ok().flatten();
+
+    let mut perms: Vec<String> = vec![];
+
+    if let Some(tid) = template_id {
+        let template_perms: Option<String> = sqlx::query_scalar(
+            "SELECT permissions FROM permission_templates WHERE id = ?"
+        )
+        .bind(&tid)
+        .fetch_optional(pool)
+        .await?;
+        if let Some(json_str) = template_perms {
+            if let Ok(parsed) = serde_json::from_str::<Vec<String>>(&json_str) {
+                perms.extend(parsed);
+            }
+        }
+    }
+
+    // Custom permissions override / extend template
+    if let Some(json_str) = custom_raw {
+        if let Ok(parsed) = serde_json::from_str::<Vec<String>>(&json_str) {
+            for p in parsed {
+                if p.starts_with('!') {
+                    // Negative permission: remove it
+                    let stripped = p.trim_start_matches('!').to_string();
+                    perms.retain(|x| x != &stripped);
+                } else if !perms.contains(&p) {
+                    perms.push(p);
+                }
+            }
+        }
+    }
+
+    Ok(perms)
 }
 
 #[derive(Debug, Error)]

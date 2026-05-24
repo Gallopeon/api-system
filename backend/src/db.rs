@@ -209,6 +209,16 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
         KEY idx_plugin_hook (hook_point), KEY idx_plugin_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
 
+    // Permission templates
+    sqlx::query(r#"CREATE TABLE IF NOT EXISTS permission_templates (
+        id VARCHAR(36) PRIMARY KEY, name VARCHAR(64) NOT NULL UNIQUE,
+        description VARCHAR(255) NULL, permissions JSON NOT NULL,
+        is_builtin TINYINT(1) NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        KEY idx_pt_name (name)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
+
     // User management tables
     sqlx::query(r#"CREATE TABLE IF NOT EXISTS users (
         id VARCHAR(36) PRIMARY KEY, username VARCHAR(64) NOT NULL UNIQUE,
@@ -219,6 +229,33 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
         last_login_at TIMESTAMP NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         KEY idx_users_username (username), KEY idx_users_email (email), KEY idx_users_status (status)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
+
+    // Migrate users table: add permission_template_id and custom_permissions
+    for (col, def) in &[
+        ("permission_template_id", "VARCHAR(36) NULL"),
+        ("custom_permissions", "JSON NULL"),
+    ] {
+        let has_col: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'users' AND COLUMN_NAME = ?"
+        ).bind(col).fetch_one(pool).await.unwrap_or(0);
+        if has_col == 0 {
+            let stmt = format!("ALTER TABLE users ADD COLUMN {} {}", col, def);
+            sqlx::query(&stmt).execute(pool).await?;
+        }
+    }
+
+    // User devices for zero-trust
+    sqlx::query(r#"CREATE TABLE IF NOT EXISTS user_devices (
+        id VARCHAR(36) PRIMARY KEY, user_id VARCHAR(36) NOT NULL,
+        fingerprint_hash VARCHAR(64) NOT NULL, device_name VARCHAR(128) NULL,
+        user_agent_hash VARCHAR(64) NULL, last_ip VARCHAR(45) NULL,
+        trust_level VARCHAR(32) NOT NULL DEFAULT 'unknown',
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        last_seen_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        KEY idx_dev_user (user_id), KEY idx_dev_fp (fingerprint_hash),
+        UNIQUE KEY uq_dev_user_fp (user_id, fingerprint_hash),
+        CONSTRAINT fk_dev_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
 
     sqlx::query(r#"CREATE TABLE IF NOT EXISTS user_sessions (
@@ -236,6 +273,22 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
         failure_reason VARCHAR(128) NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         KEY idx_login_user (user_id), KEY idx_login_created (created_at), KEY idx_login_attempt (username_attempt)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
+
+    // Migrate login_history for zero-trust
+    for (col, def) in &[
+        ("device_fingerprint", "VARCHAR(64) NULL"),
+        ("risk_score", "INT NOT NULL DEFAULT 0"),
+        ("is_suspicious", "TINYINT(1) NOT NULL DEFAULT 0"),
+        ("location_hint", "VARCHAR(128) NULL"),
+    ] {
+        let has_col: i64 = sqlx::query_scalar(
+            "SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'login_history' AND COLUMN_NAME = ?"
+        ).bind(col).fetch_one(pool).await.unwrap_or(0);
+        if has_col == 0 {
+            let stmt = format!("ALTER TABLE login_history ADD COLUMN {} {}", col, def);
+            sqlx::query(&stmt).execute(pool).await?;
+        }
+    }
 
     sqlx::query(r#"CREATE TABLE IF NOT EXISTS user_totp (
         user_id VARCHAR(36) PRIMARY KEY, secret VARCHAR(128) NOT NULL,
@@ -295,6 +348,7 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
 
     seed_settings(pool).await?;
     seed_admin(pool).await?;
+    seed_permission_templates(pool).await?;
     seed_plugins(pool).await?;
     seed_protocols(pool).await?;
     seed_classifications(pool).await?;
@@ -564,5 +618,56 @@ async fn seed_admin(pool: &MySqlPool) -> Result<(), AppError> {
         "INSERT INTO users (id, username, password_hash, email, display_name, role) VALUES (?, ?, ?, ?, ?, 'admin')"
     ).bind(&id).bind("admin").bind(&hash).bind("admin@example.com").bind("Administrator")
     .execute(pool).await?;
+    Ok(())
+}
+
+async fn seed_permission_templates(pool: &MySqlPool) -> Result<(), AppError> {
+    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM permission_templates").fetch_one(pool).await.unwrap_or(0);
+    if count > 0 {
+        return Ok(());
+    }
+    let templates: Vec<(&str, &str, &str)> = vec![
+        (
+            "super_admin",
+            "超级管理员 — 拥有所有权限",
+            r#"["rule:read","rule:write","rule:publish","transform:preview","transform:execute","apikey:read","apikey:write","ratelimit:read","ratelimit:write","approval:read","approval:review","metrics:read","audit:read","llm:route","llm:manage","products:read","products:write","circuit_breakers:read","circuit_breakers:write","protocols:read","protocols:write","classifications:read","classifications:write","plugins:read","plugins:write","openapi:read","validation:read","system:read","system:write","user:read","user:manage","user:self"]"#
+        ),
+        (
+            "ops_admin",
+            "运维人员 — 规则、限流、熔断、协议、插件、系统",
+            r#"["rule:read","rule:write","rule:publish","transform:preview","transform:execute","apikey:read","ratelimit:read","ratelimit:write","approval:read","metrics:read","audit:read","products:read","circuit_breakers:read","circuit_breakers:write","protocols:read","protocols:write","plugins:read","plugins:write","validation:read","system:read","system:write","user:read","user:self"]"#
+        ),
+        (
+            "security_auditor",
+            "安全审计员 — 审计、分类、用户查看",
+            r#"["rule:read","apikey:read","ratelimit:read","approval:read","metrics:read","audit:read","products:read","circuit_breakers:read","protocols:read","classifications:read","classifications:write","plugins:read","openapi:read","validation:read","system:read","user:read","user:self"]"#
+        ),
+        (
+            "api_developer",
+            "API开发者 — 规则编写、转换测试、OpenAPI",
+            r#"["rule:read","rule:write","transform:preview","transform:execute","apikey:read","ratelimit:read","approval:read","llm:route","products:read","circuit_breakers:read","protocols:read","classifications:read","plugins:read","openapi:read","validation:read","user:read","user:self"]"#
+        ),
+        (
+            "product_manager",
+            "产品管理员 — 产品/订阅管理",
+            r#"["rule:read","transform:preview","apikey:read","ratelimit:read","approval:read","metrics:read","audit:read","llm:route","products:read","products:write","circuit_breakers:read","protocols:read","classifications:read","plugins:read","openapi:read","validation:read","system:read","user:read","user:self"]"#
+        ),
+        (
+            "portal_user",
+            "Portal用户 — 订阅产品、查看用量",
+            r#"["apikey:read","apikey:write","products:read","metrics:read","user:self"]"#
+        ),
+        (
+            "viewer",
+            "只读用户 — 查看全部配置",
+            r#"["rule:read","transform:preview","apikey:read","ratelimit:read","approval:read","metrics:read","audit:read","llm:route","products:read","circuit_breakers:read","protocols:read","classifications:read","plugins:read","openapi:read","validation:read","system:read","user:read","user:self"]"#
+        ),
+    ];
+    for (name, desc, perms_json) in &templates {
+        let id = uuid::Uuid::new_v4().to_string();
+        sqlx::query(
+            "INSERT INTO permission_templates (id, name, description, permissions, is_builtin) VALUES (?, ?, ?, ?, 1)"
+        ).bind(&id).bind(name).bind(desc).bind(perms_json).execute(pool).await?;
+    }
     Ok(())
 }

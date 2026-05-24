@@ -26,6 +26,10 @@ pub struct CreateUserRequest {
     #[serde(default)]
     pub role: Option<String>,
     #[serde(default)]
+    pub permission_template_id: Option<String>,
+    #[serde(default)]
+    pub custom_permissions: Option<Vec<String>>,
+    #[serde(default)]
     pub actor: Option<String>,
 }
 
@@ -41,6 +45,10 @@ pub struct UpdateUserRequest {
     pub role: Option<String>,
     #[serde(default)]
     pub status: Option<String>,
+    #[serde(default)]
+    pub permission_template_id: Option<String>,
+    #[serde(default)]
+    pub custom_permissions: Option<Vec<String>>,
     #[serde(default)]
     pub actor: Option<String>,
 }
@@ -60,6 +68,8 @@ pub struct UserResponse {
     pub avatar_url: Option<String>,
     pub role: String,
     pub status: String,
+    pub permission_template_id: Option<String>,
+    pub custom_permissions: Option<Vec<String>>,
     pub last_login_at: Option<String>,
     pub created_at: String,
     pub updated_at: String,

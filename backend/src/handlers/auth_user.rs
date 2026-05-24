@@ -128,7 +128,7 @@ async fn verify_login_totp(pool: &sqlx::MySqlPool, user_id: &str, totp_code: Opt
 pub async fn get_my_profile(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserSelf)?;
     let row = sqlx::query(
-        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, last_login_at, created_at, updated_at FROM users WHERE username = ?"
+        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, permission_template_id, custom_permissions, last_login_at, created_at, updated_at FROM users WHERE username = ?"
     ).bind(&auth.subject).fetch_optional(&state.pool).await?
     .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
     Ok(Json(row_to_user(&row)))
@@ -146,7 +146,7 @@ pub async fn update_my_profile(State(state): State<Arc<AppState>>, Extension(aut
         sqlx::query("UPDATE users SET avatar_url = ? WHERE username = ?").bind(avatar_url).bind(&auth.subject).execute(&state.pool).await?;
     }
     let row = sqlx::query(
-        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, last_login_at, created_at, updated_at FROM users WHERE username = ?"
+        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, permission_template_id, custom_permissions, last_login_at, created_at, updated_at FROM users WHERE username = ?"
     ).bind(&auth.subject).fetch_optional(&state.pool).await?
     .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
     Ok(Json(row_to_user(&row)))
@@ -265,7 +265,7 @@ pub async fn list_users(State(state): State<Arc<AppState>>, Extension(auth): Ext
     };
 
     let sql = format!(
-        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, last_login_at, created_at, updated_at FROM users {}ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, permission_template_id, custom_permissions, last_login_at, created_at, updated_at FROM users {}ORDER BY created_at DESC LIMIT ? OFFSET ?",
         where_sql
     );
 
@@ -284,10 +284,14 @@ pub async fn create_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
     let id = Uuid::new_v4().to_string();
     let hash = bcrypt::hash(&payload.password, 12).map_err(|e| AppError::BadRequest(format!("bcrypt: {}", e)))?;
     let role = payload.role.as_deref().unwrap_or("viewer");
+    let template_id = payload.permission_template_id.as_deref();
+    let custom_perms = payload.custom_permissions.as_ref()
+        .map(|v| serde_json::to_string(v).unwrap_or_default());
     sqlx::query(
-        "INSERT INTO users (id, username, password_hash, email, display_name, role) VALUES (?, ?, ?, ?, ?, ?)"
+        "INSERT INTO users (id, username, password_hash, email, display_name, role, permission_template_id, custom_permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     ).bind(&id).bind(&payload.username).bind(&hash)
      .bind(&payload.email).bind(&payload.display_name).bind(role)
+     .bind(template_id).bind(&custom_perms)
      .execute(&state.pool).await?;
     let actor = resolve_actor(&auth, payload.actor.as_deref());
     spawn_audit_log(&state.pool, AuditEntry {
@@ -301,7 +305,7 @@ pub async fn create_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
 pub async fn get_user(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserManage)?;
     let row = sqlx::query(
-        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, last_login_at, created_at, updated_at FROM users WHERE id = ?"
+        "SELECT id, username, password_hash, email, display_name, avatar_url, role, status, permission_template_id, custom_permissions, last_login_at, created_at, updated_at FROM users WHERE id = ?"
     ).bind(&id).fetch_optional(&state.pool).await?
     .ok_or_else(|| AppError::NotFound(format!("user {} not found", id)))?;
     Ok(Json(row_to_user(&row)))
@@ -326,7 +330,16 @@ pub async fn update_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
     if let Some(ref email) = payload.email {
         sqlx::query("UPDATE users SET email = ? WHERE id = ?").bind(email).bind(&id).execute(&state.pool).await?;
     }
-    // Revoke all active sessions when role changes or user is disabled
+    if let Some(ref template_id) = payload.permission_template_id {
+        sqlx::query("UPDATE users SET permission_template_id = ? WHERE id = ?").bind(template_id).bind(&id).execute(&state.pool).await?;
+        need_revoke = true;
+    }
+    if let Some(ref custom_perms) = payload.custom_permissions {
+        let perms_json = serde_json::to_string(custom_perms).unwrap_or_default();
+        sqlx::query("UPDATE users SET custom_permissions = ? WHERE id = ?").bind(&perms_json).bind(&id).execute(&state.pool).await?;
+        need_revoke = true;
+    }
+    // Revoke all active sessions when role/permissions change or user is disabled
     if need_revoke {
         revoke_all_user_sessions(&state.pool, &state.redis, &id).await;
     }
@@ -334,7 +347,7 @@ pub async fn update_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
     spawn_audit_log(&state.pool, AuditEntry {
         rule_id: None, action: "user_update".to_string(), actor,
         success: true, message: Some(format!("User {} updated", id)),
-        detail: Some(json!({"id": id, "role": payload.role, "status": payload.status})),
+        detail: Some(json!({"id": id, "role": payload.role, "status": payload.status, "permission_template_id": payload.permission_template_id})),
     });
     Ok(Json(json!({"id": id, "updated": true})))
 }
@@ -590,6 +603,8 @@ fn row_to_user(row: &sqlx::mysql::MySqlRow) -> UserResponse {
     let created_at: DateTime<Utc> = row.try_get("created_at").unwrap_or(DateTime::UNIX_EPOCH);
     let updated_at: DateTime<Utc> = row.try_get("updated_at").unwrap_or(DateTime::UNIX_EPOCH);
     let last_login: Option<DateTime<Utc>> = row.try_get("last_login_at").ok();
+    let custom_raw: Option<String> = row.try_get("custom_permissions").ok().flatten();
+    let custom_permissions = custom_raw.and_then(|s| serde_json::from_str(&s).ok());
     UserResponse {
         id: row.try_get("id").unwrap_or_default(),
         username: row.try_get("username").unwrap_or_default(),
@@ -598,6 +613,8 @@ fn row_to_user(row: &sqlx::mysql::MySqlRow) -> UserResponse {
         avatar_url: row.try_get("avatar_url").ok(),
         role: row.try_get::<String, _>("role").unwrap_or_else(|_| "viewer".to_string()),
         status: row.try_get("status").unwrap_or_else(|_| "active".to_string()),
+        permission_template_id: row.try_get("permission_template_id").ok().flatten(),
+        custom_permissions,
         last_login_at: last_login.map(|d| d.to_rfc3339()),
         created_at: created_at.to_rfc3339(),
         updated_at: updated_at.to_rfc3339(),

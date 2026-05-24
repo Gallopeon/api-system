@@ -18,6 +18,7 @@ pub mod llm;
 pub mod openapi;
 pub mod validation_handlers;
 pub mod system;
+pub mod permission_templates;
 
 pub use common::*;
 pub use rules::*;
@@ -41,3 +42,4 @@ pub use validation_handlers::*;
 pub mod notifications;
 pub use notifications::*;
 pub use system::*;
+pub use permission_templates::*;

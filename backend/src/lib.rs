@@ -129,6 +129,8 @@ pub async fn run() -> anyhow::Result<()> {
         .route("/admin/v1/system/settings", get(list_system_settings))
         .route("/admin/v1/system/settings/:key", put(update_system_setting))
         .route("/admin/v1/system/smtp/test", post(test_smtp))
+        .route("/admin/v1/permission-templates", get(list_permission_templates).post(create_permission_template))
+        .route("/admin/v1/permission-templates/:id", get(get_permission_template).put(update_permission_template).delete(delete_permission_template))
         .route("/admin/v1/users/me/notifications", get(list_my_notifications).delete(delete_my_notifications))
         .route("/admin/v1/users/me/notifications/read", post(mark_notification_read))
         .route("/admin/v1/users/me/notifications/:id", delete(delete_notification))
@@ -217,6 +219,7 @@ async fn data_plane_middleware(
         role: Role::Viewer,
         tenant_id: None,
         jti: None,
+        permissions: vec![],
     });
     next.run(request).await
 }

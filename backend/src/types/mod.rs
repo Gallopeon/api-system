@@ -7,6 +7,7 @@ mod approval;
 mod llm;
 mod user;
 mod system;
+mod permission_template;
 
 pub use rule::*;
 pub use api_key::*;
@@ -17,5 +18,6 @@ pub use approval::*;
 pub use llm::*;
 pub use user::*;
 pub use system::*;
+pub use permission_template::*;
 mod notification;
 pub use notification::*;
