@@ -46,7 +46,6 @@ const AdvancedPanel = dynamic(() => import("@/components/features/AdvancedPanel"
 const PortalPanel = dynamic(() => import("@/components/features/PortalPanel"), { ssr: false });
 const UserCenterPanel = dynamic(() => import("@/components/features/UserCenterPanel"), { ssr: false });
 const UserManagementPanel = dynamic(() => import("@/components/features/UserManagementPanel"), { ssr: false });
-const PermissionTemplatesPanel = dynamic(() => import("@/components/features/PermissionTemplatesPanel"), { ssr: false });
 const SystemSettingsPanel = dynamic(() => import("@/components/features/SystemSettingsPanel"), { ssr: false });
 
 // ================================================================
@@ -460,10 +459,6 @@ export default function APIControlCenter() {
               notifySucc={notifySucc}
               t={t}
             />
-          )}
-
-          {activeMenu === "permission-templates" && (
-            <PermissionTemplatesPanel />
           )}
 
           {activeMenu === "system-settings" && (

@@ -384,8 +384,9 @@ frontend/
 │       ├── UserSessionsTab.tsx     ← Active session list + revoke (53 lines)
 │       ├── UserLoginHistoryTab.tsx ← Login history table (53 lines)
 │       ├── UserPreferencesTab.tsx  ← Theme/lang/notification prefs (82 lines)
-│       └── UserManagementPanel.tsx ← Admin user management (280 lines)
-│       └── PermissionTemplatesPanel.tsx ← Permission template CRUD (~195 lines)
+│       ├── UserManagementPanel.tsx ← Tab router: Users + Permission Templates (~68 lines)
+│       ├── UserManagementUsersTab.tsx ← User CRUD table + inline edit (~240 lines)
+│       └── UserManagementPermissionsTab.tsx ← Permission template CRUD (~180 lines)
 ```
 
 ### Frontend patterns

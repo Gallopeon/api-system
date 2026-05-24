@@ -54,7 +54,6 @@ const menuItems = [
   { id: "manual", icon: BookOpen, en: "User Manual", zh: "用户手册" },
   { id: "user-center", icon: UserCircle, en: "User Center", zh: "用户中心" },
   { id: "user-management", icon: Users, en: "User Management", zh: "用户管理" },
-  { id: "permission-templates", icon: ShieldAlert, en: "Permission Templates", zh: "权限模板" },
   { id: "system-settings", icon: Settings, en: "System Settings", zh: "系统设置" },
 ];
 

@@ -10,7 +10,7 @@ import Toast from "@/components/ui/Toast";
 
 const ALL_PERMISSIONS = Object.values(PERMISSIONS);
 
-export default function PermissionTemplatesPanel() {
+export default function UserManagementPermissionsTab() {
   const { lang } = useI18n();
   const t = <T,>(en: T, zh: T): T => (lang === "zh" ? zh : en);
   const { notif, notifyError, notifySucc, clearNotif } = useNotification();
@@ -46,15 +46,15 @@ export default function PermissionTemplatesPanel() {
   const isEditing = !!editId;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto">
+    <div className="space-y-6">
       <Toast msg={notif.msg} type={notif.type} onClose={clearNotif} />
-      <div className="flex items-center gap-3 mb-6">
-        <Shield className="w-6 h-6 text-blue-500" />
-        <h2 className="text-xl font-semibold">{t("Permission Templates", "权限模板")}</h2>
-      </div>
+
+      <p className="text-gray-500 dark:text-gray-400 text-sm">
+        {t("Define reusable permission sets to assign to users.", "定义可复用的权限集，分配给用户。")}
+      </p>
 
       {/* Create / Edit form */}
-      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4 mb-6">
+      <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-4">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
             <label className="block text-sm font-medium mb-1">{t("Name", "名称")}</label>
@@ -157,26 +157,24 @@ export default function PermissionTemplatesPanel() {
                   ))}
                 </div>
               </div>
-              <div className="flex items-center gap-1 ml-4">
-                {!tpl.is_builtin && (
-                  <>
-                    <button
-                      onClick={() => startEdit(tpl)}
-                      className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-                      title={t("Edit", "编辑") as string}
-                    >
-                      <Pencil className="w-4 h-4 text-slate-500" />
-                    </button>
-                    <button
-                      onClick={() => deleteTemplate(tpl.id)}
-                      className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
-                      title={t("Delete", "删除") as string}
-                    >
-                      <Trash2 className="w-4 h-4 text-red-500" />
-                    </button>
-                  </>
-                )}
-              </div>
+              {!tpl.is_builtin && (
+                <div className="flex items-center gap-1 ml-4">
+                  <button
+                    onClick={() => startEdit(tpl)}
+                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                    title={t("Edit", "编辑") as string}
+                  >
+                    <Pencil className="w-4 h-4 text-slate-500" />
+                  </button>
+                  <button
+                    onClick={() => deleteTemplate(tpl.id)}
+                    className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded"
+                    title={t("Delete", "删除") as string}
+                  >
+                    <Trash2 className="w-4 h-4 text-red-500" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}
