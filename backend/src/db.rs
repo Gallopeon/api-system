@@ -360,8 +360,8 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
 
     seed_settings(pool).await?;
-    seed_admin(pool).await?;
     seed_permission_templates(pool).await?;
+    seed_admin(pool).await?;
     seed_plugins(pool).await?;
     seed_protocols(pool).await?;
     seed_classifications(pool).await?;
