@@ -67,8 +67,6 @@ pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(
     // TOTP check: if user has TOTP enabled, require and validate the code
     verify_login_totp(&state.pool, &user_id, payload.totp_code.as_deref()).await?;
 
-    let role_str: String = row.try_get("role").unwrap_or_else(|_| "viewer".to_string());
-    let role = parse_role(&role_str);
     let user_group: String = row.try_get("user_group").unwrap_or_else(|_| "admin_group".to_string());
 
     // Extract client IP and UA earlier for risk assessment
@@ -86,7 +84,7 @@ pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(
         Some(ua_str),
     ).await;
 
-    let (token, jti) = create_jwt(&payload.username, role, None, &state.auth.jwt_secret, 86400, &user_group)?;
+    let (token, jti) = create_jwt(&payload.username, None, &state.auth.jwt_secret, 86400, &user_group)?;
 
     // Reset failed attempts on success, update last login, record successful login with risk score
     sqlx::query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE id = ?")
@@ -110,7 +108,7 @@ pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(
         ).bind(&user_id).fetch_optional(&state.pool).await.ok().flatten();
         if totp_enabled.unwrap_or(0) == 0 {
             // Force TOTP: return a restricted token with short TTL + totp_required flag
-            let (restricted_token, _) = create_jwt(&payload.username, role, None, &state.auth.jwt_secret, 900, &user_group)?;
+            let (restricted_token, _) = create_jwt(&payload.username, None, &state.auth.jwt_secret, 900, &user_group)?;
             return Ok(Json(LoginResponse {
                 token: restricted_token,
                 user: row_to_user(&row),
@@ -290,9 +288,9 @@ pub async fn list_users(State(state): State<Arc<AppState>>, Extension(auth): Ext
     let mut where_clauses: Vec<String> = Vec::new();
     let mut params: Vec<String> = Vec::new();
 
-    if let Some(ref role) = query.role {
-        where_clauses.push("role = ?".to_string());
-        params.push(role.clone());
+    if let Some(ref group) = query.user_group {
+        where_clauses.push("user_group = ?".to_string());
+        params.push(group.clone());
     }
     if let Some(ref status) = query.status {
         where_clauses.push("status = ?".to_string());
@@ -330,22 +328,21 @@ pub async fn create_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
     validate_password_strength(&payload.password)?;
     let id = Uuid::new_v4().to_string();
     let hash = bcrypt::hash(&payload.password, 12).map_err(|e| AppError::BadRequest(format!("bcrypt: {}", e)))?;
-    let role = payload.role.as_deref().unwrap_or("viewer");
     let user_group = payload.user_group.as_deref().unwrap_or("admin_group");
     let template_id = payload.permission_template_id.as_deref();
     let custom_perms = payload.custom_permissions.as_ref()
         .map(|v| serde_json::to_string(v).unwrap_or_default());
     sqlx::query(
-        "INSERT INTO users (id, username, password_hash, email, display_name, role, user_group, permission_template_id, custom_permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO users (id, username, password_hash, email, display_name, user_group, permission_template_id, custom_permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
     ).bind(&id).bind(&payload.username).bind(&hash)
-     .bind(&payload.email).bind(&payload.display_name).bind(role)
+     .bind(&payload.email).bind(&payload.display_name)
      .bind(user_group).bind(template_id).bind(&custom_perms)
      .execute(&state.pool).await?;
     let actor = resolve_actor(&auth, payload.actor.as_deref());
     spawn_audit_log(&state.pool, AuditEntry {
         rule_id: None, action: "user_create".to_string(), actor,
-        success: true, message: Some(format!("User '{}' created with role {}", payload.username, role)),
-        detail: Some(json!({"id": id, "username": payload.username, "role": role})),
+        success: true, message: Some(format!("User '{}' created", payload.username)),
+        detail: Some(json!({"id": id, "username": payload.username})),
     });
     Ok((StatusCode::CREATED, Json(json!({"id": id, "created": true}))))
 }
@@ -362,10 +359,6 @@ pub async fn get_user(State(state): State<Arc<AppState>>, Extension(auth): Exten
 pub async fn update_user(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Path(id): Path<String>, Json(payload): Json<UpdateUserRequest>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserManage)?;
     let mut need_revoke = false;
-    if let Some(ref role) = payload.role {
-        sqlx::query("UPDATE users SET role = ? WHERE id = ?").bind(role).bind(&id).execute(&state.pool).await?;
-        need_revoke = true;
-    }
     if let Some(ref status) = payload.status {
         sqlx::query("UPDATE users SET status = ? WHERE id = ?").bind(status).bind(&id).execute(&state.pool).await?;
         if status == "disabled" {
@@ -399,7 +392,7 @@ pub async fn update_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
     spawn_audit_log(&state.pool, AuditEntry {
         rule_id: None, action: "user_update".to_string(), actor,
         success: true, message: Some(format!("User {} updated", id)),
-        detail: Some(json!({"id": id, "role": payload.role, "status": payload.status, "permission_template_id": payload.permission_template_id})),
+        detail: Some(json!({"id": id, "status": payload.status, "permission_template_id": payload.permission_template_id})),
     });
     Ok(Json(json!({"id": id, "updated": true})))
 }
@@ -714,7 +707,6 @@ fn row_to_user(row: &sqlx::mysql::MySqlRow) -> UserResponse {
         email: row.try_get("email").ok(),
         display_name: row.try_get("display_name").ok(),
         avatar_url: row.try_get("avatar_url").ok(),
-        role: row.try_get::<String, _>("role").unwrap_or_else(|_| "viewer".to_string()),
         status: row.try_get("status").unwrap_or_else(|_| "active".to_string()),
         permission_template_id: row.try_get("permission_template_id").ok().flatten(),
         custom_permissions,
@@ -725,11 +717,3 @@ fn row_to_user(row: &sqlx::mysql::MySqlRow) -> UserResponse {
     }
 }
 
-fn parse_role(s: &str) -> Role {
-    match s.to_lowercase().as_str() {
-        "admin" => Role::Admin,
-        "reviewer" => Role::Reviewer,
-        "editor" => Role::Editor,
-        _ => Role::Viewer,
-    }
-}

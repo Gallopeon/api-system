@@ -219,7 +219,6 @@ async fn data_plane_middleware(
     request.extensions_mut().insert(AuthContext {
         authenticated: false,
         subject: "anonymous".to_string(),
-        role: Role::Viewer,
         tenant_id: None,
         jti: None,
         permissions: vec![],

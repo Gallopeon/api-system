@@ -8,47 +8,17 @@ use axum::Json;
 use jsonwebtoken::{decode, encode, Algorithm, DecodingKey, EncodingKey, Header, Validation};
 use serde::Deserialize;
 use serde_json::json;
+use sqlx::Row;
 use thiserror::Error;
 use tracing::error;
 use uuid::Uuid;
-use sqlx::Row;
 
 use crate::AppState;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Role {
-    Admin,
-    Reviewer,
-    Editor,
-    Viewer,
-}
-
-impl Role {
-    pub fn from_claim(raw: &str) -> Option<Self> {
-        match raw.trim().to_ascii_lowercase().as_str() {
-            "admin" => Some(Self::Admin),
-            "reviewer" => Some(Self::Reviewer),
-            "editor" => Some(Self::Editor),
-            "viewer" => Some(Self::Viewer),
-            _ => None,
-        }
-    }
-
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::Admin => "admin",
-            Self::Reviewer => "reviewer",
-            Self::Editor => "editor",
-            Self::Viewer => "viewer",
-        }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct AuthContext {
     pub authenticated: bool,
     pub subject: String,
-    pub role: Role,
     pub tenant_id: Option<String>,
     pub jti: Option<String>,
     pub permissions: Vec<String>,
@@ -58,6 +28,7 @@ pub struct AuthContext {
 #[derive(Debug, Deserialize)]
 pub struct JwtClaims {
     pub sub: String,
+    #[serde(default)]
     pub role: String,
     #[serde(rename = "exp")]
     pub _exp: usize,
@@ -165,95 +136,9 @@ impl Permission {
     }
 }
 
-pub fn role_has_permission(role: Role, permission: Permission) -> bool {
-    match role {
-        Role::Admin => true,
-        Role::Reviewer => matches!(
-            permission,
-            Permission::RuleRead
-                | Permission::RulePublish
-                | Permission::TransformPreview
-                | Permission::TransformExecute
-                | Permission::ApiKeyRead
-                | Permission::RateLimitRead
-                | Permission::ApprovalRead
-                | Permission::ApprovalReview
-                | Permission::MetricsRead
-                | Permission::AuditRead
-                | Permission::LlmRoute
-                | Permission::ProductsRead
-                | Permission::CircuitBreakersRead
-                | Permission::ProtocolsRead
-                | Permission::ClassificationsRead
-                | Permission::PluginsRead
-                | Permission::OpenApiRead
-                | Permission::ValidationRead
-                | Permission::SystemRead
-                | Permission::UserRead
-                | Permission::UserSelf
-        ),
-        Role::Editor => matches!(
-            permission,
-            Permission::RuleRead
-                | Permission::RuleWrite
-                | Permission::TransformPreview
-                | Permission::TransformExecute
-                | Permission::ApiKeyRead
-                | Permission::ApiKeyWrite
-                | Permission::RateLimitRead
-                | Permission::RateLimitWrite
-                | Permission::ApprovalRead
-                | Permission::MetricsRead
-                | Permission::AuditRead
-                | Permission::LlmRoute
-                | Permission::LlmManage
-                | Permission::ProductsRead
-                | Permission::CircuitBreakersRead
-                | Permission::CircuitBreakersWrite
-                | Permission::ProtocolsRead
-                | Permission::ProtocolsWrite
-                | Permission::ClassificationsRead
-                | Permission::ClassificationsWrite
-                | Permission::PluginsRead
-                | Permission::PluginsWrite
-                | Permission::OpenApiRead
-                | Permission::ValidationRead
-                | Permission::SystemRead
-                | Permission::UserRead
-                | Permission::UserSelf
-        ),
-        Role::Viewer => matches!(
-            permission,
-            Permission::RuleRead
-                | Permission::TransformPreview
-                | Permission::ApiKeyRead
-                | Permission::RateLimitRead
-                | Permission::ApprovalRead
-                | Permission::MetricsRead
-                | Permission::AuditRead
-                | Permission::LlmRoute
-                | Permission::ProductsRead
-                | Permission::CircuitBreakersRead
-                | Permission::ProtocolsRead
-                | Permission::ClassificationsRead
-                | Permission::PluginsRead
-                | Permission::OpenApiRead
-                | Permission::ValidationRead
-                | Permission::SystemRead
-                | Permission::UserRead
-                | Permission::UserSelf
-        ),
-    }
-}
-
-/// Check permission using template + custom overrides (Phase 1), fallback to role-based
 pub fn user_has_permission(auth: &AuthContext, permission: Permission) -> bool {
-    if !auth.permissions.is_empty() {
-        let perm_str = permission.as_str();
-        auth.permissions.contains(&perm_str.to_string())
-    } else {
-        role_has_permission(auth.role, permission)
-    }
+    let perm_str = permission.as_str();
+    auth.permissions.contains(&perm_str.to_string())
 }
 
 pub fn ensure_permission(auth: &AuthContext, permission: Permission) -> Result<(), AppError> {
@@ -261,15 +146,10 @@ pub fn ensure_permission(auth: &AuthContext, permission: Permission) -> Result<(
         Ok(())
     } else {
         Err(AppError::Forbidden(format!(
-            "role {} cannot {}",
-            auth.role.as_str(),
+            "missing permission {}",
             permission.as_str()
         )))
     }
-}
-
-pub fn is_admin(auth: &AuthContext) -> bool {
-    matches!(auth.role, Role::Admin)
 }
 
 pub fn resolve_actor(auth: &AuthContext, fallback_actor: Option<&str>) -> String {
@@ -282,7 +162,6 @@ pub fn resolve_actor(auth: &AuthContext, fallback_actor: Option<&str>) -> String
 
 pub fn create_jwt(
     sub: &str,
-    role: Role,
     tenant_id: Option<&str>,
     secret: &str,
     ttl_seconds: i64,
@@ -295,7 +174,7 @@ pub fn create_jwt(
     let jti = Uuid::new_v4().to_string();
     let claims = json!({
         "sub": sub,
-        "role": role.as_str(),
+        "role": "",
         "exp": now + ttl_seconds as usize,
         "iat": now,
         "jti": jti,
@@ -380,7 +259,7 @@ async fn try_authenticate(state: &AppState, headers: &HeaderMap) -> Option<AuthC
         return None;
     }
 
-    // Check JTI revocation via Redis bloom-filter (fast, no DB roundtrip)
+    // Check JTI revocation via Redis
     if let Some(ref jti) = claims.jti {
         if let Ok(mut conn) = state.redis.get_multiplexed_async_connection().await {
             let revoked: Option<String> = redis::cmd("GET")
@@ -394,18 +273,13 @@ async fn try_authenticate(state: &AppState, headers: &HeaderMap) -> Option<AuthC
                 return None;
             }
         }
-        // If Redis is unreachable, allow the request (availability over strict revocation)
     }
 
-    let role = Role::from_claim(&claims.role)?;
-
-    // Load user permissions from template + custom overrides
     let permissions = load_user_permissions(&state.pool, &claims.sub).await.unwrap_or_default();
 
     Some(AuthContext {
         authenticated: true,
         subject: claims.sub,
-        role,
         tenant_id: claims.tenant_id,
         jti: claims.jti,
         permissions,
@@ -440,14 +314,15 @@ async fn load_user_permissions(pool: &sqlx::MySqlPool, username: &str) -> Result
                 perms.extend(parsed);
             }
         }
+    } else {
+        // No template assigned: grant empty permissions (must explicitly assign template)
+        tracing::warn!(username, "user has no permission_template_id, defaulting to no permissions");
     }
 
-    // Custom permissions override / extend template
     if let Some(json_str) = custom_raw {
         if let Ok(parsed) = serde_json::from_str::<Vec<String>>(&json_str) {
             for p in parsed {
                 if p.starts_with('!') {
-                    // Negative permission: remove it
                     let stripped = p.trim_start_matches('!').to_string();
                     perms.retain(|x| x != &stripped);
                 } else if !perms.contains(&p) {

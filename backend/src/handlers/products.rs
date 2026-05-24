@@ -55,7 +55,7 @@ pub async fn list_products(
     let limit = params.limit.unwrap_or(50).min(200);
     let offset = params.offset.unwrap_or(0);
     let search = params.search.unwrap_or_default();
-    let admin = is_admin(&auth);
+    let admin = user_has_permission(&auth, Permission::UserManage);
 
     let owner_filter = if admin { String::new() } else { "WHERE owner = ?".to_string() };
     let owner_clause = if admin { String::new() } else { "AND owner = ?".to_string() };
@@ -155,7 +155,7 @@ pub async fn get_product(
     .ok_or_else(|| AppError::NotFound(format!("product {} not found", id)))?;
 
     // Non-admin users can only access their own products
-    if !is_admin(&auth) {
+    if !user_has_permission(&auth, Permission::UserManage) {
         let owner: String = row.try_get("owner").unwrap_or_default();
         if owner != auth.subject {
             return Err(AppError::NotFound(format!("product {} not found", id)));
@@ -184,7 +184,7 @@ pub async fn update_product(
     ensure_permission(&auth, Permission::ProductsWrite)?;
 
     // Non-admin users can only update their own products
-    if !is_admin(&auth) {
+    if !user_has_permission(&auth, Permission::UserManage) {
         let owner: String = sqlx::query_scalar("SELECT owner FROM api_products WHERE id = ?")
             .bind(&id).fetch_optional(&state.pool).await?
             .unwrap_or_default();
@@ -236,7 +236,7 @@ pub async fn delete_product(
     ensure_permission(&auth, Permission::ProductsWrite)?;
 
     // Non-admin users can only delete their own products
-    if !is_admin(&auth) {
+    if !user_has_permission(&auth, Permission::UserManage) {
         let owner: String = sqlx::query_scalar("SELECT owner FROM api_products WHERE id = ?")
             .bind(&id).fetch_optional(&state.pool).await?
             .unwrap_or_default();
@@ -260,7 +260,7 @@ pub async fn list_product_subscriptions(
     Path(product_id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsRead)?;
-    let rows = if is_admin(&auth) {
+    let rows = if user_has_permission(&auth, Permission::UserManage) {
         sqlx::query(
             "SELECT s.id, s.api_key_id, s.product_id, s.plan, s.rate_limit_rps, s.quota_daily, s.status, s.expires_at, s.created_at, s.user_id FROM subscriptions s WHERE s.product_id = ? ORDER BY s.created_at DESC"
         )

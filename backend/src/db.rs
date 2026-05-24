@@ -224,7 +224,7 @@ pub async fn bootstrap_schema(pool: &MySqlPool) -> Result<(), AppError> {
         id VARCHAR(36) PRIMARY KEY, username VARCHAR(64) NOT NULL UNIQUE,
         password_hash VARCHAR(255) NOT NULL, email VARCHAR(128) NULL UNIQUE,
         display_name VARCHAR(128) NULL, avatar_url VARCHAR(512) NULL,
-        role VARCHAR(32) NOT NULL DEFAULT 'viewer', status VARCHAR(32) NOT NULL DEFAULT 'active',
+        role VARCHAR(32) NOT NULL DEFAULT '', status VARCHAR(32) NOT NULL DEFAULT 'active',
         failed_login_attempts INT NOT NULL DEFAULT 0, locked_until TIMESTAMP NULL,
         last_login_at TIMESTAMP NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -628,7 +628,7 @@ async fn seed_admin(pool: &MySqlPool) -> Result<(), AppError> {
         .map_err(|e| AppError::BadRequest(format!("bcrypt hash failed: {}", e)))?;
     let id = uuid::Uuid::new_v4().to_string();
     sqlx::query(
-        "INSERT INTO users (id, username, password_hash, email, display_name, role) VALUES (?, ?, ?, ?, ?, 'admin')"
+        "INSERT INTO users (id, username, password_hash, email, display_name, user_group, permission_template_id) VALUES (?, ?, ?, ?, ?, 'admin_group', (SELECT id FROM permission_templates WHERE name = 'super_admin' LIMIT 1))"
     ).bind(&id).bind("admin").bind(&hash).bind("admin@example.com").bind("Administrator")
     .execute(pool).await?;
     Ok(())

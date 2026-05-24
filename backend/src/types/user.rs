@@ -35,8 +35,6 @@ pub struct CreateUserRequest {
     #[serde(default)]
     pub display_name: Option<String>,
     #[serde(default)]
-    pub role: Option<String>,
-    #[serde(default)]
     pub permission_template_id: Option<String>,
     #[serde(default)]
     pub custom_permissions: Option<Vec<String>>,
@@ -54,8 +52,6 @@ pub struct UpdateUserRequest {
     pub display_name: Option<String>,
     #[serde(default)]
     pub avatar_url: Option<String>,
-    #[serde(default)]
-    pub role: Option<String>,
     #[serde(default)]
     pub status: Option<String>,
     #[serde(default)]
@@ -81,7 +77,6 @@ pub struct UserResponse {
     pub email: Option<String>,
     pub display_name: Option<String>,
     pub avatar_url: Option<String>,
-    pub role: String,
     pub status: String,
     pub permission_template_id: Option<String>,
     pub custom_permissions: Option<Vec<String>>,
@@ -101,7 +96,7 @@ pub struct UserListResponse {
 #[derive(Debug, Deserialize)]
 pub struct ListUsersQuery {
     #[serde(default)]
-    pub role: Option<String>,
+    pub user_group: Option<String>,
     #[serde(default)]
     pub status: Option<String>,
     #[serde(default)]

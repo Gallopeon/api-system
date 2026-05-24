@@ -62,7 +62,7 @@ pub async fn list_subscriptions(
     ensure_permission(&auth, Permission::ProductsRead)?;
     let limit = params.limit.unwrap_or(50).min(200);
     let offset = params.offset.unwrap_or(0);
-    let admin = is_admin(&auth);
+    let admin = user_has_permission(&auth, Permission::UserManage);
 
     let (total, rows) = if admin {
         let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM subscriptions").fetch_one(&state.pool).await.unwrap_or(0);
@@ -98,7 +98,7 @@ pub async fn get_subscription(
     .ok_or_else(|| AppError::NotFound(format!("subscription {} not found", id)))?;
 
     // Non-admin users can only access their own subscriptions
-    if !is_admin(&auth) {
+    if !user_has_permission(&auth, Permission::UserManage) {
         let owner: String = row.try_get("user_id").unwrap_or_default();
         if owner != auth.subject {
             return Err(AppError::NotFound(format!("subscription {} not found", id)));
@@ -414,7 +414,7 @@ fn try_append_str(set: &mut Vec<String>, binds: &mut Vec<String>, payload: &Valu
 }
 
 async fn ensure_subscription_owner(pool: &sqlx::MySqlPool, auth: &AuthContext, sub_id: &str) -> Result<(), AppError> {
-    if is_admin(auth) {
+    if user_has_permission(auth, Permission::UserManage) {
         return Ok(());
     }
     let owner: String = sqlx::query_scalar("SELECT user_id FROM subscriptions WHERE id = ?")

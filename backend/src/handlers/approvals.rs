@@ -38,7 +38,7 @@ pub async fn my_pending_approvals(
     Extension(auth): Extension<AuthContext>,
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserSelf)?;
-    let rows = if auth.role == Role::Admin || auth.role == Role::Reviewer {
+    let rows = if user_has_permission(&auth, Permission::ApprovalReview) {
         sqlx::query(
             "SELECT id, rule_id, version, requestor, reviewer, status, comment, created_at, reviewed_at \
              FROM approvals WHERE status = 'pending' AND (reviewer = ? OR reviewer IS NULL) \
