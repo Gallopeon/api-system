@@ -369,6 +369,7 @@ export type UserResponse = {
   status: string;
   permission_template_id: string | null;
   custom_permissions: string[] | null;
+  user_group: string | null;
   last_login_at: string | null;
   created_at: string;
   updated_at: string;

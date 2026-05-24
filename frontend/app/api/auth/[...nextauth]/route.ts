@@ -41,6 +41,7 @@ const handler = NextAuth({
             email: data.user.email,
             image: data.user.avatar_url,
             role: data.user.role,
+            userGroup: data.user.user_group || "admin_group",
             accessToken: data.token,
           };
         } catch (e) {
@@ -54,6 +55,7 @@ const handler = NextAuth({
     async jwt({ token, user }) {
       if (user) {
         token.role = (user as any).role;
+        token.userGroup = (user as any).userGroup || "admin_group";
         token.accessToken = (user as any).accessToken;
         token.userId = user.id;
       }
@@ -61,9 +63,8 @@ const handler = NextAuth({
     },
     async session({ session, token }) {
       (session.user as any).role = token.role;
+      (session.user as any).userGroup = token.userGroup || "admin_group";
       (session as any).userId = token.userId;
-      // accessToken stays server-side only — never sent to the browser.
-      // Frontend API calls go through /api/proxy/[...path] which injects it.
       return session;
     },
   },

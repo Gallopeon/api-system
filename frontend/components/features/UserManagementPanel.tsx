@@ -45,6 +45,7 @@ export default function UserManagementPanel({
     usersHook.setEditStatus(u.status);
     usersHook.setEditDisplayName(u.display_name || "");
     usersHook.setEditTemplateId(u.permission_template_id || "");
+    usersHook.setEditUserGroup(u.user_group || "");
   };
 
   const cancelEdit = () => {
@@ -53,6 +54,7 @@ export default function UserManagementPanel({
     usersHook.setEditStatus("");
     usersHook.setEditDisplayName("");
     usersHook.setEditTemplateId("");
+    usersHook.setEditUserGroup("");
   };
 
   const roleLabel = (role: string) => {
@@ -119,6 +121,13 @@ export default function UserManagementPanel({
                 {tplHook.templates.map((tpl) => (
                   <option key={tpl.id} value={tpl.id}>{tpl.name}</option>
                 ))}
+              </select>
+            </div>
+            <div>
+              <label className={labelClass}>{t("User Group", "用户组")}</label>
+              <select className={inputClass} value={usersHook.newUserGroup} onChange={(e) => usersHook.setNewUserGroup(e.target.value)}>
+                <option value="admin_group">{t("Admin Group", "管理组")}</option>
+                <option value="user_group">{t("User Group", "用户组")}</option>
               </select>
             </div>
           </div>

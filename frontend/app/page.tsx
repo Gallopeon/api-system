@@ -55,11 +55,17 @@ export default function APIControlCenter() {
   const t = useCallback(<T,>(en: T, zh: T): T => (lang === "zh" ? zh : en), [lang]);
   const { data: session, status } = useSession();
   const userRole = (session?.user?.role as Role) || null;
+  const userGroup = ((session?.user as any)?.userGroup as string) || "admin_group";
+  const isUserGroup = userGroup === "user_group";
   const [activeMenu, setActiveMenuRaw] = useState(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("active_menu") || "dashboard";
+      const stored = localStorage.getItem("active_menu") || "";
+      if (userGroup === "user_group" && !["portal", "user-center", "manual", "dashboard"].includes(stored)) {
+        return "portal";
+      }
+      return stored || (userGroup === "user_group" ? "portal" : "dashboard");
     }
-    return "dashboard";
+    return userGroup === "user_group" ? "portal" : "dashboard";
   });
   const setActiveMenu = useCallback((menu: string) => {
     setActiveMenuRaw(menu);
@@ -131,13 +137,16 @@ export default function APIControlCenter() {
     return () => setAuthErrorHandler(null);
   }, []);
 
-  // Guard against localStorage manipulation: reset to dashboard if menu is not accessible
+  // Guard against localStorage manipulation: reset if menu is not accessible
   useEffect(() => {
-    if (userRole && !canAccessMenu(userRole, activeMenu)) {
+    const userGroupMenus = ["portal", "user-center", "manual", "dashboard"];
+    if (isUserGroup && !userGroupMenus.includes(activeMenu)) {
+      setActiveMenu("portal");
+    } else if (userRole && !canAccessMenu(userRole, activeMenu)) {
       setActiveMenu("dashboard");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userRole]);
+  }, [userRole, activeMenu]);
 
   // ---- Init ----
   useEffect(() => {
@@ -195,6 +204,7 @@ export default function APIControlCenter() {
           activeMenu={activeMenu}
           onMenuSelect={setActiveMenu}
           role={userRole}
+          userGroup={userGroup}
           metrics={metrics}
           t={t}
           open={sidebarOpen}

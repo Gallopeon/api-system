@@ -19,6 +19,7 @@ export function useUsers(
   const [newDisplayName, setNewDisplayName] = useState("");
   const [newRole, setNewRole] = useState("viewer");
   const [newTemplateId, setNewTemplateId] = useState("");
+  const [newUserGroup, setNewUserGroup] = useState("admin_group");
 
   // Edit form state
   const [editUserId, setEditUserId] = useState("");
@@ -26,6 +27,7 @@ export function useUsers(
   const [editStatus, setEditStatus] = useState("");
   const [editDisplayName, setEditDisplayName] = useState("");
   const [editTemplateId, setEditTemplateId] = useState("");
+  const [editUserGroup, setEditUserGroup] = useState("");
 
   const loadUsers = useCallback(async () => {
     setBusy(true);
@@ -64,6 +66,7 @@ export function useUsers(
           display_name: newDisplayName || undefined,
           role: newRole,
           permission_template_id: newTemplateId || undefined,
+          user_group: newUserGroup || undefined,
         }),
       });
       if (!r.ok) {
@@ -77,6 +80,7 @@ export function useUsers(
       setNewDisplayName("");
       setNewRole("viewer");
       setNewTemplateId("");
+      setNewUserGroup("admin_group");
       await loadUsers();
     } catch (e) {
       notifyError?.((e as Error).message);
@@ -94,6 +98,7 @@ export function useUsers(
         if (editStatus) body.status = editStatus;
         if (editDisplayName) body.display_name = editDisplayName;
         if (editTemplateId) body.permission_template_id = editTemplateId;
+        if (editUserGroup) body.user_group = editUserGroup;
         const r = await apiFetch(`/admin/v1/users/${userId}`, {
           method: "PUT",
           body: JSON.stringify(body),
@@ -108,6 +113,7 @@ export function useUsers(
         setEditStatus("");
         setEditDisplayName("");
         setEditTemplateId("");
+        setEditUserGroup("");
         await loadUsers();
       } catch (e) {
         notifyError?.((e as Error).message);
@@ -144,10 +150,10 @@ export function useUsers(
   return {
     users, busy, filterRole, filterStatus, search,
     setFilterRole, setFilterStatus, setSearch,
-    newUsername, newPassword, newEmail, newDisplayName, newRole, newTemplateId,
-    setNewUsername, setNewPassword, setNewEmail, setNewDisplayName, setNewRole, setNewTemplateId,
-    editUserId, editRole, editStatus, editDisplayName, editTemplateId,
-    setEditUserId, setEditRole, setEditStatus, setEditDisplayName, setEditTemplateId,
+    newUsername, newPassword, newEmail, newDisplayName, newRole, newTemplateId, newUserGroup,
+    setNewUsername, setNewPassword, setNewEmail, setNewDisplayName, setNewRole, setNewTemplateId, setNewUserGroup,
+    editUserId, editRole, editStatus, editDisplayName, editTemplateId, editUserGroup,
+    setEditUserId, setEditRole, setEditStatus, setEditDisplayName, setEditTemplateId, setEditUserGroup,
     loadUsers, createUser, updateUser, deleteUser,
   };
 }
