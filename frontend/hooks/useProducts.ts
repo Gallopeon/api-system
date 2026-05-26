@@ -14,10 +14,9 @@ export function useProducts(
   const loadProducts = useCallback(async (search?: string) => {
     try {
       const qs = search ? `?limit=50&search=${encodeURIComponent(search)}` : "?limit=50";
-      const r = await apiFetch(`/admin/v1/products${qs}&_t=${Date.now()}`, { cache: "no-store" }, accessToken);
+      const r = await apiFetch(`/admin/v1/products${qs}`, {}, accessToken);
       if (r.ok) {
         const d = await r.json();
-        console.log("[DEBUG] loadProducts response:", JSON.stringify(d, null, 2));
         setProducts((d as { items?: ApiProduct[] }).items || []);
       }
     } catch (e) { notifyError?.("Failed to load products"); console.error("loadProducts failed:", e); }
