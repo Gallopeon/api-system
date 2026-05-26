@@ -49,7 +49,7 @@ async function proxy(req: NextRequest, method: string): Promise<NextResponse> {
     body = await req.text();
   }
 
-  const res = await fetch(url, { method, headers, body });
+  const res = await fetch(url, { method, headers, body, cache: "no-store" });
 
   // Stream the response back, forwarding the request-id
   const responseHeaders = new Headers(res.headers);
