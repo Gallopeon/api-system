@@ -263,7 +263,6 @@ export type PricingTier = {
   rate_limit_rps: number;
   quota_daily: number;
   quota_monthly: number;
-  price_monthly: number;
 };
 
 export type Subscription = {

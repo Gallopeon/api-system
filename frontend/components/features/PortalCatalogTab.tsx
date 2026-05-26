@@ -138,16 +138,12 @@ function ProductCard({
       )}
       {tiers.length > 0 && (
         <div className="mb-3 space-y-1.5">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t("Pricing Plans", "定价方案")}</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">{t("Limit Plans", "限制方案")}</p>
           <div className="grid grid-cols-2 gap-2">
             {tiers.slice(0, 4).map((tier, i) => (
               <div key={i} className="bg-gray-50 dark:bg-gray-900/50 rounded-lg px-2.5 py-2 border border-gray-100 dark:border-gray-800">
                 <div className="text-xs font-bold text-gray-800 dark:text-gray-200">{tier.name}</div>
                 <div className="text-xs text-gray-500">
-                  {tier.price_monthly > 0
-                    ? <>${tier.price_monthly}/{t("mo", "月")}</>
-                    : t("Free", "免费")}
-                  <span className="mx-1">·</span>
                   {tier.rate_limit_rps} RPS
                 </div>
                 {(tier.quota_daily > 0 || tier.quota_monthly > 0) && (
@@ -235,7 +231,6 @@ function ProductCard({
                     >
                       <div className="flex justify-between items-center">
                         <span className="font-bold text-sm">{tier.name}</span>
-                        <span className="text-xs">{tier.price_monthly > 0 ? `$${tier.price_monthly}/${t("mo", "月")}` : t("Free", "免费")}</span>
                       </div>
                       <div className="text-xs text-gray-500 mt-0.5">{tier.rate_limit_rps} RPS · {t("Daily", "日")}: {tier.quota_daily?.toLocaleString() || "—"}</div>
                     </button>

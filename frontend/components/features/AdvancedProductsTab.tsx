@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react";
 import {
   Plus, Edit3, Trash2, Check, X, Package, Search, Power, PowerOff,
-  ChevronDown, ChevronRight, DollarSign, Users, BookOpen, Sparkles,
+  ChevronDown, ChevronRight, Layers, Users, BookOpen, Sparkles,
 } from "lucide-react";
 import { cardClass, inputClass, labelClass, btnPrimary, btnSecondary } from "@/lib/constants";
 import type { ApiProduct, PricingTier, Subscription, RuleSummary } from "@/lib/types";
@@ -42,7 +42,6 @@ function tiersToPayload(tf: TierForm[]): PricingTier[] {
     rate_limit_rps: parseInt(t.rate_limit_rps) || 10,
     quota_daily: parseInt(t.quota_daily) || 0,
     quota_monthly: parseInt(t.quota_monthly) || 0,
-    price_monthly: parseFloat(t.price_monthly) || 0,
   }));
 }
 
@@ -50,7 +49,6 @@ function formFromTiers(tl: PricingTier[]): TierForm[] {
   if (!tl || tl.length === 0) return [emptyTier()];
   return tl.map(t => ({
     name: t.name || "",
-    price_monthly: t.price_monthly?.toString() || "",
     rate_limit_rps: t.rate_limit_rps?.toString() || "",
     quota_daily: t.quota_daily?.toString() || "",
     quota_monthly: t.quota_monthly?.toString() || "",
@@ -123,9 +121,10 @@ export default function AdvancedProductsTab(props: Props) {
   const buildData = (nm: string, dc: string, st: string, du: string, tg: string[], ri: string[], tf: TierForm[]) => {
     const data: Record<string, unknown> = { name: nm.trim(), description: dc, status: st };
     if (du.trim()) data.documentation_url = du.trim();
-    if (tg.length) data.tags = JSON.stringify(tg);
-    if (ri.length) data.rule_ids = JSON.stringify(ri);
-    data.pricing_tiers = JSON.stringify(tiersToPayload(tf));
+    if (tg.length) data.tags = tg;
+    if (ri.length) data.rule_ids = ri;
+    const payloadTiers = tiersToPayload(tf);
+    if (payloadTiers.length) data.pricing_tiers = payloadTiers;
     return data;
   };
 
@@ -146,16 +145,6 @@ export default function AdvancedProductsTab(props: Props) {
     setSearch(q); loadProducts(q || undefined);
   }, [loadProducts]);
 
-  const minPrice = (pt: PricingTier[]) => {
-    if (!pt.length) return null;
-    const prices = pt.map(t => t.price_monthly).filter(p => p > 0);
-    return prices.length ? Math.min(...prices) : null;
-  };
-  const maxPrice = (pt: PricingTier[]) => {
-    if (!pt.length) return null;
-    const prices = pt.map(t => t.price_monthly).filter(p => p > 0);
-    return prices.length ? Math.max(...prices) : null;
-  };
 
   return (
     <div className="space-y-4">
@@ -211,8 +200,6 @@ export default function AdvancedProductsTab(props: Props) {
             const ruleIdArr = Array.isArray(p.rule_ids) ? p.rule_ids : [];
             const tagsArr = Array.isArray(p.tags) ? p.tags : [];
             const isExpanded = expandedId === p.id;
-            const minP = minPrice(pt); const maxP = maxPrice(pt);
-            const hasFree = pt.some(t => t.price_monthly === 0);
             return (
               <div key={p.id} className={`${cardClass} p-0 overflow-hidden transition-shadow hover:shadow-md`}>
                 <div className="flex items-center gap-3 px-5 py-4 hover:bg-gray-50 dark:hover:bg-gray-900/50 transition cursor-pointer" onClick={() => setExpandedId(isExpanded ? null : p.id)}>
@@ -227,7 +214,7 @@ export default function AdvancedProductsTab(props: Props) {
                     <p className="text-xs text-gray-400 mt-0.5 truncate">{p.description || t("No description", "暂无描述")}</p>
                   </div>
                   <div className="hidden sm:flex items-center gap-4 text-xs text-gray-500 shrink-0">
-                    <span className="flex items-center gap-1"><DollarSign className="w-3 h-3 text-gray-400" />{pt.length > 0 ? (minP !== null && maxP !== null ? (minP === maxP ? `$${minP}/mo` : `$${minP}–${maxP}/mo`) : hasFree ? t("Has Free", "含免费") : t(`${pt.length} tiers`, `${pt.length} 个方案`)) : t("No pricing", "未定价")}</span>
+                    <span className="flex items-center gap-1"><Layers className="w-3 h-3 text-gray-400" />{pt.length > 0 ? t(`${pt.length} tiers`, `${pt.length} 个限制方案`) : t("No tiers", "未配置方案")}</span>
                     <span className="flex items-center gap-1"><Users className="w-3 h-3 text-gray-400" /><span className={p.active_subscription_count ? "text-emerald-600 font-medium" : ""}>{p.active_subscription_count || 0}</span><span className="text-gray-400">/ {p.subscription_count || 0}</span></span>
                     <span className="text-gray-400">{new Date(p.updated_at || p.created_at).toLocaleDateString()}</span>
                   </div>

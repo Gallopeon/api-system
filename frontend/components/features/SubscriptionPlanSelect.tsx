@@ -17,7 +17,7 @@ export default function SubscriptionPlanSelect({ value, onChange, tiers, t }: Pr
         <option value="">{t("Select plan…", "选择方案…")}</option>
         {tiers.map(tier => (
           <option key={tier.name} value={tier.name}>
-            {tier.name} {tier.price_monthly > 0 ? `($${tier.price_monthly}/mo)` : `(${t("Free", "免费")})`}
+            {tier.name}
           </option>
         ))}
       </select>

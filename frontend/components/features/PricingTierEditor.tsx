@@ -4,12 +4,12 @@ import { Plus, X, Crown } from "lucide-react";
 import { inputClass } from "@/lib/constants";
 
 export interface TierForm {
-  name: string; price_monthly: string; rate_limit_rps: string;
+  name: string; rate_limit_rps: string;
   quota_daily: string; quota_monthly: string;
 }
 
 export function emptyTier(): TierForm {
-  return { name: "", price_monthly: "", rate_limit_rps: "", quota_daily: "", quota_monthly: "" };
+  return { name: "", rate_limit_rps: "", quota_daily: "", quota_monthly: "" };
 }
 
 interface Props {
@@ -20,7 +20,6 @@ interface Props {
 
 const LABELS = [
   { key: "name" as const, labelEn: "Name", labelZh: "名称", placeholder: "Free/Pro/Enterprise", required: true },
-  { key: "price_monthly" as const, labelEn: "Price/mo", labelZh: "月费", placeholder: "0", type: "number" },
   { key: "rate_limit_rps" as const, labelEn: "RPS Limit", labelZh: "RPS 限制", placeholder: "10", type: "number" },
   { key: "quota_daily" as const, labelEn: "Daily Quota", labelZh: "日配额", placeholder: "1000", type: "number" },
   { key: "quota_monthly" as const, labelEn: "Monthly Quota", labelZh: "月配额", placeholder: "10000", type: "number" },
@@ -37,7 +36,7 @@ export default function PricingTierEditor({ tiers, onUpdate, t }: Props) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-          <Crown className="w-3.5 h-3.5" />{t("Pricing Tiers", "定价方案")}
+          <Crown className="w-3.5 h-3.5" />{t("Limit Tiers", "限制方案")}
         </span>
         <button type="button" onClick={addTier} className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1 font-medium px-2 py-1 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition">
           <Plus className="w-3 h-3" />{t("Add Tier", "添加方案")}
@@ -66,7 +65,7 @@ export default function PricingTierEditor({ tiers, onUpdate, t }: Props) {
                   onChange={e => updateField(i, key, e.target.value)}
                   placeholder={placeholder}
                   min={type === "number" ? "0" : undefined}
-                  step={key === "price_monthly" ? "0.01" : "1"}
+                  step="1"
                 />
               </div>
             ))}

@@ -185,7 +185,7 @@ export default function AdvancedSubscriptionsTab(props: Props) {
               <label className={labelClass}>{t("Plan", "套餐")}</label>
               <SubscriptionPlanSelect value={plan} onChange={setPlan} tiers={selectedTiers} t={t} />
               {selectedTiers.length === 0 && prodId && (
-                <p className="text-[10px] text-amber-500 mt-1">{t("Product has no pricing tiers. Enter plan name manually.", "产品未配置定价方案，请手动输入。")}</p>
+                <p className="text-[10px] text-amber-500 mt-1">{t("Product has no limit tiers. Enter plan name manually.", "产品未配置限制方案，请手动输入。")}</p>
               )}
             </div>
             <div>

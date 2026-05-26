@@ -50,18 +50,17 @@ export default function PortalProductDocsView({ product, onNavigateToMenu, onSet
         </div>
       </div>
 
-      {/* Pricing */}
+      {/* Limit Tiers */}
       {tiers.length > 0 && (
         <div className={cardClass}>
           <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-blue-500" />{t("Pricing Plans", "定价方案")}
+            <BarChart3 className="w-5 h-5 text-blue-500" />{t("Limit Tiers", "限制方案")}
           </h2>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b dark:border-gray-800 text-left text-xs text-gray-500 uppercase tracking-wider">
                   <th className="py-2 pr-4 font-medium">{t("Plan", "方案")}</th>
-                  <th className="py-2 pr-4 font-medium">{t("Price", "价格")}</th>
                   <th className="py-2 pr-4 font-medium">{t("Rate Limit", "速率限制")}</th>
                   <th className="py-2 pr-4 font-medium">{t("Daily Quota", "日配额")}</th>
                   <th className="py-2 pr-4 font-medium">{t("Monthly Quota", "月配额")}</th>
@@ -71,7 +70,6 @@ export default function PortalProductDocsView({ product, onNavigateToMenu, onSet
                 {tiers.map((tier, i) => (
                   <tr key={i} className="hover:bg-gray-50 dark:hover:bg-gray-900/50">
                     <td className="py-2.5 pr-4 font-medium text-gray-800 dark:text-gray-200">{tier.name}</td>
-                    <td className="py-2.5 pr-4">{tier.price_monthly > 0 ? <span className="font-mono">${tier.price_monthly}/{t("mo", "月")}</span> : <span className="text-green-600 dark:text-green-400 font-medium">{t("Free", "免费")}</span>}</td>
                     <td className="py-2.5 pr-4 font-mono text-xs">{tier.rate_limit_rps} RPS</td>
                     <td className="py-2.5 pr-4 font-mono text-xs">{tier.quota_daily > 0 ? tier.quota_daily.toLocaleString() : <span className="text-gray-400">—</span>}</td>
                     <td className="py-2.5 pr-4 font-mono text-xs">{tier.quota_monthly > 0 ? tier.quota_monthly.toLocaleString() : <span className="text-gray-400">—</span>}</td>

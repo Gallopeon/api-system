@@ -50,7 +50,7 @@ export default function ProductDetailPanel({ product, subscriptions, loadingSubs
             <BarChart3 className="w-3 h-3" />{t("Tiers", "方案")}
           </div>
           <div className="text-xl font-bold text-gray-900 dark:text-gray-100">{pt.length}</div>
-          <div className="text-[10px] text-gray-400">{t("pricing plans", "定价方案")}</div>
+          <div className="text-[10px] text-gray-400">{t("limit tiers", "限制方案")}</div>
         </div>
         <div className="bg-white dark:bg-gray-800/50 rounded-lg p-3 border border-gray-100 dark:border-gray-800">
           <div className="flex items-center gap-1.5 text-[10px] text-gray-400 uppercase tracking-wider mb-1">
@@ -95,15 +95,14 @@ export default function ProductDetailPanel({ product, subscriptions, loadingSubs
         </div>
       )}
 
-      {/* Pricing Tiers table */}
+      {/* Limit Tiers table */}
       {pt.length > 0 && (
         <div>
-          <span className="text-xs text-gray-400 uppercase tracking-wider flex items-center gap-1 mb-2"><TrendingUp className="w-3 h-3" />{t("Pricing Tiers", "定价方案")}</span>
+          <span className="text-xs text-gray-400 uppercase tracking-wider flex items-center gap-1 mb-2"><TrendingUp className="w-3 h-3" />{t("Limit Tiers", "限制方案")}</span>
           <div className="mt-1 overflow-x-auto">
             <table className="w-full text-xs">
               <thead><tr className="border-b dark:border-gray-700 text-left text-gray-400">
                 <th className="py-2 pr-3 font-medium">{t("Name", "名称")}</th>
-                <th className="py-2 pr-3 font-medium">{t("Price/mo", "月费")}</th>
                 <th className="py-2 pr-3 font-medium">RPS</th>
                 <th className="py-2 pr-3 font-medium">{t("Daily", "日配额")}</th>
                 <th className="py-2 pr-3 font-medium">{t("Monthly", "月配额")}</th>
@@ -112,7 +111,6 @@ export default function ProductDetailPanel({ product, subscriptions, loadingSubs
                 {pt.map((tier, i) => (
                   <tr key={i}>
                     <td className="py-2 pr-3 font-medium text-gray-900 dark:text-gray-100">{tier.name}</td>
-                    <td className="py-2 pr-3">{tier.price_monthly > 0 ? <span className="font-semibold text-emerald-600">${tier.price_monthly}</span> : <span className="text-green-600 font-medium">{t("Free", "免费")}</span>}</td>
                     <td className="py-2 pr-3 font-mono text-gray-600 dark:text-gray-400">{tier.rate_limit_rps}</td>
                     <td className="py-2 pr-3 font-mono text-gray-600 dark:text-gray-400">{tier.quota_daily > 0 ? tier.quota_daily.toLocaleString() : "—"}</td>
                     <td className="py-2 pr-3 font-mono text-gray-600 dark:text-gray-400">{tier.quota_monthly > 0 ? tier.quota_monthly.toLocaleString() : "—"}</td>
