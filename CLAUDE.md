@@ -364,7 +364,7 @@ frontend/
 │       ├── OpenApiPanel.tsx        ← Generate + import OpenAPI specs (165 lines)
 │       ├── LlmGatewayPanel.tsx     ← LLM route + providers + templates (267 lines)
 │       ├── AdvancedPanel.tsx       ← Tab router for advanced features (95 lines)
-│       ├── AdvancedProductsTab.tsx      ← Products CRUD + search + tags + toggle (256 lines)
+│       ├── AdvancedProductsTab.tsx      ← Products CRUD + search + tags + toggle (237 lines)
 │       ├── AdvancedSubscriptionsTab.tsx ← Subscriptions CRUD + lifecycle + usage (290 lines)
 │       ├── SubscriptionPlanSelect.tsx   ← Dynamic plan selector from product tiers (25 lines)
 │       ├── ProductFormWidgets.tsx       ← RuleSelector, StatusMenu, TagChips (95 lines)
