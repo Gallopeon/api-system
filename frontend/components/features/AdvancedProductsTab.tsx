@@ -195,7 +195,7 @@ export default function AdvancedProductsTab(props: Props) {
         <div className={`${cardClass} text-center py-10 text-gray-400`}><Package className="w-10 h-10 mx-auto mb-3 opacity-40" /><p className="text-sm">{t("No items found", "暂无数据")}</p></div>
       ) : (
         <div className="space-y-3">
-          {products.map(p => {
+          {products.filter(p => p.id !== editId).map(p => {
             const pt = parseTiers(p.pricing_tiers);
             const ruleIdArr = Array.isArray(p.rule_ids) ? p.rule_ids : [];
             const tagsArr = Array.isArray(p.tags) ? p.tags : [];
