@@ -114,7 +114,7 @@ pub async fn list_products(
     if !product_ids.is_empty() {
         let placeholders = product_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
         let stats_query = format!(
-            "SELECT product_id, COUNT(*) as total, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) as active FROM subscriptions WHERE product_id IN ({}) GROUP BY product_id",
+            "SELECT product_id, COUNT(*) as total, CAST(COALESCE(SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END), 0) AS SIGNED) as active FROM subscriptions WHERE product_id IN ({}) GROUP BY product_id",
             placeholders
         );
         let mut sq = sqlx::query(&stats_query);
