@@ -9,7 +9,7 @@ use sqlx::Row;
 use uuid::Uuid;
 use crate::AppState;
 use crate::auth::*;
-use crate::handlers::common::spawn_audit_log;
+use crate::handlers::common::{spawn_audit_log, fmt_dt_naive};
 use crate::types::AuditEntry;
 
 // ─── Products ──────────────────────────────────────────────────────────────────
@@ -294,10 +294,6 @@ fn extract_json_field(payload: &Value, key: &str) -> Option<String> {
     payload.get(key).and_then(|v| if v.is_null() || v.as_array().map_or(false, |a| a.is_empty()) { None } else { Some(v.to_string()) })
 }
 
-fn fmt_dt(opt: Option<chrono::NaiveDateTime>) -> String {
-    opt.map(|d| d.format("%Y-%m-%d %H:%M:%S").to_string()).unwrap_or_default()
-}
-
 fn product_row_to_json(r: &sqlx::mysql::MySqlRow) -> Value {
     let rule_ids: Value = r.try_get::<Value, _>("rule_ids").unwrap_or(Value::Null);
     let tags: Value = r.try_get::<Value, _>("tags").unwrap_or(Value::Null);
@@ -313,8 +309,8 @@ fn product_row_to_json(r: &sqlx::mysql::MySqlRow) -> Value {
         "documentation_url": r.try_get::<String, _>("documentation_url").unwrap_or_default(),
         "pricing_tiers": pricing_tiers,
         "owner": r.try_get::<String, _>("owner").unwrap_or_default(),
-        "created_at": fmt_dt(r.try_get::<Option<chrono::NaiveDateTime>, _>("created_at").ok().flatten()),
-        "updated_at": fmt_dt(r.try_get::<Option<chrono::NaiveDateTime>, _>("updated_at").ok().flatten()),
+        "created_at": fmt_dt_naive(r.try_get::<Option<chrono::NaiveDateTime>, _>("created_at").ok().flatten()),
+        "updated_at": fmt_dt_naive(r.try_get::<Option<chrono::NaiveDateTime>, _>("updated_at").ok().flatten()),
     })
 }
 
@@ -329,7 +325,7 @@ fn sub_row_to_json(r: &sqlx::mysql::MySqlRow) -> Value {
         "status": r.try_get::<String, _>("status").unwrap_or_default(),
         "expires_at": r.try_get::<Option<String>, _>("expires_at").ok().flatten(),
         "user_id": r.try_get::<Option<String>, _>("user_id").ok().flatten(),
-        "created_at": fmt_dt(r.try_get::<Option<chrono::NaiveDateTime>, _>("created_at").ok().flatten()),
+        "created_at": fmt_dt_naive(r.try_get::<Option<chrono::NaiveDateTime>, _>("created_at").ok().flatten()),
     })
 }
 

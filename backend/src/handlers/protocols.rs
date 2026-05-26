@@ -37,7 +37,7 @@ pub async fn list_protocols(State(state): State<Arc<AppState>>, Extension(auth):
         "api_path": r.try_get::<String,_>("api_path").unwrap_or_default(),
         "protocol": r.try_get::<String,_>("protocol").unwrap_or_default(),
         "description": r.try_get::<Option<String>,_>("description").ok().flatten(),
-        "config_json": r.try_get::<String,_>("config_json").unwrap_or_default(),
+        "config_json": r.try_get::<Value, _>("config_json").unwrap_or(Value::Null),
         "status": r.try_get::<String,_>("status").unwrap_or_default(),
     })).collect();
     Ok(Json(json!({"items": items})))

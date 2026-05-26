@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::AppState;
 use crate::types::AuditEntry;
 use crate::auth::*;
-use super::common::spawn_audit_log;
+use super::common::{spawn_audit_log, fmt_dt_naive};
 
 pub async fn create_data_classification(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ClassificationsWrite)?;
@@ -45,7 +45,7 @@ pub async fn list_classifications(State(state): State<Arc<AppState>>, Extension(
         "retention_days": r.try_get::<i32,_>("retention_days").unwrap_or(365),
         "notes": r.try_get::<String,_>("notes").unwrap_or_default(),
         "classified_by": r.try_get::<String,_>("classified_by").unwrap_or_default(),
-        "created_at": r.try_get::<String,_>("created_at").unwrap_or_default(),
+        "created_at": fmt_dt_naive(r.try_get::<Option<chrono::NaiveDateTime>, _>("created_at").ok().flatten()),
     })).collect();
     Ok(Json(json!({"items": items})))
 }

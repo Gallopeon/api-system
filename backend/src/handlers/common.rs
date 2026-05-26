@@ -1,7 +1,7 @@
 use redis::AsyncCommands;
 use serde_json::{json, Value};
 use sqlx::{MySqlPool, Row};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, NaiveDateTime, Utc};
 
 use crate::types::*;
 use crate::auth::*;
@@ -191,6 +191,10 @@ pub async fn load_rule_config_by_id(pool: &MySqlPool, rule_id: &str) -> Result<T
         tracing::warn!(error = %e, rule_id = %rule_id, "corrupt published rule config JSON, falling back to default");
         Default::default()
     }))
+}
+
+pub fn fmt_dt_naive(opt: Option<NaiveDateTime>) -> String {
+    opt.map(|d| d.format("%Y-%m-%d %H:%M:%S").to_string()).unwrap_or_default()
 }
 
 pub fn get_rate_limit_by_id<'a>(pool: &'a MySqlPool, id: &'a str) -> impl std::future::Future<Output = Result<RateLimitResponse, AppError>> + use<'a> {

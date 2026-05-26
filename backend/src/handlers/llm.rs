@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::AppState;
 use crate::types::*;
 use crate::auth::*;
-use super::common::spawn_audit_log;
+use super::common::{spawn_audit_log, fmt_dt_naive};
 
 // ── LLM Providers ──
 
@@ -133,7 +133,7 @@ pub async fn list_prompt_templates(State(state): State<Arc<AppState>>, Extension
         "variables": r.try_get::<Value,_>("variables").unwrap_or(Value::Null),
         "version": r.try_get::<i32,_>("version").unwrap_or(1),
         "status": r.try_get::<String,_>("status").unwrap_or_default(),
-        "created_at": r.try_get::<String,_>("created_at").unwrap_or_default(),
+        "created_at": fmt_dt_naive(r.try_get::<Option<chrono::NaiveDateTime>, _>("created_at").ok().flatten()),
     })).collect();
     Ok(Json(json!({"items": items})))
 }
@@ -150,7 +150,7 @@ pub async fn get_prompt_template(State(state): State<Arc<AppState>>, Extension(a
             "variables": r.try_get::<Value,_>("variables").unwrap_or(Value::Null),
             "version": r.try_get::<i32,_>("version").unwrap_or(1),
             "status": r.try_get::<String,_>("status").unwrap_or_default(),
-            "created_at": r.try_get::<String,_>("created_at").unwrap_or_default(),
+            "created_at": fmt_dt_naive(r.try_get::<Option<chrono::NaiveDateTime>, _>("created_at").ok().flatten()),
         }))),
         None => Err(AppError::NotFound("Template not found".to_string())),
     }

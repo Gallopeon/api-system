@@ -38,7 +38,7 @@ pub async fn list_plugins(State(state): State<Arc<AppState>>, Extension(auth): E
         "name": r.try_get::<String,_>("name").unwrap_or_default(),
         "plugin_type": r.try_get::<String,_>("plugin_type").unwrap_or_default(),
         "hook_point": r.try_get::<String,_>("hook_point").unwrap_or_default(),
-        "config_json": r.try_get::<Option<String>,_>("config_json").ok().flatten(),
+        "config_json": r.try_get::<Option<Value>, _>("config_json").ok().flatten(),
         "priority": r.try_get::<i32,_>("priority").unwrap_or(100),
         "status": r.try_get::<String,_>("status").unwrap_or_default(),
     })).collect();
@@ -55,7 +55,7 @@ pub async fn get_plugin_config(State(state): State<Arc<AppState>>, Extension(aut
         "name": row.try_get::<String,_>("name").unwrap_or_default(),
         "plugin_type": row.try_get::<String,_>("plugin_type").unwrap_or_default(),
         "hook_point": row.try_get::<String,_>("hook_point").unwrap_or_default(),
-        "config_json": row.try_get::<String,_>("config_json").unwrap_or_default(),
+        "config_json": row.try_get::<Value, _>("config_json").unwrap_or(Value::Null),
         "priority": row.try_get::<i32,_>("priority").unwrap_or(100),
         "status": row.try_get::<String,_>("status").unwrap_or_default(),
     })))

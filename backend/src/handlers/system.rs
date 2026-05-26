@@ -8,7 +8,7 @@ use sqlx::Row;
 use crate::AppState;
 use crate::types::*;
 use crate::auth::*;
-use super::common::spawn_audit_log;
+use super::common::{spawn_audit_log, fmt_dt_naive};
 
 pub async fn list_system_settings(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::SystemRead)?;
@@ -20,7 +20,7 @@ pub async fn list_system_settings(State(state): State<Arc<AppState>>, Extension(
         value: r.try_get("setting_value").unwrap_or_default(),
         description: r.try_get("description").ok(),
         editable: r.try_get::<i8, _>("editable").unwrap_or(1) == 1,
-        updated_at: r.try_get::<String, _>("updated_at").unwrap_or_default(),
+        updated_at: fmt_dt_naive(r.try_get::<Option<chrono::NaiveDateTime>, _>("updated_at").ok().flatten()),
     }).collect();
     Ok(Json(json!({"items": items})))
 }
