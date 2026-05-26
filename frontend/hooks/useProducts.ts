@@ -17,6 +17,7 @@ export function useProducts(
       const r = await apiFetch(`/admin/v1/products${qs}&_t=${Date.now()}`, { cache: "no-store" }, accessToken);
       if (r.ok) {
         const d = await r.json();
+        console.log("[DEBUG] loadProducts response:", JSON.stringify(d, null, 2));
         setProducts((d as { items?: ApiProduct[] }).items || []);
       }
     } catch (e) { notifyError?.("Failed to load products"); console.error("loadProducts failed:", e); }
