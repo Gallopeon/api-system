@@ -216,7 +216,7 @@ export default function AdvancedProductsTab(props: Props) {
                   <div className="hidden sm:flex items-center gap-4 text-xs text-gray-500 shrink-0">
                     <span className="flex items-center gap-1"><Layers className="w-3 h-3 text-gray-400" />{pt.length > 0 ? t(`${pt.length} tiers`, `${pt.length} 个限制方案`) : t("No tiers", "未配置方案")}</span>
                     <span className="flex items-center gap-1"><Users className="w-3 h-3 text-gray-400" /><span className={p.active_subscription_count ? "text-emerald-600 font-medium" : ""}>{p.active_subscription_count || 0}</span><span className="text-gray-400">/ {p.subscription_count || 0}</span></span>
-                    <span className="text-gray-400">{new Date(p.updated_at || p.created_at).toLocaleDateString()}</span>
+                    <span className="text-gray-400">{(() => { const ds = p.updated_at || p.created_at; if (!ds) return "—"; const d = new Date(ds); return isNaN(d.getTime()) ? ds.split(" ")[0] || "—" : d.toLocaleDateString(); })()}</span>
                   </div>
                   {canWrite && (
                     <div className="flex items-center gap-1 shrink-0" onClick={e => e.stopPropagation()}>

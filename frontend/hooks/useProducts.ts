@@ -14,7 +14,7 @@ export function useProducts(
   const loadProducts = useCallback(async (search?: string) => {
     try {
       const qs = search ? `?limit=50&search=${encodeURIComponent(search)}` : "?limit=50";
-      const r = await apiFetch(`/admin/v1/products${qs}`, {}, accessToken);
+      const r = await apiFetch(`/admin/v1/products${qs}&_t=${Date.now()}`, { cache: "no-store" }, accessToken);
       if (r.ok) {
         const d = await r.json();
         setProducts((d as { items?: ApiProduct[] }).items || []);
