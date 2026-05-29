@@ -41,7 +41,7 @@ const AuditLogPanel = dynamic(() => import("@/components/features/AuditLogPanel"
 const ManualPanel = dynamic(() => import("@/components/features/ManualPanel"), { ssr: false });
 const ApiBuilderPanel = dynamic(() => import("@/components/features/ApiBuilderPanel"), { ssr: false });
 const OpenApiPanel = dynamic(() => import("@/components/features/OpenApiPanel"), { ssr: false });
-const LlmGatewayPanel = dynamic(() => import("@/components/features/LlmGatewayPanel"), { ssr: false });
+// const LlmGatewayPanel = dynamic(() => import("@/components/features/LlmGatewayPanel"), { ssr: false });
 const AdvancedPanel = dynamic(() => import("@/components/features/AdvancedPanel"), { ssr: false });
 const PortalPanel = dynamic(() => import("@/components/features/PortalPanel"), { ssr: false });
 const UserCenterPanel = dynamic(() => import("@/components/features/UserCenterPanel"), { ssr: false });
@@ -58,12 +58,13 @@ export default function APIControlCenter() {
   const [activeMenu, setActiveMenuRaw] = useState(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("active_menu") || "";
-      if (userGroup === "user_group" && !["portal", "user-center", "manual", "dashboard"].includes(stored)) {
-        return "portal";
+      if (stored && canAccessMenu(userGroup, stored)) {
+        return stored;
       }
-      return stored || (userGroup === "user_group" ? "portal" : "dashboard");
     }
-    return userGroup === "user_group" ? "portal" : "dashboard";
+    // fallback to first accessible menu
+    const defaults = ["dashboard", "portal", "user-center", "manual"];
+    return defaults.find(m => canAccessMenu(userGroup, m)) || "dashboard";
   });
   const setActiveMenu = useCallback((menu: string) => {
     setActiveMenuRaw(menu);
@@ -82,7 +83,7 @@ export default function APIControlCenter() {
     writeApiKey: !isUserGroup,
     writeRateLimit: !isUserGroup,
     reviewApproval: !isUserGroup,
-    manageLlm: !isUserGroup,
+    // manageLlm: !isUserGroup,
     writeProducts: !isUserGroup,
     writeCircuitBreakers: !isUserGroup,
     writeProtocols: !isUserGroup,
@@ -135,13 +136,11 @@ export default function APIControlCenter() {
     return () => setAuthErrorHandler(null);
   }, []);
 
-  // Guard against localStorage manipulation: reset if menu is not accessible
+  // Guard: redirect to first accessible menu if current one is not allowed
   useEffect(() => {
-    const userGroupMenus = ["portal", "user-center", "manual", "dashboard"];
-    if (isUserGroup && !userGroupMenus.includes(activeMenu)) {
-      setActiveMenu("portal");
-    } else if (!canAccessMenu(userGroup, activeMenu)) {
-      setActiveMenu(isUserGroup ? "portal" : "dashboard");
+    if (!canAccessMenu(userGroup, activeMenu)) {
+      const fallback = ["dashboard", "portal", "user-center", "manual"].find(m => canAccessMenu(userGroup, m)) || "dashboard";
+      setActiveMenu(fallback);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userGroup, activeMenu]);
@@ -381,14 +380,15 @@ export default function APIControlCenter() {
             <AuditLogPanel auditItems={auditItems} onRefresh={loadAuditLogs} t={t} />
           )}
 
-          {activeMenu === "llmgateway" && (
+          {/* LLM Gateway temporarily disabled */}
+          {/* {activeMenu === "llmgateway" && (
             <LlmGatewayPanel
               canManage={can.manageLlm}
               notifyError={notifyError}
               notifySucc={notifySucc}
               t={t}
             />
-          )}
+          )} */}
 
           {activeMenu === "advanced" && (
             <AdvancedPanel

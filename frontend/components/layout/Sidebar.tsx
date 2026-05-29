@@ -48,7 +48,7 @@ const menuItems = [
   { id: "analytics", icon: Share2, en: "Analytics", zh: "分析仪表板" },
   { id: "ratelimits", icon: Activity, en: "Rate Limits", zh: "限流管理" },
   { id: "audit", icon: ShieldAlert, en: "Audit Logs", zh: "审计日志" },
-  { id: "llmgateway", icon: Network, en: "AI Gateway", zh: "AI 网关" },
+  // { id: "llmgateway", icon: Network, en: "AI Gateway", zh: "AI 网关" },
   { id: "advanced", icon: Settings, en: "Advanced", zh: "高级功能" },
   { id: "portal", icon: BookOpen, en: "Dev Portal", zh: "开发者门户" },
   { id: "manual", icon: BookOpen, en: "User Manual", zh: "用户手册" },
