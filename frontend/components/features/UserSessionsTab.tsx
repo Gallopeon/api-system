@@ -19,10 +19,10 @@ export default function UserSessionsTab({ sessions, revokeSession, t }: Props) {
       ) : (
         <div className="space-y-2">
           {sessions.map((s) => (
-            <div key={s.id} className="flex items-center justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700">
-              <div className="flex items-center space-x-3">
-                <Monitor className="w-5 h-5 text-gray-400" />
-                <div>
+            <div key={s.id} className="flex items-start justify-between p-3 rounded-lg border border-gray-200 dark:border-gray-700 gap-3">
+              <div className="flex items-start space-x-3 min-w-0 flex-1">
+                <Monitor className="w-5 h-5 text-gray-400 flex-shrink-0 mt-0.5" />
+                <div className="min-w-0 flex-1">
                   <div className="text-sm font-medium">
                     {s.client_ip || t("Unknown IP", "未知 IP")}
                     {s.current && (
@@ -31,8 +31,8 @@ export default function UserSessionsTab({ sessions, revokeSession, t }: Props) {
                       </span>
                     )}
                   </div>
-                  <div className="text-xs text-gray-500">
-                    {s.user_agent ? s.user_agent.substring(0, 60) + (s.user_agent.length > 60 ? "..." : "") : ""}
+                  <div className="text-xs text-gray-500 break-all">
+                    {s.user_agent || ""}
                   </div>
                   <div className="text-xs text-gray-400">
                     {t("Expires:", "过期：")} {new Date(s.expires_at).toLocaleString()}
