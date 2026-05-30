@@ -18,6 +18,8 @@ export default function PortalCatalogTab({
         <div className="relative flex-1 min-w-[240px] max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
+            id="catalog-search"
+            name="catalog-search"
             className={`${inputClass} pl-9`}
             placeholder={t("Search APIs by name, description or tag...", "按名称、描述或标签搜索 API...")}
             value={searchQuery}

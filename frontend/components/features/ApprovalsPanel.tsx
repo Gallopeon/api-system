@@ -139,7 +139,7 @@ export default function ApprovalsPanel({
           </div>
           <div>
             <label className={labelClass}>{t("Assign Reviewer", "指派审批人")}</label>
-            <input className={inputClass} value={approvalReviewer} onChange={(e) => onSetApprovalReviewer(e.target.value)}
+            <input id="approval-reviewer" name="approval-reviewer" className={inputClass} value={approvalReviewer} onChange={(e) => onSetApprovalReviewer(e.target.value)}
               placeholder={t("username (leave empty for any)", "用户名（留空则任意审批人）")} />
           </div>
           <div>
@@ -180,6 +180,8 @@ export default function ApprovalsPanel({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <select
+              id="approval-status-filter"
+              name="approval-status-filter"
               className={`${inputClass} w-36`}
               value={approvalFilter}
               onChange={(e) => { onSetApprovalFilter(e.target.value); setTimeout(onRefresh, 50); }}

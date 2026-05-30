@@ -154,7 +154,7 @@ export default function AdvancedProductsTab(props: Props) {
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">{t("Bundle rules into products with pricing tiers for subscription-based access.", "将规则打包为带定价方案的产品，支持基于订阅的访问控制。")}</p>
         </div>
         <div className="flex gap-2">
-          <div className="relative"><Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-400" /><input className={`${inputClass} pl-8 w-48`} placeholder={t("Search products…", "搜索产品…")} value={search} onChange={e => handleSearch(e.target.value)} /></div>
+          <div className="relative"><Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-gray-400" /><input id="product-search" name="product-search" className={`${inputClass} pl-8 w-48`} placeholder={t("Search products…", "搜索产品…")} value={search} onChange={e => handleSearch(e.target.value)} /></div>
           {canWrite && <button className={btnPrimary} onClick={() => setShowForm(!showForm)} disabled={busy}><Plus className="w-4 h-4 mr-1" />{t("Create", "创建")}</button>}
         </div>
       </div>

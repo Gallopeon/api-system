@@ -116,13 +116,16 @@ export default function UserManagementUsersTab({
       {/* Filters */}
       <div className="flex flex-wrap gap-3">
         <input
+          id="user-search"
+          name="user-search"
           className={`${inputClass} max-w-xs`}
           placeholder={t("Search username / email...", "搜索用户名 / 邮箱...")}
           value={usersHook.search}
           onChange={(e) => usersHook.setSearch(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && usersHook.loadUsers()}
         />
-        <select className={`${inputClass} max-w-[140px]`} value={usersHook.filterStatus} onChange={(e) => { usersHook.setFilterStatus(e.target.value); setTimeout(() => usersHook.loadUsers(), 0); }}>
+        <label htmlFor="user-search" className="sr-only">{t("Search username / email", "搜索用户名 / 邮箱")}</label>
+        <select id="user-status-filter" name="user-status-filter" className={`${inputClass} max-w-[140px]`} value={usersHook.filterStatus} onChange={(e) => { usersHook.setFilterStatus(e.target.value); setTimeout(() => usersHook.loadUsers(), 0); }}>
           <option value="">{t("All Status", "全部状态")}</option>
           {STATUSES.map((s) => (
             <option key={s} value={s}>{s === "active" ? t("Active", "活跃") : t("Disabled", "禁用")}</option>
