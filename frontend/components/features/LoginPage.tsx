@@ -90,7 +90,7 @@ function TotpInput({ onSubmit, loading, t }: { onSubmit: (code: string) => void;
       <p className="text-sm text-gray-500 dark:text-gray-400 text-center">
         {t("Enter the 6-digit code from your authenticator app", "请输入认证器 App 中的 6 位验证码")}
       </p>
-      <div className="flex justify-center gap-2 sm:gap-3" onPaste={handlePaste}>
+      <div className="grid grid-cols-6 gap-2 sm:gap-3" onPaste={handlePaste}>
         {digits.map((digit, i) => (
           <input
             key={i}
@@ -104,7 +104,7 @@ function TotpInput({ onSubmit, loading, t }: { onSubmit: (code: string) => void;
             disabled={submitted}
             onChange={(e) => handleChange(i, e.target.value)}
             onKeyDown={(e) => handleKeyDown(i, e)}
-            className="w-11 h-14 sm:w-14 sm:h-16 text-center text-2xl font-bold rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-black/50 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all shadow-sm text-gray-900 dark:text-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full h-14 sm:h-16 text-center text-2xl font-bold rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-black/50 focus:ring-2 focus:ring-blue-600 focus:border-blue-600 outline-none transition-all shadow-sm text-gray-900 dark:text-gray-100 disabled:opacity-40 disabled:cursor-not-allowed"
           />
         ))}
       </div>
