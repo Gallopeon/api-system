@@ -95,6 +95,8 @@ function TotpInput({ onSubmit, loading, t }: { onSubmit: (code: string) => void;
           <input
             key={i}
             ref={(el) => { inputRefs.current[i] = el; }}
+            id={`totp-digit-${i}`}
+            name={`totp-digit-${i}`}
             type="text"
             inputMode="numeric"
             autoComplete="one-time-code"
