@@ -111,7 +111,10 @@ export default function UserTotpTab({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <label htmlFor="totp-verify-code" className="sr-only">{t("Verification Code", "验证码")}</label>
             <input
+              id="totp-verify-code"
+              name="totp-verify-code"
               className={`${inputClass} flex-1`}
               placeholder="000000"
               maxLength={6}
