@@ -49,12 +49,24 @@ pub async fn list_api_keys(
     ensure_permission(&auth, Permission::ApiKeyRead)?;
     let limit = query.limit.unwrap_or(20).clamp(1, 100);
     let offset = query.offset.unwrap_or(0);
-    let rows = if let Some(ref status) = query.status {
-        sqlx::query("SELECT id, key_prefix, name, status, scopes, expires_at, max_calls, call_count, tenant_id, created_by, created_at, updated_at FROM api_keys WHERE status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?")
-            .bind(status).bind(limit).bind(offset).fetch_all(&state.pool).await?
+    // If the user lacks user:manage, only show their own keys
+    let own_only = !user_has_permission(&auth, Permission::UserManage);
+    let rows = if own_only {
+        if let Some(ref status) = query.status {
+            sqlx::query("SELECT id, key_prefix, name, status, scopes, expires_at, max_calls, call_count, tenant_id, created_by, created_at, updated_at FROM api_keys WHERE created_by = ? AND status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?")
+                .bind(&auth.subject).bind(status).bind(limit).bind(offset).fetch_all(&state.pool).await?
+        } else {
+            sqlx::query("SELECT id, key_prefix, name, status, scopes, expires_at, max_calls, call_count, tenant_id, created_by, created_at, updated_at FROM api_keys WHERE created_by = ? ORDER BY created_at DESC LIMIT ? OFFSET ?")
+                .bind(&auth.subject).bind(limit).bind(offset).fetch_all(&state.pool).await?
+        }
     } else {
-        sqlx::query("SELECT id, key_prefix, name, status, scopes, expires_at, max_calls, call_count, tenant_id, created_by, created_at, updated_at FROM api_keys ORDER BY created_at DESC LIMIT ? OFFSET ?")
-            .bind(limit).bind(offset).fetch_all(&state.pool).await?
+        if let Some(ref status) = query.status {
+            sqlx::query("SELECT id, key_prefix, name, status, scopes, expires_at, max_calls, call_count, tenant_id, created_by, created_at, updated_at FROM api_keys WHERE status = ? ORDER BY created_at DESC LIMIT ? OFFSET ?")
+                .bind(status).bind(limit).bind(offset).fetch_all(&state.pool).await?
+        } else {
+            sqlx::query("SELECT id, key_prefix, name, status, scopes, expires_at, max_calls, call_count, tenant_id, created_by, created_at, updated_at FROM api_keys ORDER BY created_at DESC LIMIT ? OFFSET ?")
+                .bind(limit).bind(offset).fetch_all(&state.pool).await?
+        }
     };
     let items: Vec<ApiKeyResponse> = rows.iter().map(|r| {
         let created_at: DateTime<Utc> = r.try_get("created_at").unwrap_or(DateTime::UNIX_EPOCH);
