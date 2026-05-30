@@ -244,11 +244,11 @@ export default function LoginPage({ t }: LoginPageProps) {
             <form onSubmit={handleCredentials} className="space-y-5">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">{t("Work Email / Username", "工作邮箱 / 用户名")}</label>
-                <input id="username" name="username" type="text" className="w-full pl-4 pr-4 py-3 bg-white dark:bg-black/50 border border-gray-200 dark:border-gray-800 rounded-xl text-sm focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all shadow-sm" placeholder={t("admin", "admin")} value={username} onChange={(e) => setUsername(e.target.value)} required />
+                <input id="username" name="username" type="text" autoComplete="username" className="w-full pl-4 pr-4 py-3 bg-white dark:bg-black/50 border border-gray-200 dark:border-gray-800 rounded-xl text-sm focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all shadow-sm" placeholder={t("admin", "admin")} value={username} onChange={(e) => setUsername(e.target.value)} required />
               </div>
               <div>
                 <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-1.5">{t("Password", "登录密码")}</label>
-                <input id="password" name="password" type="password" className="w-full pl-4 pr-4 py-3 bg-white dark:bg-black/50 border border-gray-200 dark:border-gray-800 rounded-xl text-sm focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all shadow-sm" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                <input id="password" name="password" type="password" autoComplete="current-password" className="w-full pl-4 pr-4 py-3 bg-white dark:bg-black/50 border border-gray-200 dark:border-gray-800 rounded-xl text-sm focus:ring-2 focus:ring-blue-600 focus:border-transparent outline-none transition-all shadow-sm" placeholder="••••••••" value={password} onChange={(e) => setPassword(e.target.value)} required />
               </div>
               {loginError && (
                 <div className="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-xl flex items-start space-x-2">

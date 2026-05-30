@@ -115,6 +115,7 @@ pub async fn update_api_key(
     Json(payload): Json<UpdateApiKeyRequest>,
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ApiKeyWrite)?;
+    ensure_can_manage_key(&state.pool, &auth, &id).await?;
     if let Some(ref name) = payload.name {
         sqlx::query("UPDATE api_keys SET name = ? WHERE id = ?").bind(name).bind(&id).execute(&state.pool).await?;
     }
@@ -142,6 +143,7 @@ pub async fn delete_api_key(
     Path(id): Path<String>,
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ApiKeyWrite)?;
+    ensure_can_manage_key(&state.pool, &auth, &id).await?;
     sqlx::query("DELETE FROM api_keys WHERE id = ?").bind(&id).execute(&state.pool).await?;
     let actor = resolve_actor(&auth, None);
     spawn_audit_log(&state.pool, AuditEntry {
@@ -150,6 +152,22 @@ pub async fn delete_api_key(
         detail: Some(json!({"id": id})),
     });
     Ok(Json(json!({"deleted": true})))
+}
+
+/// Check if the authenticated user owns the API key. Users with `user:manage`
+/// bypass ownership checks. Returns Ok(()) if allowed, or Forbidden error.
+async fn ensure_can_manage_key(pool: &sqlx::MySqlPool, auth: &AuthContext, key_id: &str) -> Result<(), AppError> {
+    // Admin/superusers with user:manage can manage any key
+    if user_has_permission(auth, Permission::UserManage) {
+        return Ok(());
+    }
+    let owner: Option<String> = sqlx::query_scalar("SELECT created_by FROM api_keys WHERE id = ?")
+        .bind(key_id).fetch_optional(pool).await?
+        .flatten();
+    match owner {
+        Some(ref o) if o == &auth.subject => Ok(()),
+        _ => Err(AppError::Forbidden("You can only manage your own API keys".into())),
+    }
 }
 
 fn parse_scopes(raw: Option<&str>) -> Option<Vec<String>> {

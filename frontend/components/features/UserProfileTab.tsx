@@ -47,15 +47,15 @@ export default function UserProfileTab({
         </div>
         <div>
           <label className={labelClass} htmlFor="display-name">{t("Display Name", "显示名称")}</label>
-          <input id="display-name" name="display-name" className={inputClass} value={editDisplayName} onChange={(e) => setEditDisplayName(e.target.value)} />
+          <input id="display-name" name="display-name" autoComplete="name" className={inputClass} value={editDisplayName} onChange={(e) => setEditDisplayName(e.target.value)} />
         </div>
         <div>
           <label className={labelClass} htmlFor="email">{t("Email", "邮箱")}</label>
-          <input id="email" name="email" className={inputClass} type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
+          <input id="email" name="email" autoComplete="email" className={inputClass} type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
         </div>
         <div>
           <label className={labelClass} htmlFor="avatar-url">{t("Avatar URL", "头像链接")}</label>
-          <input id="avatar-url" name="avatar-url" className={inputClass} value={editAvatarUrl} onChange={(e) => setEditAvatarUrl(e.target.value)} placeholder="https://..." />
+          <input id="avatar-url" name="avatar-url" autoComplete="url" className={inputClass} value={editAvatarUrl} onChange={(e) => setEditAvatarUrl(e.target.value)} placeholder="https://..." />
         </div>
         <button onClick={onSave} disabled={profileBusy} className={btnPrimary}>
           {t("Save Changes", "保存更改")}

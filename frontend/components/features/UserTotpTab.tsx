@@ -115,6 +115,7 @@ export default function UserTotpTab({
             <input
               id="totp-verify-code"
               name="totp-verify-code"
+              autoComplete="one-time-code"
               className={`${inputClass} flex-1`}
               placeholder="000000"
               maxLength={6}
