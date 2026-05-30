@@ -147,6 +147,7 @@ export default function APIControlCenter() {
 
   // ---- Init ----
   useEffect(() => {
+    if (status !== "authenticated") return;
     loadHealthStatus();
     loadMetrics();
     rulesHook.loadRules();
@@ -155,8 +156,7 @@ export default function APIControlCenter() {
     rateLimitsHook.loadRateLimits();
     portalHook.loadCatalog();
     portalHook.loadMyApps();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [status]);
 
   // Approvals callbacks
   const handleCreateApproval = () => createApproval(rulesHook.selectedRuleId, rulesHook.rules);
