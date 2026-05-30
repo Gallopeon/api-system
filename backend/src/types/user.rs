@@ -78,6 +78,7 @@ pub struct UserResponse {
     pub display_name: Option<String>,
     pub avatar_url: Option<String>,
     pub status: String,
+    pub role: String,
     pub permission_template_id: Option<String>,
     pub custom_permissions: Option<Vec<String>>,
     pub user_group: Option<String>,

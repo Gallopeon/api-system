@@ -166,6 +166,7 @@ pub fn create_jwt(
     secret: &str,
     ttl_seconds: i64,
     user_group: &str,
+    role: &str,
 ) -> Result<(String, String), AppError> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -174,7 +175,7 @@ pub fn create_jwt(
     let jti = Uuid::new_v4().to_string();
     let claims = json!({
         "sub": sub,
-        "role": "",
+        "role": role,
         "exp": now + ttl_seconds as usize,
         "iat": now,
         "jti": jti,

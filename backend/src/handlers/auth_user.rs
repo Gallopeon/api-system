@@ -68,6 +68,7 @@ pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(
     verify_login_totp(&state.pool, &user_id, payload.totp_code.as_deref()).await?;
 
     let user_group: String = row.try_get("user_group").unwrap_or_else(|_| "admin_group".to_string());
+    let role: String = row.try_get("role").unwrap_or_else(|_| "viewer".to_string());
 
     // Extract client IP and UA earlier for risk assessment
     let client_ip = headers.get("x-forwarded-for")
@@ -84,7 +85,7 @@ pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(
         Some(ua_str),
     ).await;
 
-    let (token, jti) = create_jwt(&payload.username, None, &state.auth.jwt_secret, 86400, &user_group)?;
+    let (token, jti) = create_jwt(&payload.username, None, &state.auth.jwt_secret, 86400, &user_group, &role)?;
 
     // Reset failed attempts on success, update last login, record successful login with risk score
     sqlx::query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE id = ?")
@@ -108,7 +109,7 @@ pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(
         ).bind(&user_id).fetch_optional(&state.pool).await.ok().flatten();
         if totp_enabled.unwrap_or(0) == 0 {
             // Force TOTP: return a restricted token with short TTL + totp_required flag
-            let (restricted_token, _) = create_jwt(&payload.username, None, &state.auth.jwt_secret, 900, &user_group)?;
+            let (restricted_token, _) = create_jwt(&payload.username, None, &state.auth.jwt_secret, 900, &user_group, &role)?;
             return Ok(Json(LoginResponse {
                 token: restricted_token,
                 user: row_to_user(&row),
@@ -332,11 +333,28 @@ pub async fn create_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
     let template_id = payload.permission_template_id.as_deref();
     let custom_perms = payload.custom_permissions.as_ref()
         .map(|v| serde_json::to_string(v).unwrap_or_default());
+    let default_prefs = serde_json::to_string(&json!({
+        "theme": "system",
+        "lang": "zh",
+        "notifications": {
+            "email": {
+                "rule_changes": true,
+                "security_alerts": true,
+                "product_updates": true
+            },
+            "in_app": {
+                "approvals": true,
+                "product_updates": true,
+                "infrastructure": true,
+                "audit": true
+            }
+        }
+    })).unwrap_or_default();
     sqlx::query(
-        "INSERT INTO users (id, username, password_hash, email, display_name, user_group, permission_template_id, custom_permissions) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+        "INSERT INTO users (id, username, password_hash, email, display_name, user_group, permission_template_id, custom_permissions, preferences) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     ).bind(&id).bind(&payload.username).bind(&hash)
      .bind(&payload.email).bind(&payload.display_name)
-     .bind(user_group).bind(template_id).bind(&custom_perms)
+     .bind(user_group).bind(template_id).bind(&custom_perms).bind(&default_prefs)
      .execute(&state.pool).await?;
     let actor = resolve_actor(&auth, payload.actor.as_deref());
     spawn_audit_log(&state.pool, AuditEntry {
@@ -708,6 +726,7 @@ fn row_to_user(row: &sqlx::mysql::MySqlRow) -> UserResponse {
         display_name: row.try_get("display_name").ok(),
         avatar_url: row.try_get("avatar_url").ok(),
         status: row.try_get("status").unwrap_or_else(|_| "active".to_string()),
+        role: row.try_get("role").unwrap_or_else(|_| "viewer".to_string()),
         permission_template_id: row.try_get("permission_template_id").ok().flatten(),
         custom_permissions,
         user_group: row.try_get("user_group").ok().flatten(),
