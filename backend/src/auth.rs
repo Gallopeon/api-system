@@ -167,6 +167,7 @@ pub fn create_jwt(
     ttl_seconds: i64,
     user_group: &str,
     role: &str,
+    permissions: &[String],
 ) -> Result<(String, String), AppError> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -176,6 +177,7 @@ pub fn create_jwt(
     let claims = json!({
         "sub": sub,
         "role": role,
+        "permissions": permissions,
         "exp": now + ttl_seconds as usize,
         "iat": now,
         "jti": jti,
@@ -288,7 +290,7 @@ async fn try_authenticate(state: &AppState, headers: &HeaderMap) -> Option<AuthC
     })
 }
 
-async fn load_user_permissions(pool: &sqlx::MySqlPool, username: &str) -> Result<Vec<String>, AppError> {
+pub async fn load_user_permissions(pool: &sqlx::MySqlPool, username: &str) -> Result<Vec<String>, AppError> {
     let row = sqlx::query(
         "SELECT permission_template_id, custom_permissions FROM users WHERE username = ?"
     )

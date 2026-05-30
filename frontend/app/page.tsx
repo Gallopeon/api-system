@@ -54,17 +54,18 @@ export default function APIControlCenter() {
   const t = useCallback(<T,>(en: T, zh: T): T => (lang === "zh" ? zh : en), [lang]);
   const { data: session, status } = useSession();
   const userGroup = ((session?.user as any)?.userGroup as string) || "admin_group";
-  const isUserGroup = userGroup === "user_group";
+  const permissions: string[] = (session as any)?.permissions || [];
+  const hasPerm = useCallback((perm: string) => permissions.includes(perm) || userGroup === "admin_group" && permissions.length === 0, [permissions, userGroup]);
   const [activeMenu, setActiveMenuRaw] = useState(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("active_menu") || "";
-      if (stored && canAccessMenu(userGroup, stored)) {
+      if (stored && canAccessMenu(userGroup, stored, permissions)) {
         return stored;
       }
     }
     // fallback to first accessible menu
     const defaults = ["dashboard", "portal", "user-center", "manual"];
-    return defaults.find(m => canAccessMenu(userGroup, m)) || "dashboard";
+    return defaults.find(m => canAccessMenu(userGroup, m, permissions)) || "dashboard";
   });
   const setActiveMenu = useCallback((menu: string) => {
     setActiveMenuRaw(menu);
@@ -75,22 +76,22 @@ export default function APIControlCenter() {
   const toggleSidebar = useCallback(() => setSidebarOpen((v) => !v), []);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
-  // admin_group has all capabilities; user_group gets restricted view
+  // Permissions-based capability flags. When permissions are loaded from backend
+  // they take precedence; fall back to user_group heuristic for legacy sessions.
   const can = {
-    writeRule: !isUserGroup,
-    publishRule: !isUserGroup,
-    executeTransform: !isUserGroup,
-    writeApiKey: !isUserGroup,
-    writeRateLimit: !isUserGroup,
-    reviewApproval: !isUserGroup,
-    // manageLlm: !isUserGroup,
-    writeProducts: !isUserGroup,
-    writeCircuitBreakers: !isUserGroup,
-    writeProtocols: !isUserGroup,
-    writeClassifications: !isUserGroup,
-    writePlugins: !isUserGroup,
-    writeSystem: !isUserGroup,
-    manageUsers: !isUserGroup,
+    writeRule: hasPerm("rule:write"),
+    publishRule: hasPerm("rule:publish"),
+    executeTransform: hasPerm("transform:execute"),
+    writeApiKey: hasPerm("apikey:write"),
+    writeRateLimit: hasPerm("ratelimit:write"),
+    reviewApproval: hasPerm("approval:review"),
+    writeProducts: hasPerm("products:write"),
+    writeCircuitBreakers: hasPerm("circuit_breakers:write"),
+    writeProtocols: hasPerm("protocols:write"),
+    writeClassifications: hasPerm("classifications:write"),
+    writePlugins: hasPerm("plugins:write"),
+    writeSystem: hasPerm("system:write"),
+    manageUsers: hasPerm("user:manage"),
   };
 
   // Cross-tab state
@@ -138,8 +139,8 @@ export default function APIControlCenter() {
 
   // Guard: redirect to first accessible menu if current one is not allowed
   useEffect(() => {
-    if (!canAccessMenu(userGroup, activeMenu)) {
-      const fallback = ["dashboard", "portal", "user-center", "manual"].find(m => canAccessMenu(userGroup, m)) || "dashboard";
+    if (!canAccessMenu(userGroup, activeMenu, permissions)) {
+      const fallback = ["dashboard", "portal", "user-center", "manual"].find(m => canAccessMenu(userGroup, m, permissions)) || "dashboard";
       setActiveMenu(fallback);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -149,15 +150,16 @@ export default function APIControlCenter() {
   useEffect(() => {
     if (status !== "authenticated") return;
     loadHealthStatus();
-    loadMetrics();
-    loadApprovals();
-    rulesHook.loadRules();
-    loadAuditLogs();
-    apiKeysHook.loadApiKeys();
-    rateLimitsHook.loadRateLimits();
-    portalHook.loadCatalog();
-    portalHook.loadMyApps();
-  }, [status]);
+    if (hasPerm("metrics:read")) loadMetrics();
+    if (hasPerm("approval:read")) loadApprovals();
+    if (hasPerm("rule:read")) rulesHook.loadRules();
+    if (hasPerm("audit:read")) loadAuditLogs();
+    if (hasPerm("apikey:read")) apiKeysHook.loadApiKeys();
+    if (hasPerm("ratelimit:read")) rateLimitsHook.loadRateLimits();
+    if (hasPerm("products:read")) portalHook.loadCatalog();
+    portalHook.loadMyApps(); // always: needs only user:self
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status, permissions]);
 
   // Approvals callbacks
   const handleCreateApproval = () => createApproval(rulesHook.selectedRuleId, rulesHook.rules);
@@ -201,6 +203,7 @@ export default function APIControlCenter() {
           activeMenu={activeMenu}
           onMenuSelect={setActiveMenu}
           userGroup={userGroup}
+          permissions={permissions}
           metrics={metrics}
           t={t}
           open={sidebarOpen}

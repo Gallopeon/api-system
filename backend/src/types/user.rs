@@ -15,6 +15,7 @@ pub struct LoginRequest {
 pub struct LoginResponse {
     pub token: String,
     pub user: UserResponse,
+    pub permissions: Vec<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub risk: Option<LoginRisk>,
 }

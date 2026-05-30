@@ -26,6 +26,7 @@ interface SidebarProps {
   activeMenu: string;
   onMenuSelect: (menu: string) => void;
   userGroup: string | null;
+  permissions?: string[];
   metrics: {
     total_rules?: number;
     total_audit_events?: number;
@@ -63,11 +64,12 @@ function SidebarContent({
   activeMenu,
   onMenuSelect,
   userGroup,
+  permissions,
   metrics,
   t,
   onClose,
 }: Omit<SidebarProps, "open">) {
-  const visibleItems = menuItems.filter((m) => canAccessMenu(userGroup, m.id));
+  const visibleItems = menuItems.filter((m) => canAccessMenu(userGroup, m.id, permissions));
 
   const handleMenuSelect = (menu: string) => {
     onMenuSelect(menu);

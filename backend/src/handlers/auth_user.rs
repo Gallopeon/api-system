@@ -85,7 +85,10 @@ pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(
         Some(ua_str),
     ).await;
 
-    let (token, jti) = create_jwt(&payload.username, None, &state.auth.jwt_secret, 86400, &user_group, &role)?;
+    // Load permissions before JWT creation so they are embedded in the claims
+    let permissions = load_user_permissions(&state.pool, &payload.username).await.unwrap_or_default();
+
+    let (token, jti) = create_jwt(&payload.username, None, &state.auth.jwt_secret, 86400, &user_group, &role, &permissions)?;
 
     // Reset failed attempts on success, update last login, record successful login with risk score
     sqlx::query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE id = ?")
@@ -109,10 +112,11 @@ pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(
         ).bind(&user_id).fetch_optional(&state.pool).await.ok().flatten();
         if totp_enabled.unwrap_or(0) == 0 {
             // Force TOTP: return a restricted token with short TTL + totp_required flag
-            let (restricted_token, _) = create_jwt(&payload.username, None, &state.auth.jwt_secret, 900, &user_group, &role)?;
+            let (restricted_token, _) = create_jwt(&payload.username, None, &state.auth.jwt_secret, 900, &user_group, &role, &permissions)?;
             return Ok(Json(LoginResponse {
                 token: restricted_token,
                 user: row_to_user(&row),
+                permissions: permissions.clone(),
                 risk: Some(LoginRisk { score: risk.score, is_suspicious: true, reasons: risk.reasons }),
             }));
         }
@@ -133,6 +137,7 @@ pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(
     Ok(Json(LoginResponse {
         token,
         user: row_to_user(&row),
+        permissions,
         risk: if risk.is_suspicious {
             Some(LoginRisk { score: risk.score, is_suspicious: true, reasons: risk.reasons.clone() })
         } else { None },

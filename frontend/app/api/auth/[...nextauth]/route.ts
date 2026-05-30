@@ -44,6 +44,7 @@ const handler = NextAuth({
             role: data.user.role,
             userGroup: data.user.user_group || "admin_group",
             accessToken: data.token,
+            permissions: data.permissions || [],
           };
         } catch (e) {
           if ((e as Error).message === "totp_required") throw e;
@@ -59,6 +60,7 @@ const handler = NextAuth({
         token.userGroup = (user as any).userGroup || "admin_group";
         token.accessToken = (user as any).accessToken;
         token.userId = user.id;
+        token.permissions = (user as any).permissions || [];
       }
       return token;
     },
@@ -66,6 +68,7 @@ const handler = NextAuth({
       (session.user as any).role = token.role;
       (session.user as any).userGroup = token.userGroup || "admin_group";
       (session as any).userId = token.userId;
+      (session as any).permissions = token.permissions || [];
       return session;
     },
   },

@@ -40,9 +40,35 @@ export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 
 const USER_GROUP_MENUS = new Set(["portal", "user-center", "manual", "dashboard"]);
 
-export function canAccessMenu(userGroup: string | null | undefined, menuId: string): boolean {
+const MENU_PERMISSIONS: Record<string, string> = {
+  "dashboard": "metrics:read",
+  "rules": "rule:read",
+  "versions": "rule:read",
+  "playground": "transform:preview",
+  "api-builder": "rule:write",
+  "openapi": "openapi:read",
+  "apikeys": "apikey:read",
+  "ratelimits": "ratelimit:read",
+  "approvals": "approval:read",
+  "analytics": "metrics:read",
+  "audit": "audit:read",
+  "advanced": "products:read",
+  "user-management": "user:manage",
+  "system-settings": "system:read",
+};
+
+export function canAccessMenu(userGroup: string | null | undefined, menuId: string, permissions?: string[]): boolean {
   if (!userGroup) return false;
-  if (userGroup === "admin_group") return true;
+  if (userGroup === "admin_group") {
+    // When permissions are available (new login), use them for fine-grained control
+    if (permissions && permissions.length > 0) {
+      const required = MENU_PERMISSIONS[menuId];
+      if (required) return permissions.includes(required);
+      // Menus not in the map (portal, user-center, manual) are always accessible
+      return true;
+    }
+    return true; // legacy: admin_group sees everything
+  }
   if (userGroup === "user_group") return USER_GROUP_MENUS.has(menuId);
   return false;
 }
