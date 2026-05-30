@@ -150,6 +150,7 @@ export default function APIControlCenter() {
     if (status !== "authenticated") return;
     loadHealthStatus();
     loadMetrics();
+    loadApprovals();
     rulesHook.loadRules();
     loadAuditLogs();
     apiKeysHook.loadApiKeys();

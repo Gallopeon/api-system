@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback } from "react";
 import { apiFetch } from "@/lib/api";
 import { PAGE_LIMIT, PAGE_OFFSET } from "@/lib/constants";
 import type {
@@ -196,9 +196,8 @@ export function useApprovals(
     [loadApprovals, loadMyRequests, loadMyPending, notifyError, notifySucc, accessToken],
   );
 
-  useEffect(() => {
-    loadApprovals();
-  }, [loadApprovals]);
+  // loadApprovals is called explicitly from page.tsx when the session is ready.
+  // Do NOT auto-fetch here to avoid 401s when no valid session exists.
 
   return {
     approvals, myApprovals, myPending,
