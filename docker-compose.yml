@@ -37,8 +37,8 @@ services:
       context: ./backend
     environment:
       APP_BIND: 0.0.0.0:8080
-      MYSQL_URL: mysql://root:root@mysql:3306/apictrl
-      REDIS_URL: ${REDIS_URL:-redis://redis:6379}
+      MYSQL_URL: mysql://root:${MYSQL_ROOT_PASSWORD:-root}@mysql:3306/apictrl
+      REDIS_URL: redis://redis:6379
       MYSQL_MAX_CONNECTIONS: 15
       CACHE_TTL_SECONDS: 300
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret}
