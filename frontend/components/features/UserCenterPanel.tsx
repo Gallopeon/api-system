@@ -22,7 +22,16 @@ interface UserCenterPanelProps {
 export default function UserCenterPanel({
   accessToken, notifyError, notifySucc, t,
 }: UserCenterPanelProps) {
-  const [activeTab, setActiveTab] = useState("profile");
+  const [activeTab, setActiveTabRaw] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("user_center_tab") || "profile";
+    }
+    return "profile";
+  });
+  const setActiveTab = useCallback((tab: string) => {
+    setActiveTabRaw(tab);
+    localStorage.setItem("user_center_tab", tab);
+  }, []);
   const { profile, profileBusy, loadProfile, updateProfile, changePassword } =
     useUserProfile(accessToken, notifyError, notifySucc);
   const { sessions, loadSessions, revokeSession } = useSessions(accessToken, notifyError, notifySucc);
