@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { Plus, Edit3, Trash2, Check, X, RefreshCw, TrendingUp, XCircle, RotateCcw, BarChart3, Package, Zap } from "lucide-react";
+import { Plus, Edit3, Trash2, Check, X, RefreshCw, TrendingUp, XCircle, RotateCcw, Gauge, Package, Zap } from "lucide-react";
 import { cardClass, inputClass, labelClass, btnPrimary, btnSecondary } from "@/lib/constants";
 import type { Subscription, SubscriptionUsage, ApiKeyItem, ApiProduct, PricingTier } from "@/lib/types";
 import SubscriptionPlanSelect from "./SubscriptionPlanSelect";
@@ -138,15 +138,25 @@ export default function AdvancedSubscriptionsTab(props: Props) {
 
   const renderUsage = (s: Subscription) => {
     const u = usageMap[s.id];
-    if (!u || u.quota_used_pct === null) return <span className="text-gray-400 text-xs">—</span>;
-    const pct = u.quota_used_pct;
-    const barColor = pct > 90 ? "bg-red-500" : pct > 70 ? "bg-amber-500" : "bg-emerald-500";
-    return (
-      <div className="flex items-center gap-2 min-w-[100px]">
-        <div className="flex-1 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
-          <div className={`h-full rounded-full transition-all ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+    if (!u || u.quota_used_pct === null) {
+      return (
+        <div className="flex items-center gap-1.5 text-gray-400">
+          <Gauge className="w-3.5 h-3.5 opacity-40" />
+          <span className="text-xs">—</span>
         </div>
-        <span className={`text-[10px] font-medium ${pct > 90 ? "text-red-500" : pct > 70 ? "text-amber-500" : "text-emerald-500"}`}>{pct}%</span>
+      );
+    }
+    const pct = u.quota_used_pct;
+    const barColor = pct > 90 ? "bg-red-500" : pct > 70 ? "bg-amber-500" : pct > 40 ? "bg-blue-500" : "bg-emerald-500";
+    const textColor = pct > 90 ? "text-red-600 dark:text-red-400" : pct > 70 ? "text-amber-600 dark:text-amber-400" : pct > 40 ? "text-blue-600 dark:text-blue-400" : "text-emerald-600 dark:text-emerald-400";
+    const label = `${u.calls_today?.toLocaleString() || 0} calls / ${u.quota_daily?.toLocaleString() || s.quota_daily || "∞"} daily`;
+    return (
+      <div className="flex items-center gap-2 min-w-[120px] group" title={`${label} (${pct}%)`}>
+        <Gauge className={`w-3.5 h-3.5 shrink-0 ${textColor}`} />
+        <div className="flex-1 h-2 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+          <div className={`h-full rounded-full transition-all duration-500 ${barColor}`} style={{ width: `${Math.min(pct, 100)}%` }} />
+        </div>
+        <span className={`text-[11px] font-bold tabular-nums ${textColor}`}>{pct}%</span>
       </div>
     );
   };
@@ -168,15 +178,15 @@ export default function AdvancedSubscriptionsTab(props: Props) {
         <div className={`${cardClass} space-y-4`}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className={labelClass}>{t("API Key", "API Key")} <span className="text-red-500">*</span></label>
-              <select className={inputClass} value={keyId} onChange={e => setKeyId(e.target.value)}>
+              <label className={labelClass} htmlFor="sub-api-key">{t("API Key", "API Key")} <span className="text-red-500">*</span></label>
+              <select id="sub-api-key" name="sub-api-key" className={inputClass} value={keyId} onChange={e => setKeyId(e.target.value)}>
                 <option value="">{t("Select API Key…", "选择 API Key…")}</option>
                 {apiKeys.filter(k => k.status === "active").map(k => <option key={k.id} value={k.id}>{k.name} ({k.key_prefix}…)</option>)}
               </select>
             </div>
             <div>
-              <label className={labelClass}>{t("Product", "产品")} <span className="text-red-500">*</span></label>
-              <select className={inputClass} value={prodId} onChange={e => setProdId(e.target.value)}>
+              <label className={labelClass} htmlFor="sub-product">{t("Product", "产品")} <span className="text-red-500">*</span></label>
+              <select id="sub-product" name="sub-product" className={inputClass} value={prodId} onChange={e => setProdId(e.target.value)}>
                 <option value="">{t("Select Product…", "选择产品…")}</option>
                 {productsList.filter(p => p.status === "active").map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
               </select>
@@ -244,7 +254,7 @@ export default function AdvancedSubscriptionsTab(props: Props) {
                       {td(statusBadge(s.status, t), "", t("Status", "状态"))}
                       {canWrite && td(
                         <div className="flex items-center gap-0.5">
-                          <button className="p-1.5 rounded-lg text-gray-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => getSubscriptionUsage(s.id)} title={t("Check Usage", "查看用量")}><BarChart3 className="w-3.5 h-3.5" /></button>
+                          <button className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium text-gray-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 border border-transparent hover:border-blue-200 dark:hover:border-blue-800 transition" onClick={() => getSubscriptionUsage(s.id)} title={t("Refresh usage", "刷新用量")}><RotateCcw className="w-3 h-3" /><span>{t("Refresh", "刷新")}</span></button>
                           <button className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition" onClick={() => startEdit(s)} title={t("Edit", "编辑")}><Edit3 className="w-3.5 h-3.5" /></button>
                           {s.status === "active" && (
                             <>
@@ -254,7 +264,7 @@ export default function AdvancedSubscriptionsTab(props: Props) {
                                 const subTiers = parseTiers(subProduct);
                                 if (subTiers.length <= 1) return null;
                                 return (
-                                  <select className="text-[10px] px-1 py-1 rounded border border-gray-200 dark:border-gray-700 dark:bg-gray-800" value="" onChange={e => { if (e.target.value) upgradeSubscription(s.id, e.target.value); }}>
+                                  <select id={`sub-upgrade-${s.id}`} name={`sub-upgrade-${s.id}`} className="text-[10px] px-1 py-1 rounded border border-gray-200 dark:border-gray-700 dark:bg-gray-800" value="" onChange={e => { if (e.target.value) upgradeSubscription(s.id, e.target.value); }}>
                                     <option value="">{t("Change", "切换")}</option>
                                     {subTiers.filter(v => v.name !== s.plan).map(v => <option key={v.name} value={v.name}>{v.name}</option>)}
                                   </select>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { RotateCcw, Key, Check, Copy, Power, PowerOff, Trash2, Clock, Hash, Globe, Calendar } from "lucide-react";
+import { RotateCcw, Key, Check, Copy, Power, PowerOff, Trash2, Clock, Hash, Globe, Calendar, Timer, Infinity, Activity, User } from "lucide-react";
 import { cardClass, inputClass, labelClass, btnPrimary, btnSecondary } from "@/lib/constants";
 import type { ApiKeyItem } from "@/lib/types";
 
@@ -121,20 +121,6 @@ export default function ApiKeysPanel({
     (expiryHour === now.getHours() && expiryMinute < now.getMinutes()) ||
     (expiryHour === now.getHours() && expiryMinute === now.getMinutes() && expirySecond <= now.getSeconds()));
 
-  // ---- slider helpers ----
-  const hPct = ((expiryHour - 0) / (hourMax - 0)) * 100;
-  const mPct = (expiryMinute / 59) * 100;
-  const sPct = (expirySecond / 59) * 100;
-
-  const sliderClass =
-    "w-full h-1.5 rounded-full appearance-none cursor-pointer accent-blue-600 " +
-    "[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 " +
-    "[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-600 " +
-    "[&::-webkit-slider-thumb]:shadow-md [&::-webkit-slider-thumb]:cursor-pointer " +
-    "[&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:hover:scale-110 " +
-    "[&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full " +
-    "[&::-moz-range-thumb]:bg-blue-600 [&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:cursor-pointer";
-
   return (
     <div className="max-w-6xl mx-auto space-y-6 animate-in fade-in duration-300">
       {/* ── Header ── */}
@@ -184,85 +170,160 @@ export default function ApiKeysPanel({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
           {/* Key Name */}
           <div className="space-y-1.5">
-            <label className={labelClass}>{t("Key Name", "密钥名称")} <span className="text-red-500">*</span></label>
+            <label className={labelClass} htmlFor="ak-name">{t("Key Name", "密钥名称")} <span className="text-red-500">*</span></label>
             <div className="relative">
               <Key className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input className={`${inputClass} pl-9`} value={akName} onChange={e => setAkName(e.target.value)} placeholder={t("e.g. Mobile App Key", "如：移动应用密钥")} />
+              <input id="ak-name" name="ak-name" className={`${inputClass} pl-9`} value={akName} onChange={e => setAkName(e.target.value)} placeholder={t("e.g. Mobile App Key", "如：移动应用密钥")} />
             </div>
           </div>
 
           {/* Scopes */}
           <div className="space-y-1.5">
-            <label className={labelClass}>{t("Scopes (API paths, comma separated)", "范围（API 路径，逗号分隔）")}</label>
+            <label className={labelClass} htmlFor="ak-scopes">{t("Scopes (API paths, comma separated)", "范围（API 路径，逗号分隔）")}</label>
             <div className="relative">
               <Globe className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input className={`${inputClass} pl-9`} value={akScopes} onChange={e => setAkScopes(e.target.value)} placeholder="/admin/v1/users, /api/v1/orders" />
+              <input id="ak-scopes" name="ak-scopes" className={`${inputClass} pl-9`} value={akScopes} onChange={e => setAkScopes(e.target.value)} placeholder="/admin/v1/users, /api/v1/orders" />
             </div>
           </div>
 
-          {/* ── Expiry: date + H:M:S sliders ── */}
+          {/* ── Expiry picker ── */}
           <div className="space-y-3">
-            <label className={labelClass}>{t("Expires At", "过期时间")}</label>
-            {/* date */}
-            <div className="relative">
-              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input className={`${inputClass} pl-9`} type="date" min={todayStr} value={expiryDate} onChange={e => onDateChange(e.target.value)} />
+            <div className="flex items-center justify-between">
+              <label className={labelClass}>{t("Expires At", "过期时间")}</label>
+              <span className="text-[10px] text-gray-400 font-medium uppercase tracking-wider">{t("UTC+8", "东八区")}</span>
             </div>
 
-            {/* H:M:S row */}
-            <div className="grid grid-cols-3 gap-3">
+            {/* Quick presets */}
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { label: t("7d", "7天"), days: 7 },
+                { label: t("30d", "30天"), days: 30 },
+                { label: t("90d", "90天"), days: 90 },
+                { label: t("1y", "1年"), days: 365 },
+                { label: t("Custom", "自定义"), days: 0 },
+              ].map(p => {
+                const isCustom = p.days === 0;
+                const target = isCustom ? null : new Date(now.getTime() + p.days * 86400000);
+                const targetStr = target ? toLocalDate(target) : "";
+                const active = isCustom
+                  ? ![7, 30, 90, 365].some(d => {
+                      const t = new Date(now.getTime() + d * 86400000);
+                      return toLocalDate(t) === expiryDate;
+                    })
+                  : expiryDate === targetStr;
+                return (
+                  <button
+                    key={p.days}
+                    type="button"
+                    onClick={() => {
+                      if (!isCustom && targetStr) onDateChange(targetStr);
+                    }}
+                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition border ${
+                      active
+                        ? "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800"
+                        : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 dark:bg-gray-800 dark:text-gray-400 dark:border-gray-700 dark:hover:bg-gray-700"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Date + H:M:S inputs */}
+            <div className="flex gap-2 items-center">
+              <div className="relative flex-1 min-w-0">
+                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  id="ak-expiry-date"
+                  name="ak-expiry-date"
+                  className={`${inputClass} pl-9`}
+                  type="date"
+                  min={todayStr}
+                  value={expiryDate}
+                  onChange={e => onDateChange(e.target.value)}
+                />
+              </div>
+              {/* Time separator */}
+              <span className="text-gray-300 dark:text-gray-600 text-sm font-light">@</span>
               {/* Hour */}
-              <div>
-                <div className="flex items-center justify-between text-[10px] text-gray-400 mb-0.5">
-                  <span>{t("Hour", "时")}</span>
-                  <span className="tabular-nums font-mono">{fmtNum(expiryHour)}</span>
-                </div>
-                <input type="range" min={0} max={hourMax} step={1} value={expiryHour} onChange={e => onHourChange(Number(e.target.value))}
-                  className={sliderClass}
-                  style={{ background: `linear-gradient(to right, #2563eb 0%, #2563eb ${hPct}%, #e5e7eb ${hPct}%, #e5e7eb 100%)` }}
+              <div className="relative">
+                <input
+                  id="ak-expiry-hour"
+                  name="ak-expiry-hour"
+                  type="number"
+                  min={hourMin}
+                  max={23}
+                  value={String(expiryHour).padStart(2, "0")}
+                  onChange={e => {
+                    const v = parseInt(e.target.value, 10);
+                    if (!isNaN(v)) onHourChange(clamp(v, hourMin, 23));
+                  }}
+                  className={`${inputClass} w-14 text-center px-1 font-mono text-sm`}
+                  placeholder="HH"
                 />
               </div>
+              <span className="text-gray-300 dark:text-gray-600 text-sm">:</span>
               {/* Minute */}
-              <div>
-                <div className="flex items-center justify-between text-[10px] text-gray-400 mb-0.5">
-                  <span>{t("Min", "分")}</span>
-                  <span className="tabular-nums font-mono">{fmtNum(expiryMinute)}</span>
-                </div>
-                <input type="range" min={0} max={59} step={1} value={expiryMinute} onChange={e => onMinuteChange(Number(e.target.value))}
-                  className={sliderClass}
-                  style={{ background: `linear-gradient(to right, #2563eb 0%, #2563eb ${mPct}%, #e5e7eb ${mPct}%, #e5e7eb 100%)` }}
+              <div className="relative">
+                <input
+                  id="ak-expiry-minute"
+                  name="ak-expiry-minute"
+                  type="number"
+                  min={0}
+                  max={59}
+                  value={String(expiryMinute).padStart(2, "0")}
+                  onChange={e => {
+                    const v = parseInt(e.target.value, 10);
+                    if (!isNaN(v)) onMinuteChange(clamp(v, 0, 59));
+                  }}
+                  className={`${inputClass} w-14 text-center px-1 font-mono text-sm`}
+                  placeholder="MM"
                 />
               </div>
+              <span className="text-gray-300 dark:text-gray-600 text-sm">:</span>
               {/* Second */}
-              <div>
-                <div className="flex items-center justify-between text-[10px] text-gray-400 mb-0.5">
-                  <span>{t("Sec", "秒")}</span>
-                  <span className="tabular-nums font-mono">{fmtNum(expirySecond)}</span>
-                </div>
-                <input type="range" min={0} max={59} step={1} value={expirySecond} onChange={e => onSecondChange(Number(e.target.value))}
-                  className={sliderClass}
-                  style={{ background: `linear-gradient(to right, #2563eb 0%, #2563eb ${sPct}%, #e5e7eb ${sPct}%, #e5e7eb 100%)` }}
+              <div className="relative">
+                <input
+                  id="ak-expiry-second"
+                  name="ak-expiry-second"
+                  type="number"
+                  min={0}
+                  max={59}
+                  value={String(expirySecond).padStart(2, "0")}
+                  onChange={e => {
+                    const v = parseInt(e.target.value, 10);
+                    if (!isNaN(v)) onSecondChange(clamp(v, 0, 59));
+                  }}
+                  className={`${inputClass} w-14 text-center px-1 font-mono text-sm`}
+                  placeholder="SS"
                 />
               </div>
             </div>
 
-            {/* preview */}
-            <div className="flex items-center gap-2 text-sm bg-gray-50 dark:bg-gray-900/50 rounded-lg px-3 py-2">
-              <Clock className="w-4 h-4 text-gray-400 shrink-0" />
-              <span className="text-gray-500 dark:text-gray-400">{t("Will expire at", "将于此时过期")}:</span>
-              <span className="font-semibold text-gray-900 dark:text-gray-100 font-mono tabular-nums">{preview}</span>
-              {isPast && (
-                <span className="text-red-500 text-xs font-medium ml-1">{t("(past time)", "(已过期)")}</span>
+            {/* Preview */}
+            <div className={`flex items-center gap-2 text-sm rounded-lg px-3 py-2 border ${isPast ? "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800/50" : "bg-blue-50/50 border-blue-200/60 dark:bg-blue-900/15 dark:border-blue-800/40"}`}>
+              {isPast ? (
+                <Clock className="w-4 h-4 text-red-500 shrink-0" />
+              ) : (
+                <Timer className="w-4 h-4 text-blue-600 dark:text-blue-400 shrink-0" />
+              )}
+              <span className={isPast ? "text-red-600 dark:text-red-400" : "text-blue-700 dark:text-blue-400"}>
+                {isPast ? t("Expired", "已过期") : t("Expires at", "过期时间")}:
+              </span>
+              <span className={`font-bold font-mono tabular-nums ${isPast ? "text-red-700 dark:text-red-300" : "text-blue-800 dark:text-blue-300"}`}>{preview}</span>
+              {!isPast && (
+                <span className="text-[10px] text-gray-400 ml-auto">{t("YYYY-MM-DD HH:MM:SS", "年-月-日 时:分:秒")}</span>
               )}
             </div>
           </div>
 
           {/* Max Calls */}
           <div className="space-y-1.5">
-            <label className={labelClass}>{t("Max Calls (empty = unlimited)", "最大调用次数（空 = 无限制）")}</label>
+            <label className={labelClass} htmlFor="ak-max-calls">{t("Max Calls (empty = unlimited)", "最大调用次数（空 = 无限制）")}</label>
             <div className="relative">
               <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <input className={`${inputClass} pl-9`} type="number" value={akMaxCalls} onChange={e => setAkMaxCalls(e.target.value)} placeholder="10000" min="1" />
+              <input id="ak-max-calls" name="ak-max-calls" className={`${inputClass} pl-9`} type="number" value={akMaxCalls} onChange={e => setAkMaxCalls(e.target.value)} placeholder="10000" min="1" />
             </div>
           </div>
         </div>
@@ -283,37 +344,105 @@ export default function ApiKeysPanel({
             <table className="w-full text-sm text-left resp-table">
               <thead className="bg-gray-50 dark:bg-gray-900 border-b dark:border-gray-800 text-gray-500 text-xs uppercase tracking-wider">
                 <tr>
-                  <th className="px-5 py-3 font-medium">{t("Name / Prefix", "名称 / 前缀")}</th>
-                  <th className="px-5 py-3 font-medium">{t("Status", "状态")}</th>
-                  <th className="px-5 py-3 text-right font-medium">{t("Actions", "操作")}</th>
+                  <th className="px-4 py-3 font-medium">{t("Key", "密钥")}</th>
+                  <th className="px-4 py-3 font-medium">{t("Status", "状态")}</th>
+                  <th className="px-4 py-3 font-medium">{t("Scopes", "作用域")}</th>
+                  <th className="px-4 py-3 font-medium">{t("Expiry", "过期")}</th>
+                  <th className="px-4 py-3 font-medium">{t("Usage", "用量")}</th>
+                  <th className="px-4 py-3 font-medium">{t("Created", "创建")}</th>
+                  <th className="px-4 py-3 text-right font-medium">{t("Actions", "操作")}</th>
                 </tr>
               </thead>
               <tbody className="divide-y dark:divide-gray-800">
                 {apiKeys.map(k => {
                   const act = k.status === "active";
                   const rev = k.status === "revoked";
-                  const badge = `inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-semibold ${act ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : rev ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"}`;
+                  const badge = `inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full font-semibold ${act ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" : rev ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" : "bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400"}`;
                   const dot = `w-1.5 h-1.5 rounded-full ${act ? "bg-green-500" : rev ? "bg-red-500" : "bg-yellow-500"}`;
+                  const scopes = Array.isArray(k.scopes) ? k.scopes : [];
+                  const expired = k.expires_at && new Date(k.expires_at) < new Date();
+                  const usagePct = k.max_calls && k.max_calls > 0 ? Math.round((k.call_count / k.max_calls) * 100) : null;
+                  const nearLimit = usagePct !== null && usagePct >= 80;
                   return (
                     <tr key={k.id} className="hover:bg-gray-50 dark:hover:bg-gray-900/50 transition group">
-                      <td className="px-5 py-3.5" data-label={t("Name / Prefix", "名称 / 前缀")}>
-                        <div className="font-semibold text-gray-900 dark:text-gray-100">{k.name}</div>
-                        <div className="text-xs text-gray-400 font-mono mt-0.5">{k.key_prefix}***</div>
+                      {/* Key */}
+                      <td className="px-4 py-3" data-label={t("Key", "密钥")}>
+                        <div className="font-semibold text-gray-900 dark:text-gray-100 text-sm">{k.name}</div>
+                        <div className="text-[11px] text-gray-400 font-mono mt-0.5">{k.key_prefix}***</div>
                       </td>
-                      <td className="px-5 py-3.5" data-label={t("Status", "状态")}>
+                      {/* Status */}
+                      <td className="px-4 py-3" data-label={t("Status", "状态")}>
                         <span className={badge}>
                           <span className={dot} />
                           {act ? t("Active", "活跃") : rev ? t("Revoked", "已吊销") : t("Disabled", "已禁用")}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 text-right" data-label={t("Actions", "操作")}>
+                      {/* Scopes */}
+                      <td className="px-4 py-3" data-label={t("Scopes", "作用域")}>
+                        {scopes.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {scopes.slice(0, 3).map(s => (
+                              <span key={s} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400 font-mono">{s}</span>
+                            ))}
+                            {scopes.length > 3 && <span className="text-[10px] text-gray-400">+{scopes.length - 3}</span>}
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">—</span>
+                        )}
+                      </td>
+                      {/* Expiry */}
+                      <td className="px-4 py-3" data-label={t("Expiry", "过期")}>
+                        {k.expires_at ? (
+                          <div className="flex items-center gap-1.5">
+                            <Clock className={`w-3 h-3 shrink-0 ${expired ? "text-red-500" : "text-gray-400"}`} />
+                            <span className={`text-xs font-mono tabular-nums ${expired ? "text-red-600 font-semibold" : "text-gray-600 dark:text-gray-400"}`}>
+                              {new Date(k.expires_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 text-[11px] text-gray-400"><Infinity className="w-3 h-3" />{t("Never", "永不过期")}</span>
+                        )}
+                      </td>
+                      {/* Usage */}
+                      <td className="px-4 py-3" data-label={t("Usage", "用量")}>
+                        {k.max_calls && k.max_calls > 0 ? (
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2">
+                              <Activity className={`w-3 h-3 shrink-0 ${nearLimit ? "text-red-500" : "text-gray-400"}`} />
+                              <span className={`text-xs font-mono tabular-nums ${nearLimit ? "text-red-600 font-semibold" : "text-gray-600 dark:text-gray-400"}`}>
+                                {k.call_count.toLocaleString()} / {k.max_calls.toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="w-24 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all ${nearLimit ? "bg-red-500" : usagePct && usagePct >= 50 ? "bg-amber-500" : "bg-emerald-500"}`}
+                                style={{ width: `${Math.min(usagePct || 0, 100)}%` }}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-gray-400">{t("Unlimited", "无限制")}</span>
+                        )}
+                      </td>
+                      {/* Created */}
+                      <td className="px-4 py-3" data-label={t("Created", "创建")}>
+                        <div className="flex items-center gap-1.5">
+                          <User className="w-3 h-3 text-gray-400" />
+                          <div>
+                            <div className="text-xs text-gray-600 dark:text-gray-400">{k.created_by || "system"}</div>
+                            {k.created_at && <div className="text-[10px] text-gray-400 font-mono">{new Date(k.created_at).toLocaleDateString()}</div>}
+                          </div>
+                        </div>
+                      </td>
+                      {/* Actions */}
+                      <td className="px-4 py-3 text-right" data-label={t("Actions", "操作")}>
                         {canWrite ? (
-                        <div className="flex items-center justify-end gap-1.5 opacity-70 group-hover:opacity-100 transition">
-                          <button onClick={() => onToggleApiKey(k.id, k.status)} className={`p-2 rounded-lg transition ${act ? "text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20" : "text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"}`} title={act ? t("Disable", "禁用") : t("Enable", "启用")}>
-                            {act ? <PowerOff className="w-4 h-4" /> : <Power className="w-4 h-4" />}
+                        <div className="flex items-center justify-end gap-1 opacity-70 group-hover:opacity-100 transition">
+                          <button onClick={() => onToggleApiKey(k.id, k.status)} className={`p-1.5 rounded-lg transition ${act ? "text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20" : "text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20"}`} title={act ? t("Disable", "禁用") : t("Enable", "启用")}>
+                            {act ? <PowerOff className="w-3.5 h-3.5" /> : <Power className="w-3.5 h-3.5" />}
                           </button>
-                          <button onClick={() => onDeleteApiKey(k.id)} className="p-2 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" title={t("Delete", "删除")}>
-                            <Trash2 className="w-4 h-4" />
+                          <button onClick={() => onDeleteApiKey(k.id)} className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition" title={t("Delete", "删除")}>
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                         ) : (

@@ -18,7 +18,18 @@ export function useSubscriptions(
       const r = await apiFetch("/admin/v1/subscriptions?limit=100", {}, accessToken);
       if (r.ok) {
         const d = await r.json();
-        setSubscriptions((d as { items?: Subscription[] }).items || []);
+        const items = (d as { items?: Subscription[] }).items || [];
+        setSubscriptions(items);
+        // Auto-fetch usage for each subscription in parallel
+        await Promise.all(items.map(async (sub) => {
+          try {
+            const ur = await apiFetch(`/admin/v1/subscriptions/${sub.id}/usage`, {}, accessToken);
+            if (ur.ok) {
+              const ud = await ur.json() as SubscriptionUsage;
+              setUsageMap(prev => ({ ...prev, [sub.id]: ud }));
+            }
+          } catch { /* silently ignore per-sub usage errors */ }
+        }));
       }
     } catch (e) { notifyError?.("Failed to load subscriptions"); console.error("loadSubscriptions failed:", e); }
   }, [accessToken, notifyError]);
