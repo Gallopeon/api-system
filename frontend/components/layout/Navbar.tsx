@@ -131,6 +131,7 @@ export default function Navbar({
 
         {/* User dropdown */}
         <div className="relative" ref={ref}>
+          {/* Desktop user dropdown trigger */}
           <button
             onClick={() => setOpen(!open)}
             className="hidden sm:inline-flex items-center gap-2 pl-2 pr-2.5 py-1.5 rounded-full bg-gray-100 dark:bg-zinc-800 border border-gray-200 dark:border-zinc-700 hover:bg-gray-200 dark:hover:bg-zinc-700 hover:border-gray-300 dark:hover:border-zinc-600 transition-all shadow-sm text-xs lg:text-sm font-medium whitespace-nowrap"
@@ -143,8 +144,20 @@ export default function Navbar({
             <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform duration-200 shrink-0 ${open ? "rotate-180" : ""}`} />
           </button>
 
+          {/* Mobile user icon trigger */}
+          <button
+            onClick={() => setOpen(!open)}
+            className="sm:hidden p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-zinc-800 transition-colors touch-btn"
+            type="button"
+            aria-label={t("User menu", "用户菜单")}
+          >
+            <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center">
+              <UserCircle className="w-4 h-4 text-white" />
+            </div>
+          </button>
+
           {open && (
-            <div className="absolute right-0 top-full mt-2 w-72 bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl shadow-xl z-50 overflow-hidden animate-scale-in origin-top-right">
+            <div className="absolute right-0 top-full mt-2 w-72 max-w-[85vw] bg-white dark:bg-zinc-900 border border-gray-200 dark:border-zinc-700 rounded-2xl shadow-xl z-50 overflow-hidden animate-scale-in origin-top-right">
               {/* User info header */}
               <div className="px-4 py-4 border-b border-gray-100 dark:border-zinc-800">
                 <div className="flex items-center gap-3">
