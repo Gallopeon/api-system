@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Network, FileText, Send, Plus, Trash2, Edit3, Check, X, Power, PowerOff, Zap, RefreshCw, Bot, DollarSign, Clock, Hash } from "lucide-react";
 import { cardClass, inputClass, labelClass, btnPrimary, btnSecondary } from "@/lib/constants";
 import { useLlmGateway } from "@/hooks/useLlmGateway";
@@ -23,7 +23,16 @@ interface PanelProps {
 }
 
 export default function LlmGatewayPanel({ canManage, notifyError, notifySucc, t, accessToken }: PanelProps) {
-  const [activeTab, setActiveTab] = useState("route");
+  const [activeTab, setActiveTabRaw] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("llm_tab") || "route";
+    }
+    return "route";
+  });
+  const setActiveTab = useCallback((tab: string) => {
+    setActiveTabRaw(tab);
+    localStorage.setItem("llm_tab", tab);
+  }, []);
   const hook = useLlmGateway(notifyError, notifySucc, accessToken);
 
   useEffect(() => {

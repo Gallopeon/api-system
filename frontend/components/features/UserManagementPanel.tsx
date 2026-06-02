@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Users, Shield } from "lucide-react";
 import UserManagementUsersTab from "./UserManagementUsersTab";
 import UserManagementPermissionsTab from "./UserManagementPermissionsTab";
@@ -18,7 +18,16 @@ const tabs = [
 ];
 
 export default function UserManagementPanel({ canManage, notifyError, notifySucc, t }: Props) {
-  const [activeTab, setActiveTab] = useState("users");
+  const [activeTab, setActiveTabRaw] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("usermgmt_tab") || "users";
+    }
+    return "users";
+  });
+  const setActiveTab = useCallback((tab: string) => {
+    setActiveTabRaw(tab);
+    localStorage.setItem("usermgmt_tab", tab);
+  }, []);
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">

@@ -21,7 +21,16 @@ export function usePortal(
   const [akCreatedKey, setAkCreatedKey] = useState("");
   const [akBusy, setAkBusy] = useState(false);
 
-  const [portalTab, setPortalTab] = useState("catalog");
+  const [portalTab, setPortalTabRaw] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("portal_tab") || "catalog";
+    }
+    return "catalog";
+  });
+  const setPortalTab = useCallback((tab: string) => {
+    setPortalTabRaw(tab);
+    if (typeof window !== "undefined") localStorage.setItem("portal_tab", tab);
+  }, []);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [docsProductId, setDocsProductId] = useState<string>("");

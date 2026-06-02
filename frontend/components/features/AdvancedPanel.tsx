@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Package, RefreshCw, AlertTriangle, Code2, ShieldAlert, Settings } from "lucide-react";
 import {
   useProducts, useSubscriptions, useCircuitBreakers,
@@ -36,7 +36,16 @@ const tabs = [
 ];
 
 export default function AdvancedPanel({ accessToken, notifyError, notifySucc, canWriteProducts, canWriteCircuitBreakers, canWriteProtocols, canWriteClassifications, canWritePlugins, t }: AdvancedPanelProps) {
-  const [activeTab, setActiveTab] = useState("products");
+  const [activeTab, setActiveTabRaw] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("advanced_tab") || "products";
+    }
+    return "products";
+  });
+  const setActiveTab = useCallback((tab: string) => {
+    setActiveTabRaw(tab);
+    localStorage.setItem("advanced_tab", tab);
+  }, []);
 
   const prod = useProducts(accessToken, notifyError, notifySucc);
   const sub  = useSubscriptions(accessToken, notifyError, notifySucc);
