@@ -32,7 +32,6 @@ export default function UserPreferencesTab({
         <h2 className="text-lg font-semibold mb-4">{t("Appearance", "外观设置")}</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label className={labelClass}>{t("Theme", "主题")}</label>
             <label className={labelClass} htmlFor="pref-theme">{t("Theme", "主题")}</label>
             <select id="pref-theme" name="pref-theme" className={inputClass} value={prefTheme} onChange={(e) => {
               setPrefTheme(e.target.value);
