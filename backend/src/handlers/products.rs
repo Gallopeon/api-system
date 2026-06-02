@@ -9,7 +9,7 @@ use sqlx::Row;
 use uuid::Uuid;
 use crate::AppState;
 use crate::auth::*;
-use crate::handlers::common::{spawn_audit_log, fmt_dt_naive};
+use crate::handlers::common::{spawn_audit_log, fmt_dt};
 use crate::types::AuditEntry;
 
 // ─── Products ──────────────────────────────────────────────────────────────────
@@ -202,17 +202,29 @@ pub async fn update_product(
     try_append_str(&mut set_clauses, &mut bind_values, &payload, "documentation_url", "documentation_url");
     try_append_str(&mut set_clauses, &mut bind_values, &payload, "owner", "owner");
 
-    if payload.get("rule_ids").is_some() {
-        set_clauses.push("rule_ids = ?".into());
-        bind_values.push(payload["rule_ids"].to_string());
+    if let Some(v) = payload.get("rule_ids") {
+        if v.is_null() {
+            set_clauses.push("rule_ids = NULL".into());
+        } else {
+            set_clauses.push("rule_ids = ?".into());
+            bind_values.push(v.to_string());
+        }
     }
-    if payload.get("tags").is_some() {
-        set_clauses.push("tags = ?".into());
-        bind_values.push(payload["tags"].to_string());
+    if let Some(v) = payload.get("tags") {
+        if v.is_null() {
+            set_clauses.push("tags = NULL".into());
+        } else {
+            set_clauses.push("tags = ?".into());
+            bind_values.push(v.to_string());
+        }
     }
-    if payload.get("pricing_tiers").is_some() {
-        set_clauses.push("pricing_tiers = ?".into());
-        bind_values.push(payload["pricing_tiers"].to_string());
+    if let Some(v) = payload.get("pricing_tiers") {
+        if v.is_null() {
+            set_clauses.push("pricing_tiers = NULL".into());
+        } else {
+            set_clauses.push("pricing_tiers = ?".into());
+            bind_values.push(v.to_string());
+        }
     }
 
     if set_clauses.is_empty() {
@@ -309,8 +321,8 @@ fn product_row_to_json(r: &sqlx::mysql::MySqlRow) -> Value {
         "documentation_url": r.try_get::<String, _>("documentation_url").unwrap_or_default(),
         "pricing_tiers": pricing_tiers,
         "owner": r.try_get::<String, _>("owner").unwrap_or_default(),
-        "created_at": fmt_dt_naive(r.try_get::<Option<chrono::NaiveDateTime>, _>("created_at").ok().flatten()),
-        "updated_at": fmt_dt_naive(r.try_get::<Option<chrono::NaiveDateTime>, _>("updated_at").ok().flatten()),
+        "created_at": fmt_dt(r.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("created_at").ok().flatten()),
+        "updated_at": fmt_dt(r.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("updated_at").ok().flatten()),
     })
 }
 
@@ -325,7 +337,7 @@ fn sub_row_to_json(r: &sqlx::mysql::MySqlRow) -> Value {
         "status": r.try_get::<String, _>("status").unwrap_or_default(),
         "expires_at": r.try_get::<Option<String>, _>("expires_at").ok().flatten(),
         "user_id": r.try_get::<Option<String>, _>("user_id").ok().flatten(),
-        "created_at": fmt_dt_naive(r.try_get::<Option<chrono::NaiveDateTime>, _>("created_at").ok().flatten()),
+        "created_at": fmt_dt(r.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("created_at").ok().flatten()),
     })
 }
 

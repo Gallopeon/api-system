@@ -9,7 +9,7 @@ use uuid::Uuid;
 use crate::AppState;
 use crate::types::AuditEntry;
 use crate::auth::*;
-use super::common::{spawn_audit_log, fmt_dt_naive};
+use super::common::{spawn_audit_log, fmt_dt};
 
 pub async fn create_data_classification(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<Value>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ClassificationsWrite)?;
@@ -45,7 +45,7 @@ pub async fn list_classifications(State(state): State<Arc<AppState>>, Extension(
         "retention_days": r.try_get::<i32,_>("retention_days").unwrap_or(365),
         "notes": r.try_get::<String,_>("notes").unwrap_or_default(),
         "classified_by": r.try_get::<String,_>("classified_by").unwrap_or_default(),
-        "created_at": fmt_dt_naive(r.try_get::<Option<chrono::NaiveDateTime>, _>("created_at").ok().flatten()),
+        "created_at": fmt_dt(r.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("created_at").ok().flatten()),
     })).collect();
     Ok(Json(json!({"items": items})))
 }
@@ -81,10 +81,13 @@ pub async fn update_data_classification(State(state): State<Arc<AppState>>, Exte
         set_clauses.push("data_category = ?".into());
         bind_values.push(payload["data_category"].as_str().unwrap().to_string());
     }
-    if payload.get("description").is_some() {
-        set_clauses.push("description = ?".into());
-        let desc: Option<String> = payload.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
-        bind_values.push(desc.unwrap_or_default());
+    if let Some(v) = payload.get("description") {
+        if v.is_null() {
+            set_clauses.push("description = NULL".into());
+        } else {
+            set_clauses.push("description = ?".into());
+            bind_values.push(v.as_str().unwrap_or("").to_string());
+        }
     }
     if payload.get("contains_pii").and_then(|v| v.as_bool()).is_some() {
         set_clauses.push("contains_pii = ?".into());
@@ -94,10 +97,13 @@ pub async fn update_data_classification(State(state): State<Arc<AppState>>, Exte
         set_clauses.push("gdpr_relevant = ?".into());
         bind_values.push(if payload["gdpr_relevant"].as_bool().unwrap_or(false) { "1".into() } else { "0".into() });
     }
-    if payload.get("target_table").is_some() {
-        set_clauses.push("target_table = ?".into());
-        let tt: Option<String> = payload.get("target_table").and_then(|v| v.as_str()).map(|s| s.to_string());
-        bind_values.push(tt.unwrap_or_default());
+    if let Some(v) = payload.get("target_table") {
+        if v.is_null() {
+            set_clauses.push("target_table = NULL".into());
+        } else {
+            set_clauses.push("target_table = ?".into());
+            bind_values.push(v.as_str().unwrap_or("").to_string());
+        }
     }
     if let Some(v) = payload.get("retention_days").and_then(|v| v.as_i64()) {
         set_clauses.push("retention_days = ?".into());

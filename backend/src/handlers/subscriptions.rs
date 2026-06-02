@@ -9,7 +9,7 @@ use sqlx::Row;
 use uuid::Uuid;
 use crate::AppState;
 use crate::auth::*;
-use crate::handlers::common::{spawn_audit_log, fmt_dt_naive};
+use crate::handlers::common::{spawn_audit_log, fmt_dt};
 use crate::types::AuditEntry;
 
 // ─── Subscriptions CRUD ────────────────────────────────────────────────────────
@@ -402,7 +402,7 @@ fn sub_row_to_json(r: &sqlx::mysql::MySqlRow) -> Value {
         "status": r.try_get::<String,_>("status").unwrap_or_default(),
         "expires_at": r.try_get::<Option<String>,_>("expires_at").ok().flatten(),
         "user_id": r.try_get::<Option<String>,_>("user_id").ok().flatten(),
-        "created_at": fmt_dt_naive(r.try_get::<Option<chrono::NaiveDateTime>, _>("created_at").ok().flatten()),
+        "created_at": fmt_dt(r.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("created_at").ok().flatten()),
     })
 }
 

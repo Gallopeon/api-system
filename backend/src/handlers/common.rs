@@ -197,6 +197,10 @@ pub fn fmt_dt_naive(opt: Option<NaiveDateTime>) -> String {
     opt.map(|d| d.format("%Y-%m-%d %H:%M:%S").to_string()).unwrap_or_default()
 }
 
+pub fn fmt_dt(opt: Option<DateTime<Utc>>) -> String {
+    opt.map(|d| d.format("%Y-%m-%d %H:%M:%S").to_string()).unwrap_or_default()
+}
+
 pub fn get_rate_limit_by_id<'a>(pool: &'a MySqlPool, id: &'a str) -> impl std::future::Future<Output = Result<RateLimitResponse, AppError>> + use<'a> {
     async move {
         let row = sqlx::query(

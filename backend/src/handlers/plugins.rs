@@ -17,7 +17,7 @@ pub async fn create_plugin_config(State(state): State<Arc<AppState>>, Extension(
     let name = payload.get("name").and_then(|v| v.as_str()).unwrap_or("unnamed");
     let plugin_type = payload.get("plugin_type").and_then(|v| v.as_str()).unwrap_or("lua");
     let hook_point = payload.get("hook_point").and_then(|v| v.as_str()).unwrap_or("pre_transform");
-    let config_json = payload.get("config_json").map(|v| v.to_string()).unwrap_or_default();
+    let config_json: Option<String> = payload.get("config_json").and_then(|v| if v.is_null() { None } else { Some(v.to_string()) });
     let priority: i32 = payload.get("priority").and_then(|v| v.as_i64()).unwrap_or(100) as i32;
     sqlx::query("INSERT INTO plugin_configs (id, name, plugin_type, hook_point, config_json, priority, status) VALUES (?, ?, ?, ?, ?, ?, 'active')")
         .bind(&id).bind(name).bind(plugin_type).bind(hook_point).bind(&config_json).bind(priority).execute(&state.pool).await?;
@@ -38,7 +38,7 @@ pub async fn list_plugins(State(state): State<Arc<AppState>>, Extension(auth): E
         "name": r.try_get::<String,_>("name").unwrap_or_default(),
         "plugin_type": r.try_get::<String,_>("plugin_type").unwrap_or_default(),
         "hook_point": r.try_get::<String,_>("hook_point").unwrap_or_default(),
-        "config_json": r.try_get::<Option<Value>, _>("config_json").ok().flatten(),
+        "config_json": r.try_get::<String,_>("config_json").unwrap_or_default(),
         "priority": r.try_get::<i32,_>("priority").unwrap_or(100),
         "status": r.try_get::<String,_>("status").unwrap_or_default(),
     })).collect();
@@ -55,7 +55,7 @@ pub async fn get_plugin_config(State(state): State<Arc<AppState>>, Extension(aut
         "name": row.try_get::<String,_>("name").unwrap_or_default(),
         "plugin_type": row.try_get::<String,_>("plugin_type").unwrap_or_default(),
         "hook_point": row.try_get::<String,_>("hook_point").unwrap_or_default(),
-        "config_json": row.try_get::<Value, _>("config_json").unwrap_or(Value::Null),
+        "config_json": row.try_get::<String,_>("config_json").unwrap_or_default(),
         "priority": row.try_get::<i32,_>("priority").unwrap_or(100),
         "status": row.try_get::<String,_>("status").unwrap_or_default(),
     })))
@@ -76,9 +76,13 @@ pub async fn update_plugin_config(State(state): State<Arc<AppState>>, Extension(
         set_clauses.push("hook_point = ?".into());
         bind_values.push(payload["hook_point"].as_str().unwrap().to_string());
     }
-    if payload.get("config_json").is_some() {
-        set_clauses.push("config_json = ?".into());
-        bind_values.push(payload["config_json"].to_string());
+    if let Some(v) = payload.get("config_json") {
+        if v.is_null() {
+            set_clauses.push("config_json = NULL".into());
+        } else {
+            set_clauses.push("config_json = ?".into());
+            bind_values.push(v.to_string());
+        }
     }
     if let Some(v) = payload.get("priority").and_then(|v| v.as_i64()) {
         set_clauses.push("priority = ?".into());

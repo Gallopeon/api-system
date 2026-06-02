@@ -17,7 +17,7 @@ pub async fn create_protocol_config(State(state): State<Arc<AppState>>, Extensio
     let api_path = payload.get("api_path").and_then(|v| v.as_str()).unwrap_or("");
     let protocol = payload.get("protocol").and_then(|v| v.as_str()).unwrap_or("http");
     let description = payload.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
-    let config_json = payload.get("config_json").map(|v| v.to_string()).unwrap_or_default();
+    let config_json: Option<String> = payload.get("config_json").and_then(|v| if v.is_null() { None } else { Some(v.to_string()) });
     sqlx::query("INSERT INTO protocol_configs (id, api_path, protocol, description, config_json, status) VALUES (?, ?, ?, ?, ?, 'active')")
         .bind(&id).bind(api_path).bind(protocol).bind(&description).bind(&config_json).execute(&state.pool).await?;
     let actor = resolve_actor(&auth, None);
@@ -37,7 +37,7 @@ pub async fn list_protocols(State(state): State<Arc<AppState>>, Extension(auth):
         "api_path": r.try_get::<String,_>("api_path").unwrap_or_default(),
         "protocol": r.try_get::<String,_>("protocol").unwrap_or_default(),
         "description": r.try_get::<Option<String>,_>("description").ok().flatten(),
-        "config_json": r.try_get::<Value, _>("config_json").unwrap_or(Value::Null),
+        "config_json": r.try_get::<String,_>("config_json").unwrap_or_default(),
         "status": r.try_get::<String,_>("status").unwrap_or_default(),
     })).collect();
     Ok(Json(json!({"items": items})))
@@ -69,14 +69,21 @@ pub async fn update_protocol_config(State(state): State<Arc<AppState>>, Extensio
         set_clauses.push("protocol = ?".into());
         bind_values.push(payload["protocol"].as_str().unwrap().to_string());
     }
-    if payload.get("description").is_some() {
-        set_clauses.push("description = ?".into());
-        let desc: Option<String> = payload.get("description").and_then(|v| v.as_str()).map(|s| s.to_string());
-        bind_values.push(desc.unwrap_or_default());
+    if let Some(v) = payload.get("description") {
+        if v.is_null() {
+            set_clauses.push("description = NULL".into());
+        } else {
+            set_clauses.push("description = ?".into());
+            bind_values.push(v.as_str().unwrap_or("").to_string());
+        }
     }
-    if payload.get("config_json").is_some() {
-        set_clauses.push("config_json = ?".into());
-        bind_values.push(payload["config_json"].to_string());
+    if let Some(v) = payload.get("config_json") {
+        if v.is_null() {
+            set_clauses.push("config_json = NULL".into());
+        } else {
+            set_clauses.push("config_json = ?".into());
+            bind_values.push(v.to_string());
+        }
     }
     if payload.get("status").and_then(|v| v.as_str()).is_some() {
         set_clauses.push("status = ?".into());

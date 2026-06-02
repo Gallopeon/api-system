@@ -375,6 +375,7 @@ async fn seed_plugins(pool: &MySqlPool) -> Result<(), AppError> {
         return Ok(());
     }
     let defaults: Vec<(&str, &str, &str, &str, i32)> = vec![
+        // ── pre_auth: runs before authentication ──
         (
             "IP Blacklist",
             "lua",
@@ -383,32 +384,135 @@ async fn seed_plugins(pool: &MySqlPool) -> Result<(), AppError> {
             10,
         ),
         (
-            "Request Logger",
-            "lua",
-            "pre_transform",
-            r#"{"type":"request_logger","log_headers":true,"log_body":false,"log_query_params":true,"log_format":"json","sample_rate":1.0,"enabled":true}"#,
-            20,
-        ),
-        (
-            "Security Headers Injector",
-            "lua",
-            "post_transform",
-            r#"{"type":"response_headers","headers":{"X-Content-Type-Options":"nosniff","X-Frame-Options":"DENY","X-XSS-Protection":"1; mode=block","Referrer-Policy":"strict-origin-when-cross-origin","Permissions-Policy":"camera=(), microphone=(), geolocation=()"},"remove_headers":["Server","X-Powered-By"],"enabled":true}"#,
-            30,
-        ),
-        (
             "CORS Preflight Handler",
             "lua",
             "pre_auth",
             r#"{"type":"cors","allowed_origins":["http://localhost:3000"],"allowed_methods":["GET","POST","PUT","DELETE","PATCH","OPTIONS"],"allowed_headers":["Content-Type","Authorization","X-Request-ID"],"expose_headers":["X-Request-ID"],"max_age":86400,"allow_credentials":true,"enabled":true}"#,
+            20,
+        ),
+        (
+            "Bot Detection",
+            "lua",
+            "pre_auth",
+            r#"{"type":"bot_detection","block_user_agents":["*bot*","*crawler*","*spider*"],"block_empty_ua":false,"challenge_suspicious":true,"honeypot_field":"_trap","enabled":true}"#,
+            30,
+        ),
+        // ── post_auth: runs after authentication succeeds ──
+        (
+            "RBAC Enforcer",
+            "lua",
+            "post_auth",
+            r#"{"type":"rbac","roles":{"admin":"*","editor":["read","write"],"viewer":["read"]},"default_deny":true,"status_code":403,"message":"Insufficient permissions for this resource","enabled":true}"#,
             40,
+        ),
+        (
+            "API Key Scope Validator",
+            "lua",
+            "post_auth",
+            r#"{"type":"scope_validator","scopes":{"/api/v1/users":["user:read","user:write"],"/api/v1/orders":["order:read","order:write"]},"require_exact_match":false,"status_code":403,"message":"API key scope does not cover this endpoint","enabled":true}"#,
+            50,
+        ),
+        (
+            "Auth Audit Logger",
+            "lua",
+            "post_auth",
+            r#"{"type":"audit_logger","log_fields":["client_ip","user_agent","api_key_id","timestamp","endpoint"],"destination":"mysql","table":"audit_logs","async":true,"enabled":true}"#,
+            60,
+        ),
+        // ── pre_transform: runs before request transformation ──
+        (
+            "Request Logger",
+            "lua",
+            "pre_transform",
+            r#"{"type":"request_logger","log_headers":true,"log_body":false,"log_query_params":true,"log_format":"json","sample_rate":1.0,"enabled":true}"#,
+            70,
+        ),
+        (
+            "Request ID Injector",
+            "lua",
+            "pre_transform",
+            r#"{"type":"request_id","header_name":"X-Request-ID","generate_if_missing":true,"propagate_to_response":true,"id_format":"uuid","enabled":true}"#,
+            80,
+        ),
+        (
+            "Request Size Limiter",
+            "lua",
+            "pre_transform",
+            r#"{"type":"size_limit","max_body_bytes":1048576,"max_header_bytes":8192,"status_code":413,"message":"Request entity too large","enabled":true}"#,
+            90,
         ),
         (
             "Rate Limit Guard",
             "lua",
             "pre_transform",
             r#"{"type":"rate_limit_guard","window_seconds":60,"max_requests":100,"burst":20,"per_ip":true,"per_api_key":true,"status_code":429,"message":"Too many requests, please try again later","enabled":true}"#,
-            50,
+            100,
+        ),
+        // ── post_transform: runs after response transformation ──
+        (
+            "Security Headers Injector",
+            "lua",
+            "post_transform",
+            r#"{"type":"response_headers","headers":{"X-Content-Type-Options":"nosniff","X-Frame-Options":"DENY","X-XSS-Protection":"1; mode=block","Referrer-Policy":"strict-origin-when-cross-origin","Permissions-Policy":"camera=(), microphone=(), geolocation=()"},"remove_headers":["Server","X-Powered-By"],"enabled":true}"#,
+            110,
+        ),
+        (
+            "PII Masking Guard",
+            "lua",
+            "post_transform",
+            r#"{"type":"pii_guard","fields":["ssn","email","phone","credit_card","password"],"mask_pattern":"***REDACTED***","check_nested":true,"status_code":500,"message":"Sensitive data detected in response","enabled":true}"#,
+            120,
+        ),
+        (
+            "Cache-Control Header Setter",
+            "lua",
+            "post_transform",
+            r#"{"type":"cache_control","default_max_age":300,"paths":{"/api/v1/products":3600,"/api/v1/metrics":60},"vary_headers":["Accept-Language","X-API-Version"],"enabled":true}"#,
+            130,
+        ),
+        // ── pre_cache: runs before cache lookup ──
+        (
+            "Cache Key Builder",
+            "lua",
+            "pre_cache",
+            r#"{"type":"cache_key","include_query":true,"include_headers":["Accept-Language"],"exclude_params":["utm_source","utm_medium","_"],"key_prefix":"api","hash_algorithm":"sha256","enabled":true}"#,
+            140,
+        ),
+        (
+            "Cache Skip Condition",
+            "lua",
+            "pre_cache",
+            r#"{"type":"cache_skip","skip_when":{"headers":{"Cache-Control":"no-cache"},"query_params":{"nocache":"1"},"methods":["POST","PUT","DELETE","PATCH"]},"status_override":null,"enabled":true}"#,
+            150,
+        ),
+        (
+            "Conditional Cache TTL",
+            "lua",
+            "pre_cache",
+            r#"{"type":"conditional_ttl","rules":[{"match":{"path":"/api/v1/products/*"},"ttl":3600},{"match":{"path":"/api/v1/orders/*"},"ttl":300},{"match":{"path":"/api/v1/users/*"},"ttl":60}],"default_ttl":120,"enabled":true}"#,
+            160,
+        ),
+        // ── post_cache: runs after cache lookup (cache hit or miss) ──
+        (
+            "Cache Hit Metrics",
+            "lua",
+            "post_cache",
+            r#"{"type":"cache_metrics","emit_headers":true,"header_hit":"X-Cache-Hit","header_miss":"X-Cache-Miss","track_stats":true,"stats_window_minutes":5,"enabled":true}"#,
+            170,
+        ),
+        (
+            "Cache Warmer Trigger",
+            "lua",
+            "post_cache",
+            r#"{"type":"cache_warmer","warm_paths":["/api/v1/products","/api/v1/categories"],"warm_interval_seconds":300,"background":true,"max_concurrent":3,"enabled":true}"#,
+            180,
+        ),
+        (
+            "Stale-While-Revalidate",
+            "lua",
+            "post_cache",
+            r#"{"type":"stale_while_revalidate","stale_ttl":86400,"revalidate_ttl":300,"serve_stale_on_error":true,"async_revalidate":true,"enabled":true}"#,
+            190,
         ),
     ];
     for (name, plugin_type, hook_point, config_json, priority) in &defaults {
@@ -627,9 +731,10 @@ async fn seed_admin(pool: &MySqlPool) -> Result<(), AppError> {
     let hash = bcrypt::hash(&default_pw, 12)
         .map_err(|e| AppError::BadRequest(format!("bcrypt hash failed: {}", e)))?;
     let id = uuid::Uuid::new_v4().to_string();
+    let default_prefs = r#"{"theme":"system","lang":"zh","notifications":{"email":{"rule_changes":true,"security_alerts":true,"product_updates":true},"in_app":{"approvals":true,"product_updates":true,"infrastructure":true,"audit":true}}}"#;
     sqlx::query(
-        "INSERT INTO users (id, username, password_hash, email, display_name, user_group, permission_template_id) VALUES (?, ?, ?, ?, ?, 'admin_group', (SELECT id FROM permission_templates WHERE name = 'super_admin' LIMIT 1))"
-    ).bind(&id).bind("admin").bind(&hash).bind("admin@example.com").bind("Administrator")
+        "INSERT INTO users (id, username, password_hash, email, display_name, user_group, permission_template_id, preferences) VALUES (?, ?, ?, ?, ?, 'admin_group', (SELECT id FROM permission_templates WHERE name = 'super_admin' LIMIT 1), ?)"
+    ).bind(&id).bind("admin").bind(&hash).bind("admin@example.com").bind("Administrator").bind(default_prefs)
     .execute(pool).await?;
     Ok(())
 }

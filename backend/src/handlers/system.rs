@@ -8,7 +8,7 @@ use sqlx::Row;
 use crate::AppState;
 use crate::types::*;
 use crate::auth::*;
-use super::common::{spawn_audit_log, fmt_dt_naive};
+use super::common::{spawn_audit_log, fmt_dt};
 
 pub async fn list_system_settings(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::SystemRead)?;
@@ -20,7 +20,7 @@ pub async fn list_system_settings(State(state): State<Arc<AppState>>, Extension(
         value: r.try_get("setting_value").unwrap_or_default(),
         description: r.try_get("description").ok(),
         editable: r.try_get::<i8, _>("editable").unwrap_or(1) == 1,
-        updated_at: fmt_dt_naive(r.try_get::<Option<chrono::NaiveDateTime>, _>("updated_at").ok().flatten()),
+        updated_at: fmt_dt(r.try_get::<Option<chrono::DateTime<chrono::Utc>>, _>("updated_at").ok().flatten()),
     }).collect();
     Ok(Json(json!({"items": items})))
 }
@@ -87,7 +87,10 @@ pub async fn test_smtp(State(state): State<Arc<AppState>>, Extension(auth): Exte
             .build(),
     };
 
-    match lettre::Transport::send(&transport, &msg) {
+    match tokio::task::spawn_blocking(move || lettre::Transport::send(&transport, &msg))
+        .await
+        .map_err(|e| AppError::Internal(format!("SMTP send task panicked: {e}")))?
+    {
         Ok(_) => Ok(Json(json!({"success": true, "message": format!("Test email sent to {to_email}")}))),
         Err(e) => Err(AppError::BadRequest(format!("SMTP test failed: {e}"))),
     }
