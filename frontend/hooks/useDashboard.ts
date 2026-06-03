@@ -73,7 +73,12 @@ export function useApprovals(
   const [myApprovals, setMyApprovals] = useState<ApprovalItem[]>([]);
   const [myPending, setMyPending] = useState<ApprovalItem[]>([]);
   const [approvalFilter, setApprovalFilter] = useState("");
-  const [approvalTab, setApprovalTab] = useState("all");
+  const [approvalTab, setApprovalTab] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("approvals_tab") || "all";
+    }
+    return "all";
+  });
   const [apprBusy, setApprBusy] = useState(false);
   const [approvalRuleId, setApprovalRuleId] = useState("");
   const [approvalComment, setApprovalComment] = useState("");
@@ -196,6 +201,11 @@ export function useApprovals(
     [loadApprovals, loadMyRequests, loadMyPending, notifyError, notifySucc, accessToken],
   );
 
+  const setApprovalTabPersisted = useCallback((tab: string) => {
+    setApprovalTab(tab);
+    if (typeof window !== "undefined") localStorage.setItem("approvals_tab", tab);
+  }, []);
+
   // loadApprovals is called explicitly from page.tsx when the session is ready.
   // Do NOT auto-fetch here to avoid 401s when no valid session exists.
 
@@ -204,7 +214,7 @@ export function useApprovals(
     approvalFilter, approvalTab,
     apprBusy,
     approvalRuleId, approvalComment, approvalReviewer,
-    setApprovalFilter, setApprovalTab,
+    setApprovalFilter, setApprovalTab: setApprovalTabPersisted,
     setApprovalRuleId, setApprovalComment, setApprovalReviewer,
     loadApprovals, loadMyRequests, loadMyPending,
     createApproval, reviewApproval, deleteApproval,
