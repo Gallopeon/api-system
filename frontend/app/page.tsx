@@ -151,7 +151,7 @@ export default function APIControlCenter() {
     if (status !== "authenticated") return;
     loadHealthStatus();
     if (hasPerm("metrics:read")) loadMetrics();
-    if (hasPerm("approval:read")) loadApprovals();
+    if (hasPerm("approval:read")) { loadApprovals(); loadMyPending(); }
     if (hasPerm("rule:read")) rulesHook.loadRules();
     if (hasPerm("audit:read")) loadAuditLogs();
     if (hasPerm("apikey:read")) apiKeysHook.loadApiKeys();
