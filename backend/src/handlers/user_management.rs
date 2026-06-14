@@ -59,7 +59,11 @@ pub async fn create_user(State(state): State<Arc<AppState>>, Extension(auth): Ex
     ensure_permission(&auth, Permission::UserManage)?;
     validate_password_strength(&payload.password)?;
     let id = Uuid::new_v4().to_string();
-    let hash = bcrypt::hash(&payload.password, 12).map_err(|e| AppError::BadRequest(format!("bcrypt: {}", e)))?;
+    let pw = payload.password.clone();
+    let hash = tokio::task::spawn_blocking(move || bcrypt::hash(&pw, 12))
+        .await
+        .map_err(|e| AppError::Internal(format!("spawn_blocking failed: {}", e)))?
+        .map_err(|e| AppError::BadRequest(format!("bcrypt: {}", e)))?;
     let user_group = payload.user_group.as_deref().unwrap_or("user");
     let template_id = payload.permission_template_id.as_deref();
     let custom_perms = payload.custom_permissions.as_ref()

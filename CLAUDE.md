@@ -15,7 +15,7 @@ Gateway (OpenResty :80) ──► Frontend (Next.js :3000)
 - **Backend** (`backend/`): Rust `axum` server. Source split across `main.rs` (entry), `lib.rs` (router/setup), `handlers/` (~20 files), `types/` (domain-specific structs), `auth.rs` (middleware/RBAC). MySQL tables auto-created on startup. Redis caches rule detail reads (prefix `rule:`, TTL 300s by default). Notification system dispatches events via `spawn_audit_log` → `notify_pref_users` → `notifications` table.
 - **Frontend** (`frontend/`): Next.js 14 App Router SPA. Auth via NextAuth credentials provider. Uses Tailwind CSS 4, `lucide-react` icons, and a custom `i18n.tsx` context (zh/en).
 - **Gateway** (`infra/openresty/`): OpenResty reverse proxy. Routes `/api/*` to backend, `/api/auth/*` to frontend, and `/` to frontend. Per-IP rate limiting at 120 r/s with burst 240 on `/api/` paths.
-- **Infra**: MySQL init script at `infra/mysql/init/`, K8s base manifests at `deploy/k8s/base.yaml`.
+- **Infra**: MySQL init script at `infra/mysql/init/`.
 
 ---
 
@@ -295,19 +295,6 @@ cargo test                        # run tests
 ```
 
 Requires MySQL and Redis running locally. Copy `backend/.env.example` to `backend/.env` and adjust connection strings.
-
-### Load testing & SLO
-
-```powershell
-pwsh tests/perf/run-k6.ps1 -BaseUrl http://localhost -Duration 60s -Vus 40 -Rps 800
-pwsh scripts/check-slo.ps1 -SummaryJson tests/perf/k6-summary.json -P95Ms 50 -P99Ms 150 -ErrRate 0.001
-```
-
-### K8s progressive rollout with SLO gate
-
-```powershell
-pwsh scripts/k8s-rollout.ps1 -Namespace api-control-plane -Service backend -Image your-registry/backend:tag -RunSloGate -BaseUrl http://localhost -Duration 60s -Vus 40 -Rps 800 -P95Ms 50 -P99Ms 150 -ErrRate 0.001
-```
 
 ---
 

@@ -6,6 +6,13 @@ pub mod system;
 pub mod infrastructure;
 pub mod seeds;
 
+/// Check if a sqlx error is a MySQL duplicate-column (1060) or duplicate-key (1061) error.
+/// More robust than string-matching on "duplicate" which varies across MySQL versions/locales.
+pub(crate) fn is_duplicate_error(e: &sqlx::Error) -> bool {
+    matches!(e, sqlx::Error::Database(db_err)
+        if db_err.code().as_deref() == Some("1060") || db_err.code().as_deref() == Some("1061"))
+}
+
 // Using a sub-module name to avoid conflict with the mod keyword in some contexts,
 // though bootstrap_schema is what's exported.
 pub mod mod_bootstrap {

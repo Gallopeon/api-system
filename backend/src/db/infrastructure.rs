@@ -1,5 +1,6 @@
 use sqlx::MySqlPool;
 use crate::auth::AppError;
+use super::is_duplicate_error;
 
 pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
     sqlx::query(r#"CREATE TABLE IF NOT EXISTS api_keys (
@@ -9,7 +10,7 @@ pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
         tenant_id VARCHAR(64) NULL, created_by VARCHAR(64) NOT NULL DEFAULT 'system',
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        KEY idx_key_hash (key_hash), KEY idx_key_status (status), KEY idx_key_tenant (tenant_id)
+        KEY idx_key_status (status), KEY idx_key_tenant (tenant_id)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
 
     sqlx::query(r#"CREATE TABLE IF NOT EXISTS rate_limit_configs (
@@ -68,7 +69,7 @@ pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
     if has_desc == 0 {
         if let Err(e) = sqlx::query("ALTER TABLE protocol_configs ADD COLUMN description VARCHAR(500) NULL AFTER protocol")
             .execute(pool).await {
-            if !e.to_string().to_lowercase().contains("duplicate") {
+            if !is_duplicate_error(&e) {
                 return Err(e.into());
             }
         }
@@ -89,7 +90,7 @@ pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
     if has_cdesc == 0 {
         if let Err(e) = sqlx::query("ALTER TABLE data_classifications ADD COLUMN description VARCHAR(500) NULL AFTER data_category")
             .execute(pool).await {
-            if !e.to_string().to_lowercase().contains("duplicate") {
+            if !is_duplicate_error(&e) {
                 return Err(e.into());
             }
         }
@@ -101,7 +102,7 @@ pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
     if has_tt == 0 {
         if let Err(e) = sqlx::query("ALTER TABLE data_classifications ADD COLUMN target_table VARCHAR(64) NULL AFTER retention_days")
             .execute(pool).await {
-            if !e.to_string().to_lowercase().contains("duplicate") {
+            if !is_duplicate_error(&e) {
                 return Err(e.into());
             }
         }
@@ -121,7 +122,7 @@ pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
     if has_llm_provider_idx == 0 {
         if let Err(e) = sqlx::query("ALTER TABLE llm_usage_logs ADD INDEX idx_llm_provider (provider_id)")
             .execute(pool).await {
-            if !e.to_string().to_lowercase().contains("duplicate") {
+            if !is_duplicate_error(&e) {
                 return Err(e.into());
             }
         }

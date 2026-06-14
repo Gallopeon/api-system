@@ -96,7 +96,10 @@ pub async fn verify_login_totp(pool: &sqlx::MySqlPool, user_id: &str, totp_code:
         AppError::Unauthorized("TOTP is enabled for this account; provide totp_code".to_string())
     )?;
 
-    let encoded: String = totp_row.try_get("secret").unwrap_or_default();
+    let encoded: String = totp_row.try_get::<String, _>("secret")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| AppError::Internal("TOTP secret is missing or empty".to_string()))?;
     let totp = build_totp_from_db(&encoded, user_id)?;
     let verified = totp.check_current(code)
         .map_err(|e| AppError::Internal(format!("TOTP check error: {}", e)))?;

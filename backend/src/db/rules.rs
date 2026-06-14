@@ -1,5 +1,6 @@
 use sqlx::MySqlPool;
 use crate::auth::AppError;
+use super::is_duplicate_error;
 
 pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
     sqlx::query(r#"CREATE TABLE IF NOT EXISTS rule_configs (
@@ -24,7 +25,7 @@ pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
     if has_ck == 0 {
         if let Err(e) = sqlx::query("ALTER TABLE rule_versions ADD COLUMN change_kind ENUM('breaking','non_breaking','rollback','minor') NOT NULL DEFAULT 'breaking'")
             .execute(pool).await {
-            if !e.to_string().to_lowercase().contains("duplicate") {
+            if !is_duplicate_error(&e) {
                 return Err(e.into());
             }
         }
@@ -45,7 +46,7 @@ pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
     if has_approval_requestor_idx == 0 {
         if let Err(e) = sqlx::query("ALTER TABLE approvals ADD INDEX idx_approval_requestor (requestor)")
             .execute(pool).await {
-            if !e.to_string().to_lowercase().contains("duplicate") {
+            if !is_duplicate_error(&e) {
                 return Err(e.into());
             }
         }

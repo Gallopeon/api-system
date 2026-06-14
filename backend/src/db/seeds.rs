@@ -147,14 +147,16 @@ pub async fn seed_plugins(pool: &MySqlPool) -> Result<(), AppError> {
             190,
         ),
     ];
+    let mut tx = pool.begin().await?;
     for (name, plugin_type, hook_point, config_json, priority) in &defaults {
         let id = uuid::Uuid::new_v4().to_string();
         sqlx::query(
             "INSERT INTO plugin_configs (id, name, plugin_type, hook_point, config_json, priority, status) VALUES (?, ?, ?, ?, ?, ?, 'active')"
         )
         .bind(&id).bind(name).bind(plugin_type).bind(hook_point).bind(config_json).bind(priority)
-        .execute(pool).await?;
+        .execute(&mut *tx).await?;
     }
+    tx.commit().await?;
     Ok(())
 }
 
@@ -230,14 +232,16 @@ pub async fn seed_protocols(pool: &MySqlPool) -> Result<(), AppError> {
             r#"{"type":"public_catalog","pagination_style":"cursor","default_page_size":20,"max_page_size":100,"hateoas_links":true,"cache_control":"public, max-age=60","cors_allow_origins":["*"],"fields_filtering":true,"enabled":true}"#,
         ),
     ];
+    let mut tx = pool.begin().await?;
     for (api_path, protocol, description, config_json) in &defaults {
         let id = uuid::Uuid::new_v4().to_string();
         sqlx::query(
             "INSERT INTO protocol_configs (id, api_path, protocol, description, config_json, status) VALUES (?, ?, ?, ?, ?, 'active')"
         )
         .bind(&id).bind(api_path).bind(protocol).bind(description).bind(config_json)
-        .execute(pool).await?;
+        .execute(&mut *tx).await?;
     }
+    tx.commit().await?;
     Ok(())
 }
 
@@ -305,6 +309,7 @@ pub async fn seed_classifications(pool: &MySqlPool) -> Result<(), AppError> {
             "Cleans login_history for user-related auth events. GDPR consent required.",
         ),
     ];
+    let mut tx = pool.begin().await?;
     for (api_path, data_category, description, contains_pii, gdpr_relevant, retention_days, target_table, notes) in &defaults {
         let id = uuid::Uuid::new_v4().to_string();
         sqlx::query(
@@ -313,8 +318,9 @@ pub async fn seed_classifications(pool: &MySqlPool) -> Result<(), AppError> {
         .bind(&id).bind(api_path).bind(data_category).bind(description)
         .bind(contains_pii).bind(gdpr_relevant).bind(retention_days)
         .bind(target_table).bind(notes)
-        .execute(pool).await?;
+        .execute(&mut *tx).await?;
     }
+    tx.commit().await?;
     Ok(())
 }
 
@@ -360,7 +366,9 @@ pub async fn seed_admin(pool: &MySqlPool) -> Result<(), AppError> {
             tracing::error!("No users exist and ADMIN_DEFAULT_PASSWORD is not set. Cannot create default admin.");
             AppError::Internal("ADMIN_DEFAULT_PASSWORD must be set to seed the initial admin user".to_string())
         })?;
-    let hash = bcrypt::hash(&default_pw, 12)
+    let hash = tokio::task::spawn_blocking(move || bcrypt::hash(&default_pw, 12))
+        .await
+        .map_err(|e| AppError::Internal(format!("spawn_blocking failed: {}", e)))?
         .map_err(|e| AppError::BadRequest(format!("bcrypt hash failed: {}", e)))?;
     let id = uuid::Uuid::new_v4().to_string();
     let default_prefs = r#"{"theme":"system","lang":"zh","notifications":{"email":{"rule_changes":true,"security_alerts":true,"product_updates":true},"in_app":{"approvals":true,"product_updates":true,"infrastructure":true,"audit":true}}}"#;
@@ -413,11 +421,13 @@ pub async fn seed_permission_templates(pool: &MySqlPool) -> Result<(), AppError>
             r#"["rule:read","transform:preview","apikey:read","ratelimit:read","approval:read","metrics:read","audit:read","llm:route","products:read","circuit_breakers:read","protocols:read","classifications:read","plugins:read","openapi:read","validation:read","system:read","user:read","user:self"]"#
         ),
     ];
+    let mut tx = pool.begin().await?;
     for (name, desc, perms_json) in &templates {
         let id = uuid::Uuid::new_v4().to_string();
         sqlx::query(
             "INSERT INTO permission_templates (id, name, description, permissions, is_builtin) VALUES (?, ?, ?, ?, 1)"
-        ).bind(&id).bind(name).bind(desc).bind(perms_json).execute(pool).await?;
+        ).bind(&id).bind(name).bind(desc).bind(perms_json).execute(&mut *tx).await?;
     }
+    tx.commit().await?;
     Ok(())
 }

@@ -1,5 +1,6 @@
 use sqlx::MySqlPool;
 use crate::auth::AppError;
+use super::is_duplicate_error;
 
 pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
     // Permission templates
@@ -37,7 +38,7 @@ pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
             let stmt = format!("ALTER TABLE users ADD COLUMN {} {}", col, def);
             if let Err(e) = sqlx::query(&stmt).execute(pool).await {
                 // Ignore duplicate column errors from concurrent bootstrap
-                if !e.to_string().to_lowercase().contains("duplicate") {
+                if !is_duplicate_error(&e) {
                     return Err(e.into());
                 }
             }
@@ -66,7 +67,7 @@ pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
         if has == 0 {
             if let Err(e) = sqlx::query("ALTER TABLE user_devices ADD COLUMN is_trusted TINYINT(1) NOT NULL DEFAULT 0")
                 .execute(pool).await {
-                if !e.to_string().to_lowercase().contains("duplicate") {
+                if !is_duplicate_error(&e) {
                     return Err(e.into());
                 }
             }
@@ -102,7 +103,7 @@ pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
         if has_col == 0 {
             let stmt = format!("ALTER TABLE login_history ADD COLUMN {} {}", col, def);
             if let Err(e) = sqlx::query(&stmt).execute(pool).await {
-                if !e.to_string().to_lowercase().contains("duplicate") {
+                if !is_duplicate_error(&e) {
                     return Err(e.into());
                 }
             }

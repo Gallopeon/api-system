@@ -46,7 +46,9 @@ pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(
     }
 
     let password_hash: String = row.try_get("password_hash").unwrap_or_default();
-    let ok = bcrypt::verify(&payload.password, &password_hash).unwrap_or(false);
+    let pw = payload.password.clone();
+    let hash_clone = password_hash.clone();
+    let ok = tokio::task::spawn_blocking(move || bcrypt::verify(&pw, &hash_clone)).await.unwrap_or(Ok(false)).unwrap_or(false);
     let user_id: String = row.try_get("id").unwrap_or_default();
 
     if !ok {
@@ -121,10 +123,8 @@ pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(
                 risk: Some(LoginRisk { score: risk.score, is_suspicious: true, reasons: risk.reasons }),
             }));
         }
-    }
 
-    // Dispatch security notification for suspicious logins
-    if risk.is_suspicious {
+        // Dispatch security notification for suspicious logins
         spawn_audit_log(&state.pool, AuditEntry {
             rule_id: None,
             action: "security_alert".to_string(),
@@ -133,17 +133,6 @@ pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(
             message: Some(format!("Suspicious login detected for '{}' (risk score {})", payload.username, risk.score)),
             detail: Some(json!({"user_id": user_id, "risk_score": risk.score, "reasons": risk.reasons, "ip": client_ip})),
         });
-
-        // Zero-trust: if risk score is very high (> 70), TOTP is mandatory regardless of enrollment status
-        if risk.score > 70 && payload.totp_code.is_none() {
-            let totp_enabled: i8 = sqlx::query_scalar("SELECT enabled FROM user_totp WHERE user_id = ?")
-                .bind(&user_id).fetch_optional(&state.pool).await?.unwrap_or(0);
-
-            if totp_enabled == 1 {
-                 return Err(AppError::Unauthorized("High risk login detected. TOTP verification required.".to_string()));
-            }
-            // If TOTP not enrolled, fall through to totp_required restricted token below
-        }
     }
 
     Ok(Json(LoginResponse {
@@ -189,11 +178,17 @@ pub async fn change_my_password(State(state): State<Arc<AppState>>, Extension(au
     let current_hash: String = sqlx::query_scalar("SELECT password_hash FROM users WHERE username = ?")
         .bind(&auth.subject).fetch_optional(&state.pool).await?
         .ok_or_else(|| AppError::NotFound("user not found".to_string()))?;
-    let ok = bcrypt::verify(&payload.current_password, &current_hash).unwrap_or(false);
+    let pw = payload.current_password.clone();
+    let hash_clone = current_hash.clone();
+    let ok = tokio::task::spawn_blocking(move || bcrypt::verify(&pw, &hash_clone)).await.unwrap_or(Ok(false)).unwrap_or(false);
     if !ok {
         return Err(AppError::Unauthorized("current password is incorrect".to_string()));
     }
-    let new_hash = bcrypt::hash(&payload.new_password, 12).map_err(|e| AppError::BadRequest(format!("bcrypt: {}", e)))?;
+    let pw = payload.new_password.clone();
+    let new_hash = tokio::task::spawn_blocking(move || bcrypt::hash(&pw, 12))
+        .await
+        .map_err(|e| AppError::Internal(format!("spawn_blocking failed: {}", e)))?
+        .map_err(|e| AppError::BadRequest(format!("bcrypt: {}", e)))?;
     sqlx::query("UPDATE users SET password_hash = ? WHERE username = ?").bind(&new_hash).bind(&auth.subject).execute(&state.pool).await?;
     spawn_audit_log(&state.pool, AuditEntry {
         rule_id: None, action: "user_password_change".to_string(), actor: auth.subject.clone(),
@@ -205,7 +200,7 @@ pub async fn change_my_password(State(state): State<Arc<AppState>>, Extension(au
 
 // ==================== Helpers ====================
 
-pub fn row_to_user(row: &sqlx::mysql::MySqlRow) -> UserResponse {
+pub(crate) fn row_to_user(row: &sqlx::mysql::MySqlRow) -> UserResponse {
     let created_at: DateTime<Utc> = row.try_get("created_at").unwrap_or(DateTime::UNIX_EPOCH);
     let updated_at: DateTime<Utc> = row.try_get("updated_at").unwrap_or(DateTime::UNIX_EPOCH);
     let last_login: Option<DateTime<Utc>> = row.try_get("last_login_at").ok();

@@ -21,8 +21,7 @@ pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
         p95_latency_ms INT NOT NULL DEFAULT 0,
         p99_latency_ms INT NOT NULL DEFAULT 0,
         error_count BIGINT NOT NULL DEFAULT 0,
-        UNIQUE KEY uq_hourly (hour_bucket, api_path, method, status_code),
-        KEY idx_hourly_bucket (hour_bucket)
+        UNIQUE KEY uq_hourly (hour_bucket, api_path, method, status_code)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
 
     Ok(())
