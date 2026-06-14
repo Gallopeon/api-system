@@ -109,11 +109,24 @@ pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
     }
 
     sqlx::query(r#"CREATE TABLE IF NOT EXISTS plugin_configs (
-        id VARCHAR(36) PRIMARY KEY, name VARCHAR(120) NOT NULL, plugin_type VARCHAR(64) NOT NULL,
+        id VARCHAR(36) PRIMARY KEY, name VARCHAR(120) NOT NULL UNIQUE, plugin_type VARCHAR(64) NOT NULL,
         hook_point VARCHAR(64) NOT NULL, config_json LONGTEXT NULL, priority INT NOT NULL DEFAULT 100,
         status VARCHAR(32) NOT NULL DEFAULT 'active', created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         KEY idx_plugin_hook (hook_point), KEY idx_plugin_status (status)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
+
+    // Migrate: add UNIQUE on name if missing (for INSERT IGNORE idempotency)
+    let has_uq_plugin_name: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'plugin_configs' AND INDEX_NAME = 'name'"
+    ).fetch_one(pool).await?;
+    if has_uq_plugin_name == 0 {
+        if let Err(e) = sqlx::query("ALTER TABLE plugin_configs ADD UNIQUE KEY uq_plugin_name (name)")
+            .execute(pool).await {
+            if !is_duplicate_error(&e) {
+                return Err(e.into());
+            }
+        }
+    }
 
     // Add missing indexes
     let has_llm_provider_idx: i64 = sqlx::query_scalar(

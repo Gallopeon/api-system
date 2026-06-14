@@ -55,7 +55,7 @@ pub async fn rollback_rule_version(
     ensure_permission(&auth, Permission::RuleWrite)?;
     let target_config = load_rule_version_config(&state.pool, &rule_id, payload.version).await?;
     let mut txn = state.pool.begin().await?;
-    let current_ver: i32 = sqlx::query_scalar("SELECT current_version FROM rule_configs WHERE id = ?")
+    let current_ver: i32 = sqlx::query_scalar("SELECT current_version FROM rule_configs WHERE id = ? FOR UPDATE")
         .bind(&rule_id).fetch_one(&mut *txn).await?;
     let new_ver = current_ver + 1;
     sqlx::query("UPDATE rule_configs SET current_version = ?, updated_at = NOW() WHERE id = ?")

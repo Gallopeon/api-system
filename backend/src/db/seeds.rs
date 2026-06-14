@@ -2,10 +2,6 @@ use sqlx::MySqlPool;
 use crate::auth::AppError;
 
 pub async fn seed_plugins(pool: &MySqlPool) -> Result<(), AppError> {
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM plugin_configs").fetch_one(pool).await?;
-    if count > 0 {
-        return Ok(());
-    }
     let defaults: Vec<(&str, &str, &str, &str, i32)> = vec![
         // ── pre_auth: runs before authentication ──
         (
@@ -151,7 +147,7 @@ pub async fn seed_plugins(pool: &MySqlPool) -> Result<(), AppError> {
     for (name, plugin_type, hook_point, config_json, priority) in &defaults {
         let id = uuid::Uuid::new_v4().to_string();
         sqlx::query(
-            "INSERT INTO plugin_configs (id, name, plugin_type, hook_point, config_json, priority, status) VALUES (?, ?, ?, ?, ?, ?, 'active')"
+            "INSERT IGNORE INTO plugin_configs (id, name, plugin_type, hook_point, config_json, priority, status) VALUES (?, ?, ?, ?, ?, ?, 'active')"
         )
         .bind(&id).bind(name).bind(plugin_type).bind(hook_point).bind(config_json).bind(priority)
         .execute(&mut *tx).await?;
@@ -161,10 +157,6 @@ pub async fn seed_plugins(pool: &MySqlPool) -> Result<(), AppError> {
 }
 
 pub async fn seed_protocols(pool: &MySqlPool) -> Result<(), AppError> {
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM protocol_configs").fetch_one(pool).await?;
-    if count > 0 {
-        return Ok(());
-    }
     let defaults: Vec<(&str, &str, &str, &str)> = vec![
         // ── GraphQL ──
         (
@@ -236,7 +228,7 @@ pub async fn seed_protocols(pool: &MySqlPool) -> Result<(), AppError> {
     for (api_path, protocol, description, config_json) in &defaults {
         let id = uuid::Uuid::new_v4().to_string();
         sqlx::query(
-            "INSERT INTO protocol_configs (id, api_path, protocol, description, config_json, status) VALUES (?, ?, ?, ?, ?, 'active')"
+            "INSERT IGNORE INTO protocol_configs (id, api_path, protocol, description, config_json, status) VALUES (?, ?, ?, ?, ?, 'active')"
         )
         .bind(&id).bind(api_path).bind(protocol).bind(description).bind(config_json)
         .execute(&mut *tx).await?;
@@ -246,10 +238,6 @@ pub async fn seed_protocols(pool: &MySqlPool) -> Result<(), AppError> {
 }
 
 pub async fn seed_classifications(pool: &MySqlPool) -> Result<(), AppError> {
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM data_classifications").fetch_one(pool).await?;
-    if count > 0 {
-        return Ok(());
-    }
     // (api_path, data_category, description, contains_pii, gdpr_relevant, retention_days, target_table, notes)
     let defaults: Vec<(&str, &str, &str, bool, bool, i32, Option<&str>, &str)> = vec![
         (
@@ -313,7 +301,7 @@ pub async fn seed_classifications(pool: &MySqlPool) -> Result<(), AppError> {
     for (api_path, data_category, description, contains_pii, gdpr_relevant, retention_days, target_table, notes) in &defaults {
         let id = uuid::Uuid::new_v4().to_string();
         sqlx::query(
-            "INSERT INTO data_classifications (id, api_path, data_category, description, contains_pii, gdpr_relevant, retention_days, target_table, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+            "INSERT IGNORE INTO data_classifications (id, api_path, data_category, description, contains_pii, gdpr_relevant, retention_days, target_table, notes) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .bind(&id).bind(api_path).bind(data_category).bind(description)
         .bind(contains_pii).bind(gdpr_relevant).bind(retention_days)
@@ -355,10 +343,6 @@ pub async fn seed_settings(pool: &MySqlPool) -> Result<(), AppError> {
 }
 
 pub async fn seed_admin(pool: &MySqlPool) -> Result<(), AppError> {
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM users").fetch_one(pool).await?;
-    if count > 0 {
-        return Ok(());
-    }
     let default_pw = std::env::var("ADMIN_DEFAULT_PASSWORD")
         .ok()
         .filter(|v| !v.is_empty())
@@ -373,17 +357,13 @@ pub async fn seed_admin(pool: &MySqlPool) -> Result<(), AppError> {
     let id = uuid::Uuid::new_v4().to_string();
     let default_prefs = r#"{"theme":"system","lang":"zh","notifications":{"email":{"rule_changes":true,"security_alerts":true,"product_updates":true},"in_app":{"approvals":true,"product_updates":true,"infrastructure":true,"audit":true}}}"#;
     sqlx::query(
-        "INSERT INTO users (id, username, password_hash, email, display_name, user_group, permission_template_id, preferences) VALUES (?, ?, ?, ?, ?, 'admin_group', (SELECT id FROM permission_templates WHERE name = 'super_admin' LIMIT 1), ?)"
+        "INSERT IGNORE INTO users (id, username, password_hash, email, display_name, user_group, permission_template_id, preferences) VALUES (?, ?, ?, ?, ?, 'admin_group', (SELECT id FROM permission_templates WHERE name = 'super_admin' LIMIT 1), ?)"
     ).bind(&id).bind("admin").bind(&hash).bind("admin@example.com").bind("Administrator").bind(default_prefs)
     .execute(pool).await?;
     Ok(())
 }
 
 pub async fn seed_permission_templates(pool: &MySqlPool) -> Result<(), AppError> {
-    let count: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM permission_templates").fetch_one(pool).await?;
-    if count > 0 {
-        return Ok(());
-    }
     let templates: Vec<(&str, &str, &str)> = vec![
         (
             "super_admin",
@@ -425,7 +405,7 @@ pub async fn seed_permission_templates(pool: &MySqlPool) -> Result<(), AppError>
     for (name, desc, perms_json) in &templates {
         let id = uuid::Uuid::new_v4().to_string();
         sqlx::query(
-            "INSERT INTO permission_templates (id, name, description, permissions, is_builtin) VALUES (?, ?, ?, ?, 1)"
+            "INSERT IGNORE INTO permission_templates (id, name, description, permissions, is_builtin) VALUES (?, ?, ?, ?, 1)"
         ).bind(&id).bind(name).bind(desc).bind(perms_json).execute(&mut *tx).await?;
     }
     tx.commit().await?;
