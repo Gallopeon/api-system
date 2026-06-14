@@ -22,16 +22,22 @@ pub async fn create_subscription(
     ensure_permission(&auth, Permission::ProductsWrite)?;
     let id = Uuid::new_v4().to_string();
     let plan = payload.get("plan").and_then(|v| v.as_str()).unwrap_or("free");
-    let product_id = payload.get("product_id").and_then(|v| v.as_str()).unwrap_or("");
-    let api_key_id = payload.get("api_key_id").and_then(|v| v.as_str()).unwrap_or("");
+    let product_id = payload.get("product_id").and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::BadRequest("product_id is required".into()))?;
+    let api_key_id = payload.get("api_key_id").and_then(|v| v.as_str())
+        .ok_or_else(|| AppError::BadRequest("api_key_id is required".into()))?;
     let expires_at = payload.get("expires_at").and_then(|v| v.as_str());
+
+    if product_id.is_empty() || api_key_id.is_empty() {
+        return Err(AppError::BadRequest("product_id and api_key_id cannot be empty".into()));
+    }
 
     // Derive user_id from the API key's owner
     let user_id: String = sqlx::query_scalar("SELECT created_by FROM api_keys WHERE id = ?")
         .bind(api_key_id)
         .fetch_optional(&state.pool)
         .await?
-        .unwrap_or_default();
+        .ok_or_else(|| AppError::BadRequest("api_key_id not found".into()))?;
 
     // If rate_limit_rps / quota_daily not explicitly provided, resolve from product tiers
     let mut rate_limit_rps = payload.get("rate_limit_rps").and_then(|v| v.as_i64());
@@ -169,9 +175,9 @@ pub async fn get_subscription_usage(
 ) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::ProductsRead)?;
     ensure_subscription_owner(&state.pool, &auth, &id).await?;
-    let sub = sqlx::query("SELECT api_key_id, quota_daily FROM subscriptions WHERE id = ?")
+    let sub = sqlx::query("SELECT api_key_id, quota_daily FROM subscriptions WHERE id = ? AND status = 'active' AND (expires_at IS NULL OR expires_at > NOW())")
         .bind(&id).fetch_optional(&state.pool).await?
-        .ok_or_else(|| AppError::NotFound(format!("subscription {} not found", id)))?;
+        .ok_or_else(|| AppError::NotFound(format!("subscription {} not found or not active", id)))?;
 
     let api_key_id: String = sub.try_get("api_key_id").unwrap_or_default();
     let quota_daily: Option<i32> = sub.try_get("quota_daily").ok().flatten();

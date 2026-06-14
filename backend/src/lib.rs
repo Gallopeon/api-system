@@ -23,7 +23,7 @@ pub mod handlers;
 pub mod engine;
 
 pub use config::*;
-pub use db::bootstrap_schema;
+pub use db::mod_bootstrap::bootstrap_schema;
 pub use types::*;
 pub use auth::*;
 use handlers::*;
@@ -125,13 +125,6 @@ pub async fn run() -> anyhow::Result<()> {
         .route("/admin/v1/users/me/totp/setup", post(setup_totp))
         .route("/admin/v1/users/me/totp/verify", post(verify_totp))
         .route("/admin/v1/users/me/preferences", get(get_my_preferences).put(update_my_preferences))
-        .route("/admin/v1/users", get(list_users).post(create_user))
-        .route("/admin/v1/users/:id", get(get_user).put(update_user).delete(delete_user))
-        .route("/admin/v1/system/settings", get(list_system_settings))
-        .route("/admin/v1/system/settings/:key", put(update_system_setting))
-        .route("/admin/v1/system/smtp/test", post(test_smtp))
-        .route("/admin/v1/permission-templates", get(list_permission_templates).post(create_permission_template))
-        .route("/admin/v1/permission-templates/:id", get(get_permission_template).put(update_permission_template).delete(delete_permission_template))
         .route("/admin/v1/users/me/notifications", get(list_my_notifications).delete(delete_my_notifications))
         .route("/admin/v1/users/me/notifications/read", post(mark_notification_read))
         .route("/admin/v1/users/me/notifications/:id", delete(delete_notification))
@@ -139,6 +132,13 @@ pub async fn run() -> anyhow::Result<()> {
         .route("/admin/v1/users/me/devices", get(list_my_devices))
         .route("/admin/v1/users/me/devices/:id/trust", post(trust_device))
         .route("/admin/v1/users/me/devices/:id", delete(revoke_device))
+        .route("/admin/v1/users", get(list_users).post(create_user))
+        .route("/admin/v1/users/:id", get(get_user).put(update_user).delete(delete_user))
+        .route("/admin/v1/system/settings", get(list_system_settings))
+        .route("/admin/v1/system/settings/:key", put(update_system_setting))
+        .route("/admin/v1/system/smtp/test", post(test_smtp))
+        .route("/admin/v1/permission-templates", get(list_permission_templates).post(create_permission_template))
+        .route("/admin/v1/permission-templates/:id", get(get_permission_template).put(update_permission_template).delete(delete_permission_template))
         .layer(middleware::from_fn_with_state(state.clone(), auth_middleware));
 
     let public_router = Router::new()

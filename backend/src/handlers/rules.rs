@@ -78,7 +78,7 @@ pub async fn update_rule(
     let actor = resolve_actor(&auth, payload.actor.as_deref());
     let mut tx = state.pool.begin().await?;
 
-    let current_ver: i32 = sqlx::query_scalar("SELECT current_version FROM rule_configs WHERE id = ?")
+    let current_ver: i32 = sqlx::query_scalar("SELECT current_version FROM rule_configs WHERE id = ? FOR UPDATE")
         .bind(&id).fetch_optional(&mut *tx).await?
         .ok_or_else(|| AppError::NotFound(format!("rule {} not found", id)))?;
     let new_ver = current_ver + 1;

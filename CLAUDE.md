@@ -12,8 +12,8 @@ Gateway (OpenResty :80) ──► Frontend (Next.js :3000)
                                                     ──► Redis
 ```
 
-- **Backend** (`backend/`): Rust `axum` server. Source split across `main.rs` (entry), `lib.rs` (router/setup), `handlers.rs` (~55 handlers), `types.rs` (all structs/enums), `auth.rs` (middleware/RBAC). MySQL tables auto-created on startup. Redis caches rule detail reads (prefix `rule:`, TTL 300s by default). Notification system dispatches events via `spawn_audit_log` → `notify_pref_users` → `notifications` table, with user-configurable email/in-app preferences.
-- **Frontend** (`frontend/`): Next.js 14 App Router SPA. Auth via NextAuth credentials provider (hardcoded `admin/admin`). Uses Tailwind CSS 4, `lucide-react` icons, and a custom `i18n.tsx` context (zh/en).
+- **Backend** (`backend/`): Rust `axum` server. Source split across `main.rs` (entry), `lib.rs` (router/setup), `handlers/` (~20 files), `types/` (domain-specific structs), `auth.rs` (middleware/RBAC). MySQL tables auto-created on startup. Redis caches rule detail reads (prefix `rule:`, TTL 300s by default). Notification system dispatches events via `spawn_audit_log` → `notify_pref_users` → `notifications` table.
+- **Frontend** (`frontend/`): Next.js 14 App Router SPA. Auth via NextAuth credentials provider. Uses Tailwind CSS 4, `lucide-react` icons, and a custom `i18n.tsx` context (zh/en).
 - **Gateway** (`infra/openresty/`): OpenResty reverse proxy. Routes `/api/*` to backend, `/api/auth/*` to frontend, and `/` to frontend. Per-IP rate limiting at 120 r/s with burst 240 on `/api/` paths.
 - **Infra**: MySQL init script at `infra/mysql/init/`, K8s base manifests at `deploy/k8s/base.yaml`.
 
@@ -49,14 +49,14 @@ frontend/
 ├── app/           ← Page routes ONLY. No business logic beyond layout assembly.
 ├── components/
 │   ├── ui/        ← Reusable generic UI (Modal, Toast, etc.)
-│   ├── layout/    ← Shell: Navbar, Sidebar
+│   ├── layout/    ← Shell: Navbar, Sidebar, MainContentRouter
 │   └── features/  ← One component per tab/feature area
 ├── hooks/         ← One hook per feature area. Hook = state + API calls.
 ├── lib/           ← Pure functions, types, constants. NO React imports.
 └── i18n/          ← Translation context
 ```
 
-- `page.tsx` must stay under **200 lines**. It assembles layout + delegates to feature components.
+- `page.tsx` must stay under **250 lines**. It assembles layout + delegates to `MainContentRouter`.
 - Feature components receive data via props, never fetch data directly.
 - API calls live in hooks (`hooks/use*.ts`) or `lib/api.ts`. Components only render.
 - New tabs/features get a new file in `components/features/`. Never inline into `page.tsx`.
@@ -69,7 +69,15 @@ backend/src/
 ├── main.rs        ← #[tokio::main] entry point ONLY (<10 lines)
 ├── lib.rs         ← module declarations + run() + router assembly + health checks
 ├── config.rs      ← Settings, AppState, AuthSettings, env parsing, CORS, tracing
-├── db.rs          ← pool init, schema bootstrap, seed functions
+├── db/            ← Database bootstrap, migration and seeding. Split into domain modules.
+│   ├── mod.rs     ← Entry point, bootstrap_schema assembly
+│   ├── rules.rs   ← rule_configs, rule_versions, approvals
+│   ├── metrics.rs ← metrics_ingest, metrics_hourly_summary
+│   ├── auth.rs    ← users, user_sessions, login_history, user_totp, user_devices, permission_templates
+│   ├── products.rs ← api_products, subscriptions
+│   ├── system.rs  ← system_settings, audit_logs, notifications
+│   ├── infrastructure.rs ← rate_limit_configs, llm_*, circuit_breakers, protocol_configs, data_classifications, plugin_configs
+│   └── seeds.rs   ← seed_* functions for default data
 ├── auth.rs        ← AuthContext, middleware, RBAC, JWT, AppError
 ├── types/         ← Request/response structs, split by domain (rule, api_key, rate_limit, metrics, approval, llm, user, system, validation, permission_template)
 ├── handlers/      ← HTTP handlers, ONE file per domain entity
@@ -308,7 +316,7 @@ pwsh scripts/k8s-rollout.ps1 -Namespace api-control-plane -Service backend -Imag
 ```
 frontend/
 ├── app/
-│   ├── page.tsx                    ← 460 lines, route entry + login
+│   ├── page.tsx                    ← 221 lines, route entry + layout assembly
 │   ├── layout.tsx                  ← Root layout
 │   ├── providers.tsx               ← NextAuth SessionProvider
 │   ├── i18n.tsx                    ← useI18n() context hook
@@ -344,7 +352,8 @@ frontend/
 ├── components/
 │   ├── layout/
 │   │   ├── Navbar.tsx              ← Top bar: health + lang + user + hamburger (175 lines)
-│   │   └── Sidebar.tsx             ← Menu + quick stats + mobile drawer (140 lines)
+│   │   ├── Sidebar.tsx             ← Menu + quick stats + mobile drawer (140 lines)
+│   │   └── MainContentRouter.tsx   ← Tab router delegating to feature panels (325 lines)
 │   ├── ui/
 │   │   └── Toast.tsx               ← Notification toast with auto-dismiss (52 lines)
 │   └── features/
@@ -355,14 +364,14 @@ frontend/
 │       ├── ApiBuilderPanel.tsx     ← No-code rule CRUD + data entries assembler (~80 lines)
 │       ├── ApiBuilderPresetsBar.tsx     ← Saved preset tags (~30 lines)
 │       ├── ApiBuilderRuleSection.tsx    ← Rule selector + CRUD form (~130 lines)
-│       ├── ApiBuilderEntriesSection.tsx ← Data entries + transform (~170 lines)
-│       ├── ApiKeysPanel.tsx        ← API key create/list/toggle/delete (326 lines)
+│       ├── ApiBuilderEntriesSection.tsx ← Data entries + transform (514 lines, justify: form+logic)
+│       ├── ApiKeysPanel.tsx        ← API key create/list/toggle/delete (462 lines, justify: create+list)
 │       ├── RateLimitsPanel.tsx     ← Rate limit create/list/toggle/delete (103 lines)
 │       ├── ApprovalsPanel.tsx      ← Approval workflow (172 lines)
 │       ├── AnalyticsPanel.tsx      ← KPI + bar chart + top APIs + status dist (159 lines)
 │       ├── AuditLogPanel.tsx       ← Audit log table (71 lines)
 │       ├── OpenApiPanel.tsx        ← Generate + import OpenAPI specs (165 lines)
-│       ├── LlmGatewayPanel.tsx     ← LLM route + providers + templates (267 lines)
+│       ├── LlmGatewayPanel.tsx     ← LLM proxy + providers + templates (267 lines)
 │       ├── AdvancedPanel.tsx       ← Tab router for advanced features (95 lines)
 │       ├── AdvancedProductsTab.tsx      ← Products CRUD + search + tags + toggle (237 lines)
 │       ├── AdvancedSubscriptionsTab.tsx ← Subscriptions CRUD + lifecycle + usage (290 lines)
@@ -404,9 +413,17 @@ frontend/
 ```
 backend/src/
 ├── main.rs              ← 4 lines. #[tokio::main] entry point.
-├── lib.rs               ← 174 lines. Module declarations, pub use, run(), router assembly, health checks.
+├── lib.rs               ← 249 lines. Module declarations, pub use, run(), router assembly, health checks.
 ├── config.rs            ← 85 lines. AppState, Settings, AuthSettings, env parsing, CORS, tracing.
-├── db.rs                ← ~260 lines. MySQL pool init, bootstrap_schema(), seed_settings(), seed_admin().
+├── db/                  ← Database bootstrap modules
+│   ├── mod.rs           ← Entry point, bootstrap_schema()
+│   ├── auth.rs          ← Users, sessions, history, TOTP, devices, templates schema (124 lines)
+│   ├── infrastructure.rs ← Rate limits, LLM, circuit breakers, protocols, classifications, plugins (115 lines)
+│   ├── metrics.rs       ← Metrics ingest and summary schema (29 lines)
+│   ├── products.rs      ← Products and subscriptions schema (41 lines)
+│   ├── rules.rs         ← Rules, versions, approvals schema (47 lines)
+│   ├── system.rs        ← Settings, audit logs, notifications schema (38 lines)
+│   └── seeds.rs         ← Initial data seeding (423 lines)
 ├── auth.rs              ← 438 lines. AuthContext, middleware, JWT, RBAC, permissions. Also defines AppError.
 ├── types/               ← Request/response structs, split by domain. All under 500 lines.
 │   ├── mod.rs           ← Re-exports all sub-modules.
@@ -431,27 +448,32 @@ backend/src/
 │   └── metrics.rs       ← run_metrics_flusher, run_metrics_aggregator, run_metrics_retention, cache_analytics, get_cached_analytics (has DB/Redis deps)
 └── handlers/             ← HTTP handlers, one file per domain entity
     ├── mod.rs
-    ├── common.rs         ← Shared: write_audit_log, load_rule_detail, cache_rule, row_to_json, crud_handlers! macro
-    ├── rules.rs          ← create_rule, update_rule, get_rule, delete_rule, list_rules
-    ├── versions.rs       ← list_rule_versions, get_rule_diff, rollback_rule_version
-    ├── transform_handlers.rs ← preview_transform, execute_transform, eval_expression_handler
-    ├── api_keys.rs       ← create/list/get/update/delete/validate_api_key
-    ├── rate_limits.rs    ← create/list/update/delete/check_rate_limit
-    ├── approvals.rs      ← create/list/get/review_approval
-    ├── metrics.rs        ← ingest_metrics, get_analytics, get_top_apis, get_api_key_stats, get_metrics_overview, get_dashboard
-    ├── audit.rs          ← list_audit_logs
-    ├── auth_user.rs      ← login, get_my_profile, update_my_profile, change_my_password, list_users, create_user, get_user, update_user, delete_user, session/login_history handlers, TOTP handlers, preferences handlers
-    ├── products.rs       ← create/list/get/update/delete_product, list_product_subscriptions, product stats (290 lines)
-    ├── subscriptions.rs  ← create/list/get/update/delete_subscription, usage, upgrade, cancel, renew, tier resolution (378 lines)
-    ├── circuit_breakers.rs ← create/list/get/update/delete_circuit_breaker
-    ├── protocols.rs      ← create/list/get/update/delete_protocol_config
-    ├── classifications.rs ← create/list/get/update/delete_data_classification
-    ├── plugins.rs        ← create/list/get/update/delete_plugin_config
-    ├── llm.rs            ← llm_route (real API call+failover), providers full CRUD, templates full CRUD (316 lines)
-    ├── openapi.rs        ← get_openapi_spec
-    ├── validation_handlers.rs ← validate_request, validate_response
-    ├── system.rs         ← list_system_settings, update_system_setting
-    └── all_remaining.rs  ← Unclassified/legacy handlers pending categorization
+    ├── common.rs         ← Shared utilities (251 lines)
+    ├── rules.rs          ← create_rule, update_rule, get_rule, delete_rule, list_rules (345 lines)
+    ├── versions.rs       ← list_rule_versions, get_rule_diff, rollback_rule_version (75 lines)
+    ├── transform_handlers.rs ← preview_transform, execute_transform, eval_expression_handler (59 lines)
+    ├── api_keys.rs       ← create/list/get/update/delete/validate_api_key (209 lines)
+    ├── rate_limits.rs    ← create/list/update/delete/check_rate_limit (180 lines)
+    ├── approvals.rs      ← create/list/get/review_approval (156 lines)
+    ├── metrics.rs        ← ingest_metrics, get_analytics, get_dashboard (281 lines)
+    ├── audit.rs          ← list_audit_logs (56 lines)
+    ├── notifications.rs  ← my notifications handlers (152 lines)
+    ├── auth_user.rs      ← login, my profile, password (me) (228 lines)
+    ├── user_management.rs ← list_users, CRUD users (202 lines)
+    ├── totp.rs           ← TOTP setup/verify/disable/status (173 lines)
+    ├── user_sessions.rs  ← session, login history, device handlers (123 lines)
+    ├── user_preferences.rs ← preferences handlers (71 lines)
+    ├── products.rs       ← products CRUD (349 lines)
+    ├── subscriptions.rs  ← subscriptions CRUD (435 lines, justify: coarse domain)
+    ├── circuit_breakers.rs ← circuit breaker CRUD (133 lines)
+    ├── protocols.rs      ← protocol config CRUD (120 lines)
+    ├── classifications.rs ← data classification CRUD (148 lines)
+    ├── plugins.rs        ← plugin config CRUD (123 lines)
+    ├── llm.rs            ← llm_route, providers, templates CRUD (350 lines)
+    ├── openapi.rs        ← get_openapi_spec (48 lines)
+    ├── validation_handlers.rs ← validate_request, validate_response (74 lines)
+    ├── system.rs         ← list_system_settings, update_system_setting (97 lines)
+    └── permission_templates.rs ← permission template CRUD (204 lines)
 ```
 
 ### Engine module
@@ -509,7 +531,7 @@ When adding new transform/validation/expression logic, add it to the appropriate
 
 ### Handler reference by domain
 
-The old `handlers.rs` monolith (~4600 lines) has been split into per-domain files under `handlers/`. When adding a new endpoint, add it to the existing handler file for that domain. If no handler file exists, create one and add `pub mod` to `handlers/mod.rs`.
+The old `handlers.rs` monolith (~4600 lines) has been split into per-domain files under `handlers/`. When adding a new endpoint, add it to the existing handler file for that domain. If no handler file exists for that domain, create one and add `pub mod` to `handlers/mod.rs`.
 
 | Domain | File | Key handlers |
 |--------|------|-------------|
@@ -522,7 +544,11 @@ The old `handlers.rs` monolith (~4600 lines) has been split into per-domain file
 | Metrics | `handlers/metrics.rs` | ingest_metrics (Redis buffer), get_analytics (single UNION query using metrics_hourly_summary + current hour raw data), get_top_apis, get_api_key_stats, get_metrics_overview (parallel COUNTs), get_dashboard (aggregate endpoint) |
 | Audit | `handlers/audit.rs` | list_audit_logs |
 | Notifications | `handlers/notifications.rs` | list_my_notifications, mark_notification_read, get_unread_count |
-| Auth & Users | `handlers/auth_user.rs` | login, list_users (with filters), CRUD users, profile, password, sessions, login history, TOTP (setup/verify/disable/status), preferences |
+| Auth & Users | `handlers/auth_user.rs` | login, get_my_profile, update_my_profile, change_my_password |
+| User Management | `handlers/user_management.rs` | list_users, CRUD users, revoke all sessions |
+| TOTP | `handlers/totp.rs` | setup, verify, disable, status, login check |
+| User Sessions | `handlers/user_sessions.rs` | list sessions, revoke, login history, device management |
+| User Prefs | `handlers/user_preferences.rs` | get/update preferences |
 | Products | `handlers/products.rs` | products CRUD, product subscriptions list, subscription stats, safe search params |
 | Subscriptions | `handlers/subscriptions.rs` | subscriptions CRUD, usage, upgrade (tier-aware), cancel, renew |
 | Circuit Breakers | `handlers/circuit_breakers.rs` | circuit breaker CRUD |

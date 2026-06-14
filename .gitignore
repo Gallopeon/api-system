@@ -1,6 +1,5 @@
 # Node.js
 frontend/node_modules/
-frontend/.next/
 
 # Rust
 backend/target/
@@ -40,7 +39,7 @@ __pycache__/
 
 # Build artifacts
 *.tsbuildinfo
-backend/src/.next/
+.next/
 
 # Temp scripts
 backend/*.py

@@ -21,8 +21,9 @@ pub async fn validate_request(
     let Some(row) = rows else {
         return Ok(Json(ValidationResult { valid: true, errors: vec![], warnings: vec![], schema_errors: vec!["No rule found".to_string()] }));
     };
-    let config_text: String = row.try_get("config_text").unwrap_or_default();
-    let rule: TransformRule = serde_json::from_str(&config_text).unwrap_or_default();
+    let config_text: String = row.try_get("config_text").map_err(|e| AppError::Internal(format!("DB error: {}", e)))?;
+    let rule: TransformRule = serde_json::from_str(&config_text)
+        .map_err(|e| AppError::Internal(format!("Invalid rule config JSON: {}", e)))?;
     match rule.request_validation {
         Some(ref vc) if vc.enabled => Ok(Json(validate_json(&payload.body, vc)?)),
         _ => Ok(Json(ValidationResult { valid: true, errors: vec![], warnings: vec!["No request validation configured".to_string()], schema_errors: vec![] })),
@@ -41,8 +42,9 @@ pub async fn validate_response(
     let Some(row) = rows else {
         return Ok(Json(ValidationResult { valid: true, errors: vec![], warnings: vec![], schema_errors: vec!["No rule found".to_string()] }));
     };
-    let config_text: String = row.try_get("config_text").unwrap_or_default();
-    let rule: TransformRule = serde_json::from_str(&config_text).unwrap_or_default();
+    let config_text: String = row.try_get("config_text").map_err(|e| AppError::Internal(format!("DB error: {}", e)))?;
+    let rule: TransformRule = serde_json::from_str(&config_text)
+        .map_err(|e| AppError::Internal(format!("Invalid rule config JSON: {}", e)))?;
     match rule.response_validation {
         Some(ref vc) if vc.enabled => Ok(Json(validate_json(&payload.body, vc)?)),
         _ => Ok(Json(ValidationResult { valid: true, errors: vec![], warnings: vec!["No response validation configured".to_string()], schema_errors: vec![] })),
@@ -62,8 +64,9 @@ pub async fn validate_against_rule(
     let Some(row) = rows else {
         return Ok(Json(ValidationResult { valid: true, errors: vec![], warnings: vec![], schema_errors: vec!["Rule not found".to_string()] }));
     };
-    let config_text: String = row.try_get("config_text").unwrap_or_default();
-    let rule: TransformRule = serde_json::from_str(&config_text).unwrap_or_default();
+    let config_text: String = row.try_get("config_text").map_err(|e| AppError::Internal(format!("DB error: {}", e)))?;
+    let rule: TransformRule = serde_json::from_str(&config_text)
+        .map_err(|e| AppError::Internal(format!("Invalid rule config JSON: {}", e)))?;
     match rule.response_validation {
         Some(ref vc) if vc.enabled => Ok(Json(validate_json(&payload.body, vc)?)),
         _ => Ok(Json(ValidationResult { valid: true, errors: vec![], warnings: vec![], schema_errors: vec![] })),

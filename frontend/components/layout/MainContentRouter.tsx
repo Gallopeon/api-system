@@ -54,7 +54,7 @@ interface MainContentRouterProps {
     handleReviewApproval: (id: string, action: string) => Promise<void>;
     notifyError: (msg: string) => void;
     notifySucc: (msg: string) => void;
-    getDefaultExpiry: () => number;
+    getDefaultExpiry: (hours?: number) => string;
   };
 }
 

@@ -41,7 +41,7 @@ pub struct JwtClaims {
 }
 
 fn default_user_group() -> String {
-    "admin_group".to_string()
+    "user".to_string()
 }
 
 #[derive(Debug, Clone, Copy)]
