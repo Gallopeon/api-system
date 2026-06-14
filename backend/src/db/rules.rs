@@ -35,6 +35,7 @@ pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
         id VARCHAR(36) PRIMARY KEY, rule_id VARCHAR(36) NOT NULL, version INT NOT NULL,
         requestor VARCHAR(64) NOT NULL, reviewer VARCHAR(64) NULL, status VARCHAR(32) NOT NULL DEFAULT 'pending',
         comment TEXT NULL, created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, reviewed_at TIMESTAMP NULL,
+        UNIQUE KEY uq_approval_rule_ver_req (rule_id, version, requestor),
         KEY idx_approval_rule (rule_id), KEY idx_approval_status (status), KEY idx_approval_requestor (requestor),
         CONSTRAINT fk_approval_rule FOREIGN KEY (rule_id) REFERENCES rule_configs(id) ON DELETE CASCADE
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;"#).execute(pool).await?;
@@ -45,6 +46,19 @@ pub async fn bootstrap(pool: &MySqlPool) -> Result<(), AppError> {
     ).fetch_one(pool).await?;
     if has_approval_requestor_idx == 0 {
         if let Err(e) = sqlx::query("ALTER TABLE approvals ADD INDEX idx_approval_requestor (requestor)")
+            .execute(pool).await {
+            if !is_duplicate_error(&e) {
+                return Err(e.into());
+            }
+        }
+    }
+
+    // Add unique constraint for approval deduplication if missing
+    let has_uq_approval: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'approvals' AND INDEX_NAME = 'uq_approval_rule_ver_req'"
+    ).fetch_one(pool).await?;
+    if has_uq_approval == 0 {
+        if let Err(e) = sqlx::query("ALTER TABLE approvals ADD UNIQUE KEY uq_approval_rule_ver_req (rule_id, version, requestor)")
             .execute(pool).await {
             if !is_duplicate_error(&e) {
                 return Err(e.into());

@@ -28,3 +28,4 @@ reqwest = { version = "0.12", default-features = false, features = ["json", "rus
 qrcode-generator = "4"
 lettre = { version = "0.11", default-features = false, features = ["builder", "rustls-tls", "smtp-transport"] }
 md5 = "0.8.0"
+data-encoding = "2"

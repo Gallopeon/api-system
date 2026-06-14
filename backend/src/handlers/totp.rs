@@ -105,83 +105,56 @@ pub async fn verify_login_totp(pool: &sqlx::MySqlPool, user_id: &str, totp_code:
         .map_err(|e| AppError::Internal(format!("TOTP check error: {}", e)))?;
 
     if !verified {
+        // Track failed TOTP attempts to prevent brute-force (6-digit codes are only 1M possibilities)
+        track_totp_failure(pool, user_id).await;
         return Err(AppError::Unauthorized("invalid TOTP code".to_string()));
     }
+
+    // On success, reset the failure counter
+    reset_totp_failure(pool, user_id).await;
     Ok(())
 }
 
+/// Increment TOTP failure counter and lock account if threshold exceeded.
+/// Uses MySQL `user_totp` table is not ideal for this (no counter column), so we use a separate
+/// `login_history` approach: count recent TOTP failures for this user.
+async fn track_totp_failure(pool: &sqlx::MySqlPool, user_id: &str) {
+    // Record the failed TOTP attempt in login_history for audit
+    let _ = sqlx::query(
+        "INSERT INTO login_history (user_id, username_attempt, success, failure_reason) \
+         SELECT ?, username, 0, 'invalid_totp_code' FROM users WHERE id = ?"
+    ).bind(user_id).bind(user_id).execute(pool).await;
+
+    // Check if user has exceeded max TOTP failures (5 in last 15 minutes)
+    let recent_failures: i64 = sqlx::query_scalar(
+        "SELECT COUNT(*) FROM login_history WHERE user_id = ? AND failure_reason = 'invalid_totp_code' \
+         AND created_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)"
+    ).bind(user_id).fetch_optional(pool).await.unwrap_or(Some(0)).unwrap_or(0);
+
+    if recent_failures >= 5 {
+        // Lock the account for 15 minutes
+        let _ = sqlx::query(
+            "UPDATE users SET locked_until = DATE_ADD(NOW(), INTERVAL 15 MINUTE) WHERE id = ?"
+        ).bind(user_id).execute(pool).await;
+        tracing::warn!(user_id, failures = recent_failures, "account locked due to repeated TOTP failures");
+    }
+}
+
+/// Reset TOTP failure tracking on successful verification.
+async fn reset_totp_failure(pool: &sqlx::MySqlPool, _user_id: &str) {
+    // The counter is time-based (15 min window), so no explicit reset needed.
+    // The login_history rows serve as audit trail and will age out naturally.
+    let _ = pool;
+}
+
 fn base32_encode(data: &[u8]) -> String {
-    const ALPHABET: &[u8; 32] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
-    let mut out = String::new();
-    let mut buf = 0u32;
-    let mut bits = 0u8;
-    for &byte in data {
-        buf = (buf << 8) | byte as u32;
-        bits += 8;
-        while bits >= 5 {
-            bits -= 5;
-            out.push(ALPHABET[((buf >> bits) & 0x1F) as usize] as char);
-        }
-    }
-    if bits > 0 {
-        out.push(ALPHABET[((buf << (5 - bits)) & 0x1F) as usize] as char);
-    }
-    while out.len() % 8 != 0 {
-        out.push('=');
-    }
-    out
+    data_encoding::BASE32.encode(data)
 }
 
 fn base64_encode(data: &[u8]) -> String {
-    const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-    let mut out = String::with_capacity((data.len() + 2) / 3 * 4);
-    let mut chunks = data.chunks_exact(3);
-    for chunk in &mut chunks {
-        let buf = ((chunk[0] as u32) << 16) | ((chunk[1] as u32) << 8) | (chunk[2] as u32);
-        out.push(ALPHABET[((buf >> 18) & 0x3F) as usize] as char);
-        out.push(ALPHABET[((buf >> 12) & 0x3F) as usize] as char);
-        out.push(ALPHABET[((buf >> 6) & 0x3F) as usize] as char);
-        out.push(ALPHABET[(buf & 0x3F) as usize] as char);
-    }
-    let rem = chunks.remainder();
-    if !rem.is_empty() {
-        let buf = if rem.len() == 1 {
-            (rem[0] as u32) << 16
-        } else {
-            ((rem[0] as u32) << 16) | ((rem[1] as u32) << 8)
-        };
-        out.push(ALPHABET[((buf >> 18) & 0x3F) as usize] as char);
-        out.push(ALPHABET[((buf >> 12) & 0x3F) as usize] as char);
-        if rem.len() == 2 {
-            out.push(ALPHABET[((buf >> 6) & 0x3F) as usize] as char);
-        } else {
-            out.push('=');
-        }
-        out.push('=');
-    }
-    out
+    data_encoding::BASE64.encode(data)
 }
 
 fn base32_decode(encoded: &str) -> Option<Vec<u8>> {
-    let encoded = encoded.trim_end_matches('=').to_uppercase();
-    let mut out = Vec::new();
-    let mut buf = 0u32;
-    let mut bits = 0u8;
-    for c in encoded.chars() {
-        let val = match c {
-            'A'..='Z' => c as u8 - b'A',
-            '2'..='7' => c as u8 - b'2' + 26,
-            _ => return None,
-        };
-        buf = (buf << 5) | val as u32;
-        bits += 5;
-        if bits >= 8 {
-            bits -= 8;
-            out.push((buf >> bits) as u8);
-        }
-    }
-    if bits > 0 && (buf << (8 - bits)) & 0xFF != 0 {
-        return None; // unused bits must be zero
-    }
-    Some(out)
+    data_encoding::BASE32.decode(encoded.to_uppercase().as_bytes()).ok()
 }

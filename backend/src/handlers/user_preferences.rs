@@ -8,6 +8,11 @@ use crate::AppState;
 use crate::types::*;
 use crate::auth::*;
 
+const DEFAULT_THEME: &str = "system";
+const DEFAULT_LANG: &str = "zh";
+const VALID_THEMES: &[&str] = &["system", "light", "dark"];
+const VALID_LANGS: &[&str] = &["zh", "en"];
+
 pub async fn get_my_preferences(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserSelf)?;
     let row = sqlx::query("SELECT preferences FROM users WHERE username = ?")
@@ -15,14 +20,26 @@ pub async fn get_my_preferences(State(state): State<Arc<AppState>>, Extension(au
     let stored: Option<serde_json::Value> = row.and_then(|r| r.try_get::<serde_json::Value, _>("preferences").ok());
     Ok(Json(PreferencesResponse {
         user_id: auth.subject.clone(),
-        theme: stored.as_ref().and_then(|v| v.get("theme").and_then(|t| t.as_str())).unwrap_or("system").to_string(),
-        lang: stored.as_ref().and_then(|v| v.get("lang").and_then(|l| l.as_str())).unwrap_or("zh").to_string(),
+        theme: stored.as_ref().and_then(|v| v.get("theme").and_then(|t| t.as_str())).unwrap_or(DEFAULT_THEME).to_string(),
+        lang: stored.as_ref().and_then(|v| v.get("lang").and_then(|l| l.as_str())).unwrap_or(DEFAULT_LANG).to_string(),
         notifications: stored.as_ref().and_then(|v| v.get("notifications").cloned()),
     }))
 }
 
 pub async fn update_my_preferences(State(state): State<Arc<AppState>>, Extension(auth): Extension<AuthContext>, Json(payload): Json<UpdatePreferencesRequest>) -> Result<impl IntoResponse, AppError> {
     ensure_permission(&auth, Permission::UserSelf)?;
+
+    // Validate inputs against whitelists
+    if let Some(ref theme) = payload.theme {
+        if !VALID_THEMES.contains(&theme.as_str()) {
+            return Err(AppError::BadRequest(format!("invalid theme '{}', allowed: {:?}", theme, VALID_THEMES)));
+        }
+    }
+    if let Some(ref lang) = payload.lang {
+        if !VALID_LANGS.contains(&lang.as_str()) {
+            return Err(AppError::BadRequest(format!("invalid lang '{}', allowed: {:?}", lang, VALID_LANGS)));
+        }
+    }
 
     let mut tx = state.pool.begin().await?;
     // Merge with existing preferences so partial updates don't wipe other fields
@@ -66,8 +83,8 @@ pub async fn update_my_preferences(State(state): State<Arc<AppState>>, Extension
     tx.commit().await?;
     Ok(Json(PreferencesResponse {
         user_id: auth.subject.clone(),
-        theme: merged.get("theme").and_then(|v| v.as_str()).unwrap_or("system").to_string(),
-        lang: merged.get("lang").and_then(|v| v.as_str()).unwrap_or("zh").to_string(),
+        theme: merged.get("theme").and_then(|v| v.as_str()).unwrap_or(DEFAULT_THEME).to_string(),
+        lang: merged.get("lang").and_then(|v| v.as_str()).unwrap_or(DEFAULT_LANG).to_string(),
         notifications: merged.get("notifications").cloned(),
     }))
 }
