@@ -65,9 +65,10 @@ export default function SystemSettingsPanel({
   const testSmtp = useCallback(async () => {
     setSmtpTesting(true);
     try {
+      const fromEmail = settings.find(s => s.key === "smtp_from_email")?.value || "";
       const r = await apiFetch("/admin/v1/system/smtp/test", {
         method: "POST",
-        body: JSON.stringify({}),
+        body: JSON.stringify({ to_email: fromEmail || undefined }),
       }, accessToken);
       const d = await r.json();
       if (r.ok) {
@@ -80,7 +81,7 @@ export default function SystemSettingsPanel({
     } finally {
       setSmtpTesting(false);
     }
-  }, [accessToken, notifySucc, notifyError]);
+  }, [accessToken, settings, notifySucc, notifyError]);
 
   const smtpSettings = settings.filter(s => s.key.startsWith("smtp_"));
   const otherSettings = settings.filter(s => !s.key.startsWith("smtp_"));

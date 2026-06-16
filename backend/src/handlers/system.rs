@@ -56,7 +56,7 @@ pub async fn test_smtp(State(state): State<Arc<AppState>>, Extension(auth): Exte
     let smtp_pass = get_setting(&state.pool, "smtp_password").await.unwrap_or_default();
     let from_email = get_setting(&state.pool, "smtp_from_email").await.unwrap_or_default();
     let from_name = get_setting(&state.pool, "smtp_from_name").await.unwrap_or_else(|| "API Control Plane".into());
-    let encryption = get_setting(&state.pool, "smtp_encryption").await.unwrap_or_else(|| "tls".into());
+    let encryption = get_setting(&state.pool, "smtp_encryption").await.unwrap_or_else(|| "starttls".into());
 
     if smtp_host.is_empty() || from_email.is_empty() {
         return Err(AppError::BadRequest("SMTP host and from email are required".to_string()));

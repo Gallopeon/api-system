@@ -18,7 +18,7 @@ export function useSmtpSettings(
 ) {
   const [smtp, setSmtp] = useState<SmtpSettings>({
     host: "", port: "587", username: "", password: "",
-    from_email: "", from_name: "", encryption: "tls",
+    from_email: "", from_name: "", encryption: "starttls",
   });
   const [smtpBusy, setSmtpBusy] = useState(false);
   const [smtpLoading, setSmtpLoading] = useState(true);
@@ -40,7 +40,7 @@ export function useSmtpSettings(
           password: map["smtp_password"] || "",
           from_email: map["smtp_from_email"] || "",
           from_name: map["smtp_from_name"] || "",
-          encryption: map["smtp_encryption"] || "tls",
+          encryption: map["smtp_encryption"] || "starttls",
         });
       }
     } catch (e) {
