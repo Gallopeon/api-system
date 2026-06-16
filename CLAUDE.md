@@ -502,6 +502,7 @@ The `engine/` module contains business logic functions extracted from `handlers.
 | `notify.rs` | Notification dispatch: `notify_pref_users` matches audit actions to notification types → checks user preferences → inserts into `notifications` table. Has DB deps. |
 | `retention.rs` | Data retention: `run_data_retention` — configurable TTL-based cleanup of old audit logs, notifications, and metrics. Has DB deps. |
 | `risk.rs` | Risk scoring engine: calculates risk scores for API calls based on anomaly detection, rate limit proximity, and data classification sensitivity. Has DB/Redis deps. |
+| `email.rs` | SMTP transport: `build_smtp_transport`, `build_email_message`, `send_email_sync`, `verify_smtp_connection`, `encrypt_password`/`decrypt_password` (XOR + SHA-256 key stream). Zero DB/HTTP deps — pure transport logic. |
 
 Pure logic files (transform, expression, gray_release, diff, validation, openapi, crypto):
 - Have ZERO dependencies on HTTP (axum), database (sqlx), or Redis
@@ -574,7 +575,7 @@ The old `handlers.rs` monolith (~4600 lines) has been split into per-domain file
 | LLM | `handlers/llm.rs` | llm_route (real API call with failover), providers full CRUD, prompt templates full CRUD |
 | OpenAPI | `handlers/openapi.rs` | get_openapi_spec |
 | Validation | `handlers/validation_handlers.rs` | validate_request, validate_response |
-| System | `handlers/system.rs` | list_system_settings, update_system_setting |
+| System | `handlers/system.rs` | list_system_settings (masks sensitive keys), update_system_setting (auto-encrypts smtp_password), batch_update_settings, test_smtp, verify_smtp |
 | Common | `handlers/common.rs` | write_audit_log, load_rule_detail, cache_rule/get_cached_rule, cache_rule_meta/invalidate_rule_meta/get_all_rules_meta (Redis Hash `rules:meta`), row_to_json, crud_handlers! macro |
 
 ### Transform rule configuration model
