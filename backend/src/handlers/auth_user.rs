@@ -96,17 +96,21 @@ pub async fn login(State(state): State<Arc<AppState>>, headers: HeaderMap, Json(
     // Reset failed attempts on success, update last login, record successful login with risk score
     sqlx::query("UPDATE users SET failed_login_attempts = 0, locked_until = NULL, last_login_at = NOW() WHERE id = ?")
         .bind(&user_id).execute(&state.pool).await?;
-    let _ = sqlx::query(
+    if let Err(e) = sqlx::query(
         "INSERT INTO login_history (user_id, username_attempt, success, device_fingerprint, risk_score, is_suspicious) VALUES (?, ?, 1, ?, ?, ?)"
     ).bind(&user_id).bind(&payload.username)
      .bind(&payload.device_fingerprint)
      .bind(risk.score as i32)
      .bind(risk.is_suspicious)
-     .execute(&state.pool).await;
+     .execute(&state.pool).await {
+        tracing::error!(error = %e, user_id = %user_id, "failed to insert login_history on success");
+    }
     let session_id = Uuid::new_v4().to_string();
-    let _ = sqlx::query(
+    if let Err(e) = sqlx::query(
         "INSERT INTO user_sessions (id, user_id, token_jti, token_expires_at, client_ip, user_agent) VALUES (?, ?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL 86400 SECOND), ?, ?)"
-    ).bind(&session_id).bind(&user_id).bind(&jti).bind(client_ip).bind(user_agent).execute(&state.pool).await;
+    ).bind(&session_id).bind(&user_id).bind(&jti).bind(client_ip).bind(user_agent).execute(&state.pool).await {
+        tracing::error!(error = %e, user_id = %user_id, "failed to insert user_session on login");
+    }
 
     // If suspicious, force TOTP enrollment if not already enabled
     if risk.is_suspicious {
