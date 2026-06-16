@@ -20,4 +20,8 @@ pub struct UpdateSettingRequest {
 pub struct SmtpTestRequest {
     #[serde(default)]
     pub to_email: Option<String>,
+    #[serde(default)]
+    pub subject: Option<String>,
+    #[serde(default)]
+    pub body: Option<String>,
 }

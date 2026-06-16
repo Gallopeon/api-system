@@ -63,12 +63,14 @@ pub async fn test_smtp(State(state): State<Arc<AppState>>, Extension(auth): Exte
     }
 
     let to_email = payload.to_email.unwrap_or_else(|| from_email.clone());
+    let subject = payload.subject.unwrap_or_else(|| "SMTP Test — API Control Plane".into());
+    let body = payload.body.unwrap_or_else(|| "This is a test email from your API Control Plane instance. SMTP is configured correctly.".into());
 
     let msg = lettre::Message::builder()
         .from(format!("{from_name} <{from_email}>").parse().map_err(|e| AppError::BadRequest(format!("invalid from: {e}")))?)
         .to(to_email.parse().map_err(|e| AppError::BadRequest(format!("invalid to: {e}")))?)
-        .subject("SMTP Test — API Control Plane")
-        .body("This is a test email from your API Control Plane instance. SMTP is configured correctly.".to_string())
+        .subject(subject)
+        .body(body)
         .map_err(|e| AppError::BadRequest(format!("failed to build email: {e}")))?;
 
     let transport = match encryption.as_str() {
