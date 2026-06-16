@@ -1,5 +1,4 @@
-# syntax=docker/dockerfile:1
-FROM rust:1.94-slim-bookworm AS builder
+FROM docker.m.daocloud.io/library/rust:1.94-slim-bookworm AS builder
 WORKDIR /app
 
 # 1. Build dependencies only (layer cached unless Cargo.toml/Cargo.lock or .cargo/config changes)
@@ -19,7 +18,7 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
     cargo build --release --locked && \
     cp target/release/api-control-backend /app/api-control-backend
 
-FROM debian:bookworm-slim
+FROM docker.m.daocloud.io/library/debian:bookworm-slim
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ca-certificates curl \
     && rm -rf /var/lib/apt/lists/*
