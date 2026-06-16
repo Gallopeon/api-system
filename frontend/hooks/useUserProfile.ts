@@ -187,11 +187,13 @@ export function useTotp(
     [accessToken, notifyError, notifySucc],
   );
 
-  const disableTotp = useCallback(async () => {
+  const disableTotp = useCallback(async (code: string) => {
     setTotpBusy(true);
     try {
       const r = await apiFetch("/admin/v1/users/me/totp", {
         method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
       }, accessToken);
       if (!r.ok) throw new Error((await r.json())?.message || "Disable failed");
       setTotpEnabled(false);

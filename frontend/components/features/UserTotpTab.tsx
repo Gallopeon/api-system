@@ -13,7 +13,7 @@ interface Props {
   setTotpCode: (v: string) => void;
   setupTotp: () => void;
   verifyTotp: (code: string) => void;
-  disableTotp: () => void;
+  disableTotp: (code: string) => void;
   t: <T>(en: T, zh: T) => T;
 }
 
@@ -22,6 +22,7 @@ export default function UserTotpTab({
   setupTotp, verifyTotp, disableTotp, t,
 }: Props) {
   const [showDisableConfirm, setShowDisableConfirm] = useState(false);
+  const [disableCode, setDisableCode] = useState("");
 
   return (
     <div className={cardClass}>
@@ -65,17 +66,32 @@ export default function UserTotpTab({
                   </p>
                 </div>
               </div>
+              <div>
+                <label htmlFor="disable-totp-code" className="block text-xs font-medium text-amber-700 dark:text-amber-300 mb-1">
+                  {t("Enter current authenticator code to confirm:", "请输入当前认证器验证码以确认：")}
+                </label>
+                <input
+                  id="disable-totp-code"
+                  name="disable-totp-code"
+                  autoComplete="one-time-code"
+                  className={`${inputClass} w-full`}
+                  placeholder="000000"
+                  maxLength={6}
+                  value={disableCode}
+                  onChange={(e) => setDisableCode(e.target.value.replace(/\D/g, ""))}
+                />
+              </div>
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => { disableTotp(); setShowDisableConfirm(false); }}
-                  disabled={totpBusy}
+                  onClick={() => { disableTotp(disableCode); setShowDisableConfirm(false); setDisableCode(""); }}
+                  disabled={totpBusy || disableCode.length !== 6}
                   className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium text-sm transition-all disabled:opacity-60"
                 >
                   <Check className="w-4 h-4" />
                   {t("Yes, disable 2FA", "确认禁用")}
                 </button>
                 <button
-                  onClick={() => setShowDisableConfirm(false)}
+                  onClick={() => { setShowDisableConfirm(false); setDisableCode(""); }}
                   disabled={totpBusy}
                   className="flex-1 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-black/50 text-gray-700 dark:text-gray-300 font-medium text-sm hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
                 >
