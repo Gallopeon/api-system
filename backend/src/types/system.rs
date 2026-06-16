@@ -17,6 +17,17 @@ pub struct UpdateSettingRequest {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct BatchUpdateSettingsRequest {
+    pub settings: Vec<SettingKeyValue>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SettingKeyValue {
+    pub key: String,
+    pub value: String,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct SmtpTestRequest {
     #[serde(default)]
     pub to_email: Option<String>,
@@ -24,4 +35,17 @@ pub struct SmtpTestRequest {
     pub subject: Option<String>,
     #[serde(default)]
     pub body: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct SmtpVerifyRequest {
+    /// Optional override host (defaults to DB setting)
+    #[serde(default)]
+    pub host: Option<String>,
+    /// Optional override port
+    #[serde(default)]
+    pub port: Option<u16>,
+    /// Optional override encryption mode
+    #[serde(default)]
+    pub encryption: Option<String>,
 }

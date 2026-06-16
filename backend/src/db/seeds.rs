@@ -331,6 +331,7 @@ pub async fn seed_settings(pool: &MySqlPool) -> Result<(), AppError> {
         ("smtp_from_email", "", "Sender email address", true),
         ("smtp_from_name", "API Control Plane", "Sender display name", true),
         ("smtp_encryption", "starttls", "SMTP encryption: tls, starttls, or none", true),
+        ("smtp_timeout", "30", "SMTP connection timeout in seconds", true),
     ];
     for (key, val, desc, editable) in &defaults {
         sqlx::query(

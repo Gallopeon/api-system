@@ -9,6 +9,7 @@ pub mod metrics;
 pub mod notify;
 pub mod retention;
 pub mod risk;
+pub mod email;
 
 pub use transform::*;
 pub use expression::*;
@@ -21,3 +22,4 @@ pub use metrics::*;
 pub use notify::*;
 pub use retention::*;
 pub use risk::*;
+pub use email::*;

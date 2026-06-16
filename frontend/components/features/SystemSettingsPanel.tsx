@@ -3,9 +3,10 @@
 import { useState } from "react";
 import {
   Settings, Lock, Edit3, X, Check, Mail,
-  Server, Shield, FileText, ChevronDown, Send,
+  Server, Shield, FileText, ChevronDown, Send, Plug,
 } from "lucide-react";
 import { cardClass, inputClass, btnSecondary } from "@/lib/constants";
+import { apiFetch } from "@/lib/api";
 import { useSystemSettings, type SystemSettingItem } from "@/hooks/useSystemSettings";
 import SmtpTestDialog from "./SmtpTestDialog";
 
@@ -34,6 +35,7 @@ const LABELS: Record<string, { en: string; zh: string }> = {
   smtp_password: { en: "SMTP Password", zh: "SMTP 密码" },
   smtp_from_email: { en: "From Email", zh: "发件人邮箱" },
   smtp_from_name: { en: "From Name", zh: "发件人名称" },
+  smtp_timeout: { en: "Connection Timeout (s)", zh: "连接超时（秒）" },
 };
 
 type SettingGroup = {
@@ -70,7 +72,28 @@ export default function SystemSettingsPanel({
   const [editKey, setEditKey] = useState("");
   const [editVal, setEditVal] = useState("");
   const [showTestDialog, setShowTestDialog] = useState(false);
+  const [verifyBusy, setVerifyBusy] = useState(false);
   const [collapsedGroups, setCollapsedGroups] = useState<Set<string>>(new Set());
+
+  const handleVerifySmtp = async () => {
+    setVerifyBusy(true);
+    try {
+      const r = await apiFetch("/admin/v1/system/smtp/verify", {
+        method: "POST",
+        body: JSON.stringify({}),
+      }, accessToken);
+      const d = await r.json();
+      if (r.ok) {
+        notifySucc(d.message || t("SMTP connection verified", "SMTP 连接验证成功"));
+      } else {
+        notifyError(d.message || t("SMTP verification failed", "SMTP 连接验证失败"));
+      }
+    } catch (e) {
+      notifyError((e as Error).message);
+    } finally {
+      setVerifyBusy(false);
+    }
+  };
 
   const toggleGroup = (key: string) => {
     setCollapsedGroups(prev => {
@@ -140,13 +163,23 @@ export default function SystemSettingsPanel({
           </div>
 
           {canWrite && (
-            <button
-              onClick={() => setShowTestDialog(true)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-950/50 hover:border-blue-300 dark:hover:border-blue-700 transition-all shadow-sm"
-            >
-              <Send className="w-4 h-4" />
-              {t("Send Test Email", "发送测试邮件")}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={handleVerifySmtp}
+                disabled={verifyBusy || busy}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/30 text-green-700 dark:text-green-300 text-sm font-medium hover:bg-green-100 dark:hover:bg-green-950/50 hover:border-green-300 dark:hover:border-green-700 transition-all shadow-sm disabled:opacity-60"
+              >
+                <Plug className="w-4 h-4" />
+                {t("Verify Connection", "验证连接")}
+              </button>
+              <button
+                onClick={() => setShowTestDialog(true)}
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 text-sm font-medium hover:bg-blue-100 dark:hover:bg-blue-950/50 hover:border-blue-300 dark:hover:border-blue-700 transition-all shadow-sm"
+              >
+                <Send className="w-4 h-4" />
+                {t("Send Test Email", "发送测试邮件")}
+              </button>
+            </div>
           )}
         </div>
 

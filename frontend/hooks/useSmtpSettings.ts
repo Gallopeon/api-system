@@ -9,7 +9,15 @@ export interface SmtpSettings {
   from_email: string;
   from_name: string;
   encryption: string;
+  timeout: string;
 }
+
+const KEYS: Record<string, string> = {
+  host: "smtp_host", port: "smtp_port", username: "smtp_username",
+  password: "smtp_password", from_email: "smtp_from_email",
+  from_name: "smtp_from_name", encryption: "smtp_encryption",
+  timeout: "smtp_timeout",
+};
 
 export function useSmtpSettings(
   accessToken?: string,
@@ -18,7 +26,7 @@ export function useSmtpSettings(
 ) {
   const [smtp, setSmtp] = useState<SmtpSettings>({
     host: "", port: "587", username: "", password: "",
-    from_email: "", from_name: "", encryption: "starttls",
+    from_email: "", from_name: "", encryption: "starttls", timeout: "30",
   });
   const [smtpBusy, setSmtpBusy] = useState(false);
   const [smtpLoading, setSmtpLoading] = useState(true);
@@ -41,6 +49,7 @@ export function useSmtpSettings(
           from_email: map["smtp_from_email"] || "",
           from_name: map["smtp_from_name"] || "",
           encryption: map["smtp_encryption"] || "starttls",
+          timeout: map["smtp_timeout"] || "30",
         });
       }
     } catch (e) {
@@ -50,36 +59,29 @@ export function useSmtpSettings(
     }
   }, [accessToken]);
 
-  const saveSmtpSingle = useCallback(async (key: string, value: string) => {
-    try {
-      await apiFetch(`/admin/v1/system/settings/${key}`, {
-        method: "PUT",
-        body: JSON.stringify({ value }),
-      }, accessToken);
-    } catch (e) {
-      notifyError?.((e as Error).message);
-    }
-  }, [accessToken, notifyError]);
-
+  /// Batch save — sends all changed settings in one API call instead of N.
   const saveSmtp = useCallback(async (updates: Partial<SmtpSettings>) => {
     setSmtpBusy(true);
     try {
-      const keys: Record<string, string> = {
-        host: "smtp_host", port: "smtp_port", username: "smtp_username",
-        password: "smtp_password", from_email: "smtp_from_email",
-        from_name: "smtp_from_name", encryption: "smtp_encryption",
-      };
-      for (const [field, val] of Object.entries(updates)) {
-        const key = keys[field];
-        if (key && val !== undefined) {
-          await apiFetch(`/admin/v1/system/settings/${key}`, {
-            method: "PUT",
-            body: JSON.stringify({ value: String(val) }),
-          }, accessToken);
-        }
+      const settings = Object.entries(updates)
+        .filter(([, val]) => val !== undefined)
+        .map(([field, val]) => ({
+          key: KEYS[field],
+          value: String(val),
+        }))
+        .filter(s => s.key);
+      if (settings.length === 0) return;
+      const r = await apiFetch("/admin/v1/system/settings/batch", {
+        method: "PUT",
+        body: JSON.stringify({ settings }),
+      }, accessToken);
+      if (r.ok) {
+        setSmtp(prev => ({ ...prev, ...updates }));
+        notifySucc?.("SMTP settings saved");
+      } else {
+        const d = await r.json().catch(() => ({}));
+        notifyError?.(d.message || "Failed to save SMTP settings");
       }
-      setSmtp(prev => ({ ...prev, ...updates }));
-      notifySucc?.("SMTP settings saved");
     } catch (e) {
       notifyError?.((e as Error).message);
     } finally {
@@ -107,5 +109,26 @@ export function useSmtpSettings(
     }
   }, [accessToken, smtp.from_email, notifySucc, notifyError]);
 
-  return { smtp, setSmtp, smtpBusy, smtpLoading, loadSmtp, saveSmtp, testSmtp };
+  /// Verify SMTP connectivity without sending an email.
+  const verifySmtp = useCallback(async () => {
+    setSmtpBusy(true);
+    try {
+      const r = await apiFetch("/admin/v1/system/smtp/verify", {
+        method: "POST",
+        body: JSON.stringify({}),
+      }, accessToken);
+      const d = await r.json();
+      if (r.ok) {
+        notifySucc?.(d.message || "SMTP connection verified");
+      } else {
+        notifyError?.(d.message || "SMTP verification failed");
+      }
+    } catch (e) {
+      notifyError?.((e as Error).message);
+    } finally {
+      setSmtpBusy(false);
+    }
+  }, [accessToken, notifySucc, notifyError]);
+
+  return { smtp, setSmtp, smtpBusy, smtpLoading, loadSmtp, saveSmtp, testSmtp, verifySmtp };
 }
