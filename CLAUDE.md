@@ -12,7 +12,7 @@ Gateway (OpenResty :80) ──► Frontend (Next.js :3000)
                                                     ──► Redis
 ```
 
-- **Backend** (`backend/`): Rust `axum` server. Source split across `main.rs` (entry), `lib.rs` (router/setup), `handlers/` (~20 files), `types/` (domain-specific structs), `auth.rs` (middleware/RBAC). MySQL tables auto-created on startup. Redis caches rule detail reads (prefix `rule:`, TTL 300s by default). Notification system dispatches events via `spawn_audit_log` → `notify_pref_users` → `notifications` table.
+- **Backend** (`backend/`): Rust `axum` server. Source split across `main.rs` (entry), `lib.rs` (router/setup), `handlers/` (25+ files), `types/` (domain-specific structs), `auth.rs` (middleware/RBAC). MySQL tables auto-created on startup. Redis caches rule detail reads (prefix `rule:`, TTL 300s by default). Notification system dispatches events via `spawn_audit_log` → `notify_pref_users` → `notifications` table.
 - **Frontend** (`frontend/`): Next.js 14 App Router SPA. Auth via NextAuth credentials provider. Uses Tailwind CSS 4, `lucide-react` icons, and a custom `i18n.tsx` context (zh/en).
 - **Gateway** (`infra/openresty/`): OpenResty reverse proxy. Routes `/api/*` to backend, `/api/auth/*` to frontend, and `/` to frontend. Per-IP rate limiting at 120 r/s with burst 240 on `/api/` paths.
 - **Infra**: MySQL init script at `infra/mysql/init/`.
@@ -79,7 +79,7 @@ backend/src/
 │   ├── infrastructure.rs ← rate_limit_configs, llm_*, circuit_breakers, protocol_configs, data_classifications, plugin_configs
 │   └── seeds.rs   ← seed_* functions for default data
 ├── auth.rs        ← AuthContext, middleware, RBAC, JWT, AppError
-├── types/         ← Request/response structs, split by domain (rule, api_key, rate_limit, metrics, approval, llm, user, system, validation, permission_template)
+├── types/         ← Request/response structs, split by domain (rule, api_key, rate_limit, metrics, approval, llm, user, system, validation, notification, permission_template)
 ├── handlers/      ← HTTP handlers, ONE file per domain entity
 └── engine/        ← Pure business logic, ZERO HTTP dependencies
 ```
@@ -307,8 +307,10 @@ frontend/
 │   ├── layout.tsx                  ← Root layout
 │   ├── providers.tsx               ← NextAuth SessionProvider
 │   ├── i18n.tsx                    ← useI18n() context hook
+│   ├── theme.tsx                   ← Theme provider (light/dark)
 │   ├── globals.css
-│   └── api/auth/[...nextauth]/route.ts
+│   ├── api/auth/[...nextauth]/route.ts
+│   └── api/proxy/[...path]/route.ts ← LLM proxy passthrough
 ├── lib/
 │   ├── api.ts                      ← endpoint(), apiFetch(), getApiToken(), GET response TTL cache + in-flight dedup
 │   ├── swr.ts                      ← swrFetcher(), swrConfig, swrTTL() helpers
@@ -316,73 +318,88 @@ frontend/
 │   ├── types.ts                    ← All shared TypeScript interfaces
 │   ├── permissions.ts              ← Role/Permission enums, hasPermission(), canAccessMenu(). Mirrors backend auth.rs.
 │   └── utils.ts                    ← parseJson, formatRenames, fmtRelativeExpiry, etc.
+├── types/
+│   └── next-auth.d.ts              ← NextAuth type augmentations
 ├── hooks/
 │   ├── useNotification.ts          ← Toast notification state (27 lines)
-│   ├── useRules.ts                 ← Rules CRUD + versions + diff (286 lines)
-│   ├── usePlayground.ts            ← Playground entries + transform (149 lines)
-│   ├── useApiKeys.ts               ← API Keys CRUD + toggle/delete (117 lines)
-│   ├── useRateLimits.ts            ← Rate Limits CRUD (143 lines)
+│   ├── useRules.ts                 ← Rules CRUD + versions + diff (313 lines)
+│   ├── usePlayground.ts            ← Playground entries + transform (169 lines)
+│   ├── useApiKeys.ts               ← API Keys CRUD + toggle/delete (119 lines)
+│   ├── useRateLimits.ts            ← Rate Limits CRUD (145 lines)
 │   ├── useApiBuilder.ts            ← API Builder: rule CRUD + data entries + presets (216 lines)
-│   ├── useProducts.ts              ← Products CRUD + status toggle + search + rule loader (72 lines)
-│   ├── useSubscriptions.ts         ← Subscriptions CRUD + lifecycle + usage (136 lines)
-│   ├── useDashboard.ts             ← Metrics, AuditLog, Approvals, Analytics hooks (188 lines)
-│   ├── useAdvanced.ts              ← Re-exports all advanced hooks (7 lines)
-│   ├── useCircuitBreakers.ts       ← Circuit breakers CRUD (95 lines)
-│   ├── useProtocols.ts             ← Protocols CRUD (80 lines)
-│   ├── useClassifications.ts       ← Data classifications CRUD (85 lines)
-│   ├── usePlugins.ts               ← Plugins CRUD (84 lines)
-│   ├── useLlmGateway.ts            ← LLM Gateway: providers, templates, routing (177 lines)
-│   ├── usePortal.ts                 ← Portal data: catalog, my keys, subscriptions, usage (159 lines)
-│   ├── useUserProfile.ts           ← User profile hook (257 lines)
-│   ├── usePermissionTemplates.ts   ← Permission templates CRUD (~105 lines)
-│   └── useUsers.ts                 ← User management CRUD hook (138 lines)
+│   ├── useProducts.ts              ← Products CRUD + status toggle + search + rule loader (83 lines)
+│   ├── useSubscriptions.ts         ← Subscriptions CRUD + lifecycle + usage (147 lines)
+│   ├── useDashboard.ts             ← Metrics, AuditLog, Approvals, Analytics hooks (262 lines)
+│   ├── useAdvanced.ts              ← Re-exports all advanced hooks (6 lines)
+│   ├── useCircuitBreakers.ts       ← Circuit breakers CRUD (87 lines)
+│   ├── useProtocols.ts             ← Protocols CRUD (87 lines)
+│   ├── useClassifications.ts       ← Data classifications CRUD (94 lines)
+│   ├── usePlugins.ts               ← Plugins CRUD (87 lines)
+│   ├── useLlmGateway.ts            ← LLM Gateway: providers, templates, routing (178 lines)
+│   ├── usePortal.ts                ← Portal data: catalog, my keys, subscriptions, usage (207 lines)
+│   ├── useUserProfile.ts           ← User profile hook (253 lines)
+│   ├── usePermissionTemplates.ts   ← Permission templates CRUD (117 lines)
+│   ├── useUsers.ts                 ← User management CRUD hook (153 lines)
+│   ├── useSystemSettings.ts        ← System settings hook (54 lines)
+│   ├── useApiData.ts               ← SWR-based data fetching utilities (34 lines)
+│   ├── useNotifications.ts         ← Notification polling + read state (97 lines)
+│   ├── useOpenApi.ts               ← OpenAPI spec generation hook (130 lines)
+│   └── useSmtpSettings.ts          ← SMTP settings hook (111 lines)
 ├── components/
 │   ├── layout/
-│   │   ├── Navbar.tsx              ← Top bar: health + lang + user + hamburger (175 lines)
-│   │   ├── Sidebar.tsx             ← Menu + quick stats + mobile drawer (140 lines)
+│   │   ├── Navbar.tsx              ← Top bar: health + lang + user + hamburger (201 lines)
+│   │   ├── Sidebar.tsx             ← Menu + quick stats + mobile drawer (171 lines)
 │   │   └── MainContentRouter.tsx   ← Tab router delegating to feature panels (325 lines)
 │   ├── ui/
-│   │   └── Toast.tsx               ← Notification toast with auto-dismiss (52 lines)
+│   │   ├── Toast.tsx               ← Notification toast with auto-dismiss (52 lines)
+│   │   ├── CodeBlock.tsx           ← Syntax-highlighted code display (73 lines)
+│   │   └── ErrorBoundary.tsx       ← React error boundary (50 lines)
 │   └── features/
 │       ├── DashboardPanel.tsx      ← KPI cards (89 lines)
-│       ├── RulesPanel.tsx          ← Rule library + editor form (181 lines)
-│       ├── VersionsPanel.tsx       ← Rollback + diff visualizer (106 lines)
-│       ├── PlaygroundPanel.tsx     ← Data entries + batch transform + expr eval (176 lines)
-│       ├── ApiBuilderPanel.tsx     ← No-code rule CRUD + data entries assembler (~80 lines)
-│       ├── ApiBuilderPresetsBar.tsx     ← Saved preset tags (~30 lines)
-│       ├── ApiBuilderRuleSection.tsx    ← Rule selector + CRUD form (~130 lines)
+│       ├── RulesPanel.tsx          ← Rule library + editor form (187 lines)
+│       ├── VersionsPanel.tsx       ← Rollback + diff visualizer (339 lines)
+│       ├── PlaygroundPanel.tsx     ← Data entries + batch transform + expr eval (376 lines)
+│       ├── ApiBuilderPanel.tsx     ← No-code rule CRUD + data entries assembler (105 lines)
+│       ├── ApiBuilderPresetsBar.tsx     ← Saved preset tags (24 lines)
+│       ├── ApiBuilderRuleSection.tsx    ← Rule selector + CRUD form (233 lines)
 │       ├── ApiBuilderEntriesSection.tsx ← Data entries + transform (514 lines, justify: form+logic)
 │       ├── ApiKeysPanel.tsx        ← API key create/list/toggle/delete (462 lines, justify: create+list)
 │       ├── RateLimitsPanel.tsx     ← Rate limit create/list/toggle/delete (103 lines)
-│       ├── ApprovalsPanel.tsx      ← Approval workflow (172 lines)
-│       ├── AnalyticsPanel.tsx      ← KPI + bar chart + top APIs + status dist (159 lines)
-│       ├── AuditLogPanel.tsx       ← Audit log table (71 lines)
-│       ├── OpenApiPanel.tsx        ← Generate + import OpenAPI specs (165 lines)
-│       ├── LlmGatewayPanel.tsx     ← LLM proxy + providers + templates (267 lines)
-│       ├── AdvancedPanel.tsx       ← Tab router for advanced features (95 lines)
+│       ├── ApprovalsPanel.tsx      ← Approval workflow (308 lines)
+│       ├── AnalyticsPanel.tsx      ← KPI + bar chart + top APIs + status dist (175 lines)
+│       ├── AuditLogPanel.tsx       ← Audit log table (72 lines)
+│       ├── OpenApiPanel.tsx        ← Generate + import OpenAPI specs (93 lines)
+│       ├── LlmGatewayPanel.tsx     ← LLM proxy + providers + templates (278 lines)
+│       ├── AdvancedPanel.tsx       ← Tab router for advanced features (109 lines)
 │       ├── AdvancedProductsTab.tsx      ← Products CRUD + search + tags + toggle (237 lines)
-│       ├── AdvancedSubscriptionsTab.tsx ← Subscriptions CRUD + lifecycle + usage (290 lines)
+│       ├── AdvancedSubscriptionsTab.tsx ← Subscriptions CRUD + lifecycle + usage (300 lines)
 │       ├── SubscriptionPlanSelect.tsx   ← Dynamic plan selector from product tiers (25 lines)
 │       ├── ProductFormWidgets.tsx       ← RuleSelector, StatusMenu, TagChips (95 lines)
-│       ├── AdvancedCircuitBreakersTab.tsx ← Circuit breakers CRUD (93 lines)
-│       ├── AdvancedProtocolsTab.tsx    ← Protocols CRUD (80 lines)
-│       ├── AdvancedClassificationsTab.tsx ← Data classifications CRUD (85 lines)
-│       ├── AdvancedPluginsTab.tsx      ← Plugins CRUD (84 lines)
-│       ├── PortalPanel.tsx         ← Tab router: Catalog, My Apps, Docs (85 lines)
-│       ├── PortalCatalogTab.tsx    ← Product catalog with search + tag filters + pricing cards (152 lines)
+│       ├── AdvancedCircuitBreakersTab.tsx ← Circuit breakers CRUD (94 lines)
+│       ├── AdvancedProtocolsTab.tsx    ← Protocols CRUD (124 lines)
+│       ├── AdvancedClassificationsTab.tsx ← Data classifications CRUD (118 lines)
+│       ├── AdvancedPluginsTab.tsx      ← Plugins CRUD (139 lines)
+│       ├── PortalPanel.tsx         ← Tab router: Catalog, My Apps, Docs (90 lines)
+│       ├── PortalCatalogTab.tsx    ← Product catalog with search + tag filters + pricing cards (257 lines)
 │       ├── PortalMyAppsTab.tsx     ← My keys, subscriptions, usage dashboard + key request form (148 lines)
-│       ├── PortalDocsTab.tsx       ← Integration quick start guide with 5-step walkthrough (57 lines)
+│       ├── PortalDocsTab.tsx       ← Integration quick start guide with 5-step walkthrough (113 lines)
+│       ├── PortalProductDocsView.tsx    ← Per-product API documentation viewer (250 lines)
+│       ├── PricingTierEditor.tsx        ← Tier pricing inline editor (77 lines)
+│       ├── ProductDetailPanel.tsx       ← Product detail view + tier management (162 lines)
 │       ├── ManualPanel.tsx         ← Full user manual (404 lines)
-│       ├── UserCenterPanel.tsx     ← Tab router for user center (210 lines)
+│       ├── UserCenterPanel.tsx     ← Tab router for user center (259 lines)
 │       ├── UserProfileTab.tsx      ← Profile info + avatar (66 lines)
 │       ├── UserSecurityTab.tsx     ← Password change (44 lines)
-│       ├── UserTotpTab.tsx         ← TOTP setup/verify/disable (78 lines)
+│       ├── UserTotpTab.tsx         ← TOTP setup/verify/disable (153 lines)
 │       ├── UserSessionsTab.tsx     ← Active session list + revoke (53 lines)
-│       ├── UserLoginHistoryTab.tsx ← Login history table (53 lines)
-│       ├── UserPreferencesTab.tsx  ← Theme/lang/notification prefs (82 lines)
-│       ├── UserManagementPanel.tsx ← Tab router: Users + Permission Templates (~68 lines)
-│       ├── UserManagementUsersTab.tsx ← User CRUD table + inline edit (~240 lines)
-│       └── UserManagementPermissionsTab.tsx ← Permission template CRUD (~180 lines)
+│       ├── UserLoginHistoryTab.tsx ← Login history table (57 lines)
+│       ├── UserPreferencesTab.tsx  ← Theme/lang/notification prefs (99 lines)
+│       ├── UserManagementPanel.tsx ← Tab router: Users + Permission Templates (72 lines)
+│       ├── UserManagementUsersTab.tsx ← User CRUD table + inline edit (277 lines)
+│       ├── UserManagementPermissionsTab.tsx ← Permission template CRUD (189 lines)
+│       ├── LoginPage.tsx           ← Login form + auth flow (319 lines)
+│       ├── NotificationCenter.tsx  ← Bell dropdown with unread badges + mark-read (173 lines)
+│       └── SystemSettingsPanel.tsx ← System settings CRUD panel (223 lines)
 ```
 
 ### Frontend patterns
@@ -400,29 +417,31 @@ frontend/
 ```
 backend/src/
 ├── main.rs              ← 4 lines. #[tokio::main] entry point.
-├── lib.rs               ← 249 lines. Module declarations, pub use, run(), router assembly, health checks.
-├── config.rs            ← 85 lines. AppState, Settings, AuthSettings, env parsing, CORS, tracing.
+├── lib.rs               ← 248 lines. Module declarations, pub use, run(), router assembly, health checks.
+├── config.rs            ← 88 lines. AppState, Settings, AuthSettings, env parsing, CORS, tracing.
 ├── db/                  ← Database bootstrap modules
 │   ├── mod.rs           ← Entry point, bootstrap_schema()
-│   ├── auth.rs          ← Users, sessions, history, TOTP, devices, templates schema (124 lines)
-│   ├── infrastructure.rs ← Rate limits, LLM, circuit breakers, protocols, classifications, plugins (115 lines)
-│   ├── metrics.rs       ← Metrics ingest and summary schema (29 lines)
-│   ├── products.rs      ← Products and subscriptions schema (41 lines)
-│   ├── rules.rs         ← Rules, versions, approvals schema (47 lines)
-│   ├── system.rs        ← Settings, audit logs, notifications schema (38 lines)
-│   └── seeds.rs         ← Initial data seeding (423 lines)
-├── auth.rs              ← 438 lines. AuthContext, middleware, JWT, RBAC, permissions. Also defines AppError.
+│   ├── auth.rs          ← Users, sessions, history, TOTP, devices, templates schema (146 lines)
+│   ├── infrastructure.rs ← Rate limits, LLM, circuit breakers, protocols, classifications, plugins (145 lines)
+│   ├── metrics.rs       ← Metrics ingest and summary schema (28 lines)
+│   ├── products.rs      ← Products and subscriptions schema (60 lines)
+│   ├── rules.rs         ← Rules, versions, approvals schema (70 lines)
+│   ├── system.rs        ← Settings, audit logs, notifications schema (42 lines)
+│   └── seeds.rs         ← Initial data seeding (413 lines)
+├── auth.rs              ← 398 lines. AuthContext, middleware, JWT, RBAC, permissions. Also defines AppError.
 ├── types/               ← Request/response structs, split by domain. All under 500 lines.
 │   ├── mod.rs           ← Re-exports all sub-modules.
-│   ├── rule.rs          ← TransformRule, GrayRelease, ConditionalRule, Pagination, all rule request/response types (350 lines).
+│   ├── rule.rs          ← TransformRule, GrayRelease, ConditionalRule, Pagination, all rule request/response types (361 lines).
 │   ├── api_key.rs       ← API key types (80 lines).
 │   ├── validation.rs    ← ValidateRequest, ValidationResult, ValidationErrorDetail (29 lines).
 │   ├── rate_limit.rs    ← Rate limit types + defaulters (106 lines).
-│   ├── metrics.rs       ← IngestMetrics, Analytics, TopApi, MetricsOverview types (~99 lines).
+│   ├── metrics.rs       ← IngestMetrics, Analytics, TopApi, MetricsOverview types (98 lines).
 │   ├── approval.rs      ← Approval types (60 lines).
 │   ├── llm.rs           ← LLM Gateway types + defaulters (87 lines).
-│   ├── user.rs          ← Login, User, Session, LoginHistory, TOTP, Preferences types (161 lines).
-│   └── system.rs        ← SystemSettingItem, UpdateSettingRequest (17 lines).
+│   ├── user.rs          ← Login, User, Session, LoginHistory, TOTP, Preferences types (190 lines).
+│   ├── system.rs        ← SystemSettingItem, UpdateSettingRequest (23 lines).
+│   ├── notification.rs  ← Notification types (41 lines).
+│   └── permission_template.rs ← Permission template types (41 lines).
 ├── engine/              ← Business logic + infrastructure orchestration tasks.
 │   ├── mod.rs
 │   ├── transform.rs     ← apply_transform, transform_payload, transform_object, apply_conditional_rules, mask_value (zero deps)
@@ -432,7 +451,10 @@ backend/src/
 │   ├── validation.rs    ← validate_json, validate_rule_request, validate_transform_rule (zero deps)
 │   ├── openapi.rs       ← build_openapi_spec, build_overlay_spec, derive_schemas_from_rule (zero deps)
 │   ├── crypto.rs        ← generate_api_key, key_hash (zero deps)
-│   └── metrics.rs       ← run_metrics_flusher, run_metrics_aggregator, run_metrics_retention, cache_analytics, get_cached_analytics (has DB/Redis deps)
+│   ├── metrics.rs       ← run_metrics_flusher, run_metrics_aggregator, run_metrics_retention, cache_analytics, get_cached_analytics (has DB/Redis deps)
+│   ├── notify.rs        ← notify_pref_users, notification dispatch by user preference (has DB deps)
+│   ├── retention.rs     ← run_data_retention, configurable TTL-based cleanup tasks (has DB deps)
+│   └── risk.rs          ← risk score calculation, anomaly detection (has DB deps)
 └── handlers/             ← HTTP handlers, one file per domain entity
     ├── mod.rs
     ├── common.rs         ← Shared utilities (251 lines)
@@ -445,11 +467,11 @@ backend/src/
     ├── metrics.rs        ← ingest_metrics, get_analytics, get_dashboard (281 lines)
     ├── audit.rs          ← list_audit_logs (56 lines)
     ├── notifications.rs  ← my notifications handlers (152 lines)
-    ├── auth_user.rs      ← login, my profile, password (me) (228 lines)
-    ├── user_management.rs ← list_users, CRUD users (202 lines)
-    ├── totp.rs           ← TOTP setup/verify/disable/status (173 lines)
-    ├── user_sessions.rs  ← session, login history, device handlers (123 lines)
-    ├── user_preferences.rs ← preferences handlers (71 lines)
+    ├── auth_user.rs      ← login, my profile, password (me) (224 lines)
+    ├── user_management.rs ← list_users, CRUD users (211 lines)
+    ├── totp.rs           ← TOTP setup/verify/disable/status (160 lines)
+    ├── user_sessions.rs  ← session, login history, device handlers (139 lines)
+    ├── user_preferences.rs ← preferences handlers (90 lines)
     ├── products.rs       ← products CRUD (349 lines)
     ├── subscriptions.rs  ← subscriptions CRUD (435 lines, justify: coarse domain)
     ├── circuit_breakers.rs ← circuit breaker CRUD (133 lines)
@@ -477,10 +499,17 @@ The `engine/` module contains business logic functions extracted from `handlers.
 | `openapi.rs` | build_openapi_spec (zero deps) |
 | `crypto.rs` | generate_api_key, key_hash (zero deps) |
 | `metrics.rs` | Background tasks: `run_metrics_flusher` (Redis→MySQL), `run_metrics_aggregator` (hourly rollup), `run_metrics_retention` (30-day purge), `get_cached_analytics`/`cache_analytics` (Redis). Has DB/Redis deps — these are infrastructure orchestration, not business logic. |
+| `notify.rs` | Notification dispatch: `notify_pref_users` matches audit actions to notification types → checks user preferences → inserts into `notifications` table. Has DB deps. |
+| `retention.rs` | Data retention: `run_data_retention` — configurable TTL-based cleanup of old audit logs, notifications, and metrics. Has DB deps. |
+| `risk.rs` | Risk scoring engine: calculates risk scores for API calls based on anomaly detection, rate limit proximity, and data classification sensitivity. Has DB/Redis deps. |
 
 Pure logic files (transform, expression, gray_release, diff, validation, openapi, crypto):
 - Have ZERO dependencies on HTTP (axum), database (sqlx), or Redis
 - Can be unit-tested without mocking any infrastructure
+
+Infrastructure files (metrics, notify, retention, risk):
+- Have DB and/or Redis dependencies for stateful operations
+- Are infrastructure orchestration, not pure business logic
 
 When adding new transform/validation/expression logic, add it to the appropriate engine file, NOT to handlers.
 
@@ -502,7 +531,7 @@ When adding new transform/validation/expression logic, add it to the appropriate
 **Frontend role gating**: The frontend implements role-based UI hiding via `lib/permissions.ts`. `canAccessMenu(role, menuId)` filters the Sidebar, and individual panels receive `canManage` / `canWrite` props to hide action buttons. Non-admin users never see buttons for operations they cannot perform. This prevents the poor UX of clickable buttons that result in 403 errors.
 - **Database**: MySQL tables auto-created on startup in `db::bootstrap_schema()`: `rule_configs`, `rule_versions`, `audit_logs`, `api_keys`, `rate_limit_configs`, `metrics_ingest`, `metrics_hourly_summary`, `approvals`, `llm_providers`, `prompt_templates`, `llm_usage_logs`, `api_products`, `subscriptions`, `circuit_breakers`, `protocol_configs`, `data_classifications`, `plugin_configs`, `users`, `user_sessions`, `login_history`, `user_totp`, `system_settings`. Redis caches: rule detail reads (prefix `rule:`, TTL 300s), rules metadata Hash `rules:meta` (HGETALL for list_rules), analytics aggregates (prefix `analytics:agg`, TTL 300s), metrics buffer list `metrics:buffer`.
 - **Error handling**: `AppError` enum in `auth.rs` implements `IntoResponse`, mapped to appropriate HTTP status codes.
-- **Audit**: All mutating operations across all 12 handler modules write to `audit_logs` table via fire-and-forget `spawn_audit_log()` (wraps `write_audit_log()` in `tokio::spawn` to avoid adding I/O latency to the critical path).
+- **Audit**: All mutating operations across all 25+ handler modules write to `audit_logs` table via fire-and-forget `spawn_audit_log()` (wraps `write_audit_log()` in `tokio::spawn` to avoid adding I/O latency to the critical path).
 - **Notifications**: `spawn_audit_log()` in `common.rs` also dispatches notifications by matching audit action strings → notification types → user preference paths. `notify_pref_users()` in `engine/notify.rs` iterates active users and inserts into the `notifications` table for those with the corresponding preference enabled. Notification type mapping:
 
 | Audit Action(s) | Notif Type | Channel | Preference Path(s) |
