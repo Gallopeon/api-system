@@ -107,32 +107,6 @@ pub fn decrypt_password(stored: &str, jwt_secret: &str) -> String {
     String::from_utf8(decrypted).unwrap_or_default()
 }
 
-/// Migrate any plaintext smtp_password to encrypted form. Called at startup.
-pub async fn migrate_plaintext_passwords(pool: &sqlx::MySqlPool, jwt_secret: &str) {
-    let raw = match sqlx::query_scalar::<_, String>(
-        "SELECT setting_value FROM system_settings WHERE setting_key = 'smtp_password' AND setting_value != ''"
-    ).fetch_optional(pool).await {
-        Ok(Some(v)) => v,
-        _ => return,
-    };
-    if is_encrypted(&raw) {
-        return;
-    }
-    let encrypted = encrypt_password(&raw, jwt_secret);
-    if encrypted.is_empty() {
-        return;
-    }
-    match sqlx::query(
-        "UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = 'smtp_password'"
-    ).bind(&encrypted).execute(pool).await {
-        Ok(r) if r.rows_affected() > 0 => {
-            tracing::info!("migrated smtp_password from plaintext to encrypted");
-        }
-        Ok(_) => {}
-        Err(e) => tracing::error!(error = %e, "failed to migrate smtp_password"),
-    }
-}
-
 /// Derive a deterministic key stream from the JWT secret.
 fn derive_key_stream(secret: &str, len: usize) -> Vec<u8> {
     let mut stream = Vec::with_capacity(len);

@@ -41,9 +41,6 @@ pub async fn run() -> anyhow::Result<()> {
 
     bootstrap_schema(&pool).await?;
 
-    // Migrate any plaintext passwords to encrypted form (runs once on first startup after upgrade)
-    engine::migrate_plaintext_passwords(&pool, &settings.jwt_secret).await;
-
     let redis = redis::Client::open(settings.redis_url.clone())?;
     let state = Arc::new(AppState {
         pool: pool.clone(), redis: redis.clone(),
