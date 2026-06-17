@@ -89,21 +89,48 @@ pub fn encrypt_password(plaintext: &str, jwt_secret: &str) -> String {
     format!("{}{}", ENC_PREFIX, data_encoding::BASE64.encode(&encrypted))
 }
 
-/// Decrypt a password read from storage. Handles both encrypted and legacy plaintext values.
+/// Decrypt a password read from storage.
 pub fn decrypt_password(stored: &str, jwt_secret: &str) -> String {
     if stored.is_empty() {
         return String::new();
     }
     let Some(encoded) = stored.strip_prefix(ENC_PREFIX) else {
-        // Legacy plaintext value — return as-is (will be re-encrypted on next save)
-        return stored.to_string();
+        tracing::warn!("smtp_password is not encrypted (missing enc:v1: prefix); will not use");
+        return String::new();
     };
     let Ok(encrypted) = data_encoding::BASE64.decode(encoded.as_bytes()) else {
+        tracing::warn!("smtp_password failed to decode base64");
         return String::new();
     };
     let key_stream = derive_key_stream(jwt_secret, encrypted.len());
     let decrypted: Vec<u8> = encrypted.iter().zip(key_stream.iter()).map(|(e, k)| e ^ k).collect();
     String::from_utf8(decrypted).unwrap_or_default()
+}
+
+/// Migrate any plaintext smtp_password to encrypted form. Called at startup.
+pub async fn migrate_plaintext_passwords(pool: &sqlx::MySqlPool, jwt_secret: &str) {
+    let raw = match sqlx::query_scalar::<_, String>(
+        "SELECT setting_value FROM system_settings WHERE setting_key = 'smtp_password' AND setting_value != ''"
+    ).fetch_optional(pool).await {
+        Ok(Some(v)) => v,
+        _ => return,
+    };
+    if is_encrypted(&raw) {
+        return;
+    }
+    let encrypted = encrypt_password(&raw, jwt_secret);
+    if encrypted.is_empty() {
+        return;
+    }
+    match sqlx::query(
+        "UPDATE system_settings SET setting_value = ?, updated_at = NOW() WHERE setting_key = 'smtp_password'"
+    ).bind(&encrypted).execute(pool).await {
+        Ok(r) if r.rows_affected() > 0 => {
+            tracing::info!("migrated smtp_password from plaintext to encrypted");
+        }
+        Ok(_) => {}
+        Err(e) => tracing::error!(error = %e, "failed to migrate smtp_password"),
+    }
 }
 
 /// Derive a deterministic key stream from the JWT secret.
