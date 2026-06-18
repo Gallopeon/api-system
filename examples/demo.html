@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API Control Plane — Rule Examples Demo</title>
+<style>
+:root{--bg:#0f172a;--card:#1e293b;--code:#020617;--text:#e2e8f0;--muted:#94a3b8;--border:#334155;--blue:#3b82f6;--green:#22c55e;--orange:#f59e0b;--red:#ef4444;--purple:#8b5cf6;--cyan:#06b6d4;--pink:#ec4899}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+header{background:linear-gradient(135deg,#1e3a5f,#4c1d95);padding:1.5rem;text-align:center}
+header h1{font-size:1.5rem;margin-bottom:.25rem}
+header p{opacity:.8;font-size:.85rem}
+.toolbar{position:sticky;top:0;z-index:100;background:var(--card);border-bottom:1px solid var(--border);padding:.75rem 1.5rem;display:flex;gap:.5rem;align-items:center;flex-wrap:wrap}
+.toolbar button,.toolbar input,.toolbar select{padding:.4rem .75rem;border-radius:6px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;font-size:.8rem}
+.toolbar button:hover{border-color:var(--blue);color:var(--blue)}
+.toolbar button.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+.toolbar input{width:200px;background:var(--code);font-family:monospace;font-size:.75rem}
+.toolbar select{min-width:100px}
+main{max-width:1000px;margin:0 auto;padding:1rem}
+.totals{display:flex;gap:.75rem;flex-wrap:wrap;margin-bottom:1rem}
+.totals .t{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:.75rem 1rem;text-align:center;min-width:100px}
+.totals .n{font-size:1.5rem;font-weight:700;color:var(--blue)}
+.totals .l{font-size:.65rem;color:var(--muted)}
+.rule-card{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:1.25rem;margin-bottom:1rem}
+.rule-card h2{font-size:1.1rem;margin-bottom:.25rem}
+.rule-card .meta{color:var(--muted);font-size:.75rem;margin-bottom:.75rem}
+.pipeline{display:flex;flex-wrap:wrap;gap:.35rem;margin:.75rem 0}
+.pipeline .s{padding:.25rem .55rem;border-radius:4px;font-size:.65rem;font-weight:600}
+.pipeline .wl{background:#1e3a5f;color:#93c5fd}
+.pipeline .rn{background:#3b1f70;color:#c4b5fd}
+.pipeline .mk{background:#422006;color:#fbbf24}
+.pipeline .cp{background:#052e16;color:#6ee7b7}
+.pipeline .cd{background:#4a1525;color:#fda4af}
+.pipeline .gr{background:#122e3a;color:#67e8f9}
+.pipeline .pg{background:#3a1525;color:#f9a8d4}
+.pipeline .vl{background:#2d1b52;color:#c4b5fd}
+.section{margin:.75rem 0}
+.section h3{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-bottom:.35rem}
+.tags{display:flex;flex-wrap:wrap;gap:.25rem}
+.tag{padding:.2rem .5rem;border-radius:999px;font-size:.65rem;font-family:monospace;background:#1e3a5f;color:#93c5fd}
+.tag.mk{background:#422006;color:var(--orange)}
+.tag.cd{background:#052e16;color:var(--green)}
+.cond-list{display:flex;flex-direction:column;gap:.4rem}
+.cond-item{background:#052e16;border:1px solid rgba(34,197,94,.2);border-radius:6px;padding:.6rem;font-size:.75rem}
+.cond-item .when{font-family:monospace;color:var(--green);font-weight:600}
+.cond-item .action{color:var(--muted);font-size:.7rem}
+.cond-item .action code{color:var(--blue)}
+.gray-variants{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+.gray-var{background:rgba(139,92,246,.1);border-radius:6px;padding:.6rem;font-size:.75rem}
+.gray-var .vn{font-weight:700;color:var(--purple)}
+.gray-var .vw{color:var(--muted);font-size:.65rem}
+.demo-panel{background:var(--card);border:2px solid var(--purple);border-radius:10px;padding:1.25rem;margin-top:1.5rem}
+.demo-panel h2{font-size:1.1rem;margin-bottom:.75rem}
+.demo-grid{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+@media(max-width:640px){.demo-grid{grid-template-columns:1fr}}
+.code-box{background:var(--code);border-radius:6px;overflow:hidden}
+.code-box .ttl{padding:.3rem .6rem;font-size:.65rem;font-weight:600;background:rgba(255,255,255,.03);color:var(--muted)}
+.code-box pre,.code-box textarea{padding:.6rem;font-size:.7rem;color:var(--text);overflow:auto;max-height:250px;border:none;background:transparent;width:100%;font-family:monospace;resize:vertical;white-space:pre-wrap}
+.code-box textarea{outline:none}
+.btn-row{display:flex;gap:.4rem;margin:.5rem 0}
+.btn-row button{padding:.35rem .7rem;border-radius:5px;border:1px solid var(--border);background:var(--card);color:var(--text);cursor:pointer;font-size:.75rem}
+.btn-row button.run{background:var(--blue);color:#fff;border-color:var(--blue)}
+.btn-row button:hover{border-color:var(--blue)}
+#preview-out{background:var(--code);border-radius:6px;padding:.6rem;font-family:monospace;font-size:.7rem;color:var(--text);max-height:300px;overflow:auto;white-space:pre-wrap;min-height:60px}
+.error{color:var(--red)}
+.success{color:var(--green)}
+.loading{color:var(--muted);animation:pulse 1s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🏥⚡💬 API Control Plane — 规则示例展示 Demo</h1>
+  <p>医药 Healthcare + 社交 Social · 数据来源: 后端 API · 实时交互</p>
+</header>
+
+<div class="toolbar">
+  <button id="btn-all" class="active" onclick="filter('all')">📋 全部</button>
+  <button id="btn-healthcare" onclick="filter('healthcare')">🏥 医药</button>
+  <button id="btn-social" onclick="filter('social')">💬 社交</button>
+  <select id="rule-select" onchange="loadRuleDemo()" style="min-width:260px">
+    <option value="">-- 选择规则进行变换测试 --</option>
+  </select>
+  <button class="run" onclick="runTransform()" style="background:var(--green);color:#000;border-color:var(--green);font-weight:600">▶ 执行变换</button>
+</div>
+
+<main>
+  <div class="totals" id="totals"></div>
+  <div id="cards"></div>
+
+  <div class="demo-panel" id="demo-panel">
+    <h2>🧪 变换测试 Transform Tester</h2>
+    <div class="demo-grid">
+      <div>
+        <div class="code-box">
+          <div class="ttl">📥 输入数据 Input (JSON) — <button onclick="loadTestData()" style="font-size:.65rem;background:var(--purple);color:#fff;border:none;border-radius:4px;padding:.15rem .4rem;cursor:pointer">加载测试数据</button></div>
+          <textarea id="input-data" rows="10" spellcheck="false">{"records":[{"patient_id":"PT-001","name":"Zhang Wei","age":52,"phone":"13900001111","id_card":"310101197401015678","diagnosis":"STEMI","department":"cardiology","insurance_type":"premium","drug_allergies":["penicillin"],"vip_level":5,"billing_amount":125000}],"total_count":1,"current_page":1,"per_page":20}</textarea>
+        </div>
+        <div class="code-box" style="margin-top:.5rem">
+          <div class="ttl">🔧 流量上下文 Traffic Context (JSON)</div>
+          <textarea id="context-data" rows="3" spellcheck="false">{"role":"doctor","department":"cardiology"}</textarea>
+        </div>
+        <div class="code-box" style="margin-top:.5rem">
+          <div class="ttl">🎯 强制变体 Force Variant (可选)</div>
+          <input id="force-variant" placeholder="留空则自动分配 / empty=auto" style="width:100%;padding:.3rem;background:var(--code);color:var(--text);border:none;font-size:.7rem;font-family:monospace">
+        </div>
+      </div>
+      <div>
+        <div class="code-box">
+          <div class="ttl">📤 变换输出 Transform Output <span id="variant-info" style="color:var(--purple)"></span></div>
+          <pre id="preview-out"><span class="muted">选择规则并点击执行变换...</span></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+var TOKEN='';
+var RULES=[];
+var RULES_DATA={};
+var SCENE='all';
+
+function h(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
+
+function api(method,path,body){
+  return fetch('/'+path.replace(/^\//,''),{
+    method:method,headers:{
+      'Content-Type':'application/json',
+      'Authorization':'Bearer '+TOKEN
+    },body:body?JSON.stringify(body):undefined
+  }).then(function(r){return r.json()})
+}
+
+async function login(){
+  var r=await fetch('/admin/v1/auth/login',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({username:'admin',password:'admin'})
+  });
+  var d=await r.json();
+  TOKEN=d.token;
+  return TOKEN;
+}
+
+async function init(){
+  document.getElementById('preview-out').innerHTML='<span class="loading">连接API中...</span>';
+  await login();
+  document.getElementById('preview-out').innerHTML='<span class="success">已连接 ✓</span>';
+
+  // Load all rules
+  var list=await api('GET','admin/v1/rules');
+  RULES=list.items||[];
+  document.getElementById('preview-out').innerHTML='<span class="success">已加载 '+RULES.length+' 条规则 ✓</span>';
+
+  // Load each rule detail
+  for(var i=0;i<RULES.length;i++){
+    var detail=await api('GET','admin/v1/rules/'+RULES[i].id);
+    RULES_DATA[RULES[i].id]=detail;
+    RULES[i].scene=detail.api_path.indexOf('social')>=0?'social':'healthcare';
+  }
+  render();
+}
+
+function filter(s){
+  SCENE=s;
+  document.querySelectorAll('#btn-all,#btn-healthcare,#btn-social').forEach(function(b){b.classList.remove('active')});
+  document.getElementById('btn-'+s).classList.add('active');
+  render();
+}
+
+function render(){
+  var filtered=SCENE==='all'?RULES:RULES.filter(function(r){return r.scene===SCENE});
+
+  // Totals
+  var hc=0,sc=0,wl=0,rn=0,mk=0,cp=0,cd=0,gr=0,vl=0;
+  filtered.forEach(function(r){
+    var d=RULES_DATA[r.id];if(!d)return;
+    var c=d.config;
+    if(r.scene==='healthcare')hc++;else sc++;
+    wl+=(c.whitelist_fields||[]).length;
+    rn+=Object.keys(c.renames||{}).length;
+    mk+=(c.masked_fields||[]).length;
+    cp+=Object.keys(c.computed_literals||{}).length;
+    cd+=(c.conditional_rules||[]).length;
+    if(c.gray_release&&c.gray_release.enabled)gr++;
+    if(c.request_validation&&c.request_validation.enabled)vl++;
+    if(c.response_validation&&c.response_validation.enabled)vl++;
+  });
+  document.getElementById('totals').innerHTML=
+    '<div class="t"><div class="n">'+(hc+sc)+'</div><div class="l">规则 Rules</div></div>'+
+    '<div class="t"><div class="n">'+hc+'</div><div class="l">医药 Healthcare</div></div>'+
+    '<div class="t"><div class="n">'+sc+'</div><div class="l">社交 Social</div></div>'+
+    '<div class="t"><div class="n">'+wl+'</div><div class="l">白名单字段</div></div>'+
+    '<div class="t"><div class="n">'+cd+'</div><div class="l">条件规则</div></div>'+
+    '<div class="t"><div class="n">'+gr+'</div><div class="l">灰度发布</div></div>'+
+    '<div class="t"><div class="n">'+vl+'</div><div class="l">校验 Validations</div></div>';
+
+  // Cards
+  var html='';
+  filtered.forEach(function(r){
+    var d=RULES_DATA[r.id];if(!d)return;
+    var c=d.config;
+    var s=r.scene==='healthcare'?'🏥 医药':'💬 社交';
+
+    var pipe=[];
+    if((c.whitelist_fields||[]).length)pipe.push('<span class="s wl">✅ 白名单('+c.whitelist_fields.length+')</span>');
+    if(Object.keys(c.renames||{}).length)pipe.push('<span class="s rn">🔄 重命名('+Object.keys(c.renames).length+')</span>');
+    if((c.masked_fields||[]).length)pipe.push('<span class="s mk">🛡 掩码('+c.masked_fields.length+')</span>');
+    if(Object.keys(c.computed_literals||{}).length)pipe.push('<span class="s cp">📌 计算('+Object.keys(c.computed_literals).length+')</span>');
+    if((c.conditional_rules||[]).length)pipe.push('<span class="s cd">🔀 条件('+c.conditional_rules.length+')</span>');
+    if(c.gray_release&&c.gray_release.enabled)pipe.push('<span class="s gr">🧪 灰度('+c.gray_release.variants.length+')</span>');
+    if(c.pagination)pipe.push('<span class="s pg">📄 分页</span>');
+    if((c.request_validation&&c.request_validation.enabled)||(c.response_validation&&c.response_validation.enabled))pipe.push('<span class="s vl">✔ 校验</span>');
+
+    html+='<div class="rule-card">'+
+      '<h2>'+s+' — '+h(d.name)+'</h2>'+
+      '<div class="meta">'+h(d.api_path)+' · '+h(d.status)+' · v'+d.current_version+'</div>'+
+      '<div class="pipeline">'+pipe.join('')+'</div>';
+
+    // Whitelist fields
+    if((c.whitelist_fields||[]).length)html+='<div class="section"><h3>✅ 白名单 ('+c.whitelist_fields.length+' 字段)</h3><div class="tags">'+c.whitelist_fields.map(function(f){return '<span class="tag">'+h(f)+'</span>'}).join('')+'</div></div>';
+
+    // Renames
+    var renames=Object.keys(c.renames||{});
+    if(renames.length)html+='<div class="section"><h3>🔄 重命名映射</h3><div class="tags">'+renames.map(function(k){return '<span class="tag">'+h(k)+' → '+h(c.renames[k])+'</span>'}).join('')+'</div></div>';
+
+    // Masked
+    if((c.masked_fields||[]).length)html+='<div class="section"><h3>🛡 掩码字段</h3><div class="tags">'+c.masked_fields.map(function(f){return '<span class="tag mk">'+h(f)+'</span>'}).join('')+'</div></div>';
+
+    // Computed literals
+    var lit=Object.keys(c.computed_literals||{});
+    if(lit.length)html+='<div class="section"><h3>📌 计算字面量</h3><div class="tags">'+lit.map(function(k){return '<span class="tag">'+h(k)+'='+h(JSON.stringify(c.computed_literals[k]))+'</span>'}).join('')+'</div></div>';
+
+    // Conditional rules
+    if((c.conditional_rules||[]).length){
+      html+='<div class="section"><h3>🔀 条件规则 ('+c.conditional_rules.length+')</h3><div class="cond-list">';
+      c.conditional_rules.forEach(function(cr,i){
+        html+='<div class="cond-item"><div class="when">#'+(i+1)+' when: '+h(cr.when)+(cr.stop_after_match?' 🔒 stop':'')+'</div><div class="action">';
+        if(cr.add_literals&&Object.keys(cr.add_literals).length)html+='注入: <code>'+h(Object.keys(cr.add_literals).join(', '))+'</code> ';
+        if(cr.remove_fields&&cr.remove_fields.length)html+='移除: <code>'+h(cr.remove_fields.join(', '))+'</code> ';
+        if(cr.mask_fields&&cr.mask_fields.length)html+='掩码: <code>'+h(cr.mask_fields.join(', '))+'</code> ';
+        if(cr.rename_fields&&Object.keys(cr.rename_fields).length)html+='重命名: <code>'+h(Object.entries(cr.rename_fields).map(function(e){return e[0]+'→'+e[1]}).join(', '))+'</code> ';
+        html+='</div></div>';
+      });
+      html+='</div></div>';
+    }
+
+    // Gray release
+    if(c.gray_release&&c.gray_release.enabled){
+      html+='<div class="section"><h3>🧪 灰度发布 · bucket: '+h(c.gray_release.bucket_field)+'</h3><div class="gray-variants">';
+      (c.gray_release.variants||[]).forEach(function(v){
+        html+='<div class="gray-var"><div class="vn">🔹 '+h(v.name)+'</div><div class="vw">权重 '+v.weight+'%</div>';
+        if(v.overrides.whitelist_fields)html+='<div style="font-size:.65rem;margin-top:.2rem">白名单 +'+v.overrides.whitelist_fields.length+' 字段</div>';
+        if(v.overrides.renames)html+='<div style="font-size:.65rem">重命名 +'+Object.keys(v.overrides.renames).length+' 项</div>';
+        if(v.overrides.computed_literals)html+='<div style="font-size:.65rem">注入: '+h(Object.keys(v.overrides.computed_literals).join(', '))+'</div>';
+        html+='</div>';
+      });
+      html+='</div></div>';
+    }
+
+    // Pagination
+    if(c.pagination)html+='<div class="section"><h3>📄 分页模板</h3><div class="tags"><span class="tag">data_key→'+h(c.pagination.data_key)+'</span><span class="tag">total→'+h(c.pagination.total_field)+'</span><span class="tag">page→'+h(c.pagination.page_field)+'</span><span class="tag">page_size→'+h(c.pagination.page_size_field)+'</span></div></div>';
+
+    // Validation
+    if(c.request_validation&&c.request_validation.enabled)html+='<div class="section"><h3>✔ 请求校验 '+(c.request_validation.strict?'(Strict)':'(Loose)')+'</h3><div style="font-size:.7rem;color:var(--muted)">必填: <code>'+h((c.request_validation.required_fields||[]).join(', '))+'</code>'+ (c.request_validation.custom_error_message?' · 错误消息: '+h(c.request_validation.custom_error_message):'')+'</div></div>';
+    if(c.response_validation&&c.response_validation.enabled)html+='<div class="section"><h3>✔ 响应校验 '+(c.response_validation.strict?'(Strict)':'(Loose)')+'</h3><div style="font-size:.7rem;color:var(--muted)">必填: <code>'+h((c.response_validation.required_fields||[]).join(', '))+'</code></div></div>';
+
+    // Cache
+    if(c.cache_config&&c.cache_config.enabled)html+='<div class="section"><h3>⚡ 缓存 · TTL '+c.cache_config.ttl_seconds+'s · Max '+c.cache_config.max_size_mb+'MB</h3><div class="tags">'+(c.cache_config.cache_by_headers||[]).map(function(hdr){return '<span class="tag">header:'+h(hdr)+'</span>'}).join('')+(c.cache_config.cache_by_query||[]).map(function(q){return '<span class="tag">query:'+h(q)+'</span>'}).join('')+(c.cache_config.conditional_cache?'<span class="tag cd">条件:'+h(c.cache_config.conditional_cache)+'</span>':'')+'</div></div>';
+
+    html+='</div>';
+  });
+  document.getElementById('cards').innerHTML=html||'<div style="text-align:center;padding:3rem;color:var(--muted)">暂无规则加载中...</div>';
+
+  // Update select
+  var sel=document.getElementById('rule-select');
+  sel.innerHTML='<option value="">-- 选择规则进行变换测试 --</option>'+filtered.map(function(r){var d=RULES_DATA[r.id];return '<option value="'+h(r.id)+'">'+h(d?d.name:r.id)+'</option>'}).join('');
+}
+
+function loadRuleDemo(){
+  var id=document.getElementById('rule-select').value;
+  if(!id)return;
+  var d=RULES_DATA[id];if(!d)return;
+  // Generate a mock input from whitelist fields
+  var c=d.config;
+  var obj={};
+  for(var i=0;i<(c.whitelist_fields||[]).length;i++){
+    var f=c.whitelist_fields[i];
+    if(f==='patient_id'||f.endsWith('_id'))obj[f]='PT-'+Date.now().toString(36).toUpperCase();
+    else if(f.includes('name')||f.includes('Name'))obj[f]='TestName';
+    else if(f.includes('age'))obj[f]=35;
+    else if(f.includes('phone'))obj[f]='+86-138-0000-0000';
+    else if(f.includes('price')||f.includes('amount')||f.includes('cost'))obj[f]=999.99;
+    else if(f.includes('count')||f.includes('Count')||f.includes('stock'))obj[f]=42;
+    else obj[f]='mock';
+  }
+  document.getElementById('input-data').value=JSON.stringify([obj],null,2);
+  document.getElementById('context-data').value='{"role":"doctor","department":"cardiology"}';
+  document.getElementById('force-variant').value='';
+  document.getElementById('preview-out').innerHTML='<span class="muted">已选择规则，点击执行变换...</span>';
+  document.getElementById('variant-info').textContent='';
+}
+
+function loadTestData(){
+  var id=document.getElementById('rule-select').value;
+  if(!id)return;
+  // Load test files directly from examples directory
+  var testMap={
+    'f3058fb5-aa71-4c9c-9c8d-09fcf2d536f6':'healthcare/test-patient-record-input.json',
+    '8e224fc0-d457-41b8-9def-9c224a3ad7b4':'healthcare/test-drug-inventory-input.json',
+    'dae1ea70-fd72-4507-b769-8061399d3b84':'social/test-feed-input.json'
+  };
+  if(testMap[id]){
+    fetch('examples/'+testMap[id]).then(function(r){return r.json()}).then(function(d){
+      document.getElementById('input-data').value=JSON.stringify(d.input||d,null,2);
+      if(d.traffic_context)document.getElementById('context-data').value=JSON.stringify(d.traffic_context,null,2);
+    }).catch(function(e){
+      document.getElementById('preview-out').innerHTML='<span class="error">加载测试数据失败: '+h(e.message)+'</span>';
+    });
+  }else{
+    document.getElementById('preview-out').innerHTML='<span class="muted">该规则无预设测试数据，使用自动生成的数据</span>';
+    loadRuleDemo();
+  }
+}
+
+async function runTransform(){
+  var id=document.getElementById('rule-select').value;
+  if(!id){document.getElementById('preview-out').innerHTML='<span class="error">请先选择规则</span>';return;}
+
+  var input,ctx,fv;
+  try{input=JSON.parse(document.getElementById('input-data').value)}catch(e){document.getElementById('preview-out').innerHTML='<span class="error">输入数据 JSON 解析失败: '+h(e.message)+'</span>';return}
+  try{ctx=JSON.parse(document.getElementById('context-data').value)}catch(e){ctx={}}
+  fv=document.getElementById('force-variant').value.trim()||undefined;
+
+  document.getElementById('preview-out').innerHTML='<span class="loading">执行变换中...</span>';
+  document.getElementById('variant-info').textContent='';
+
+  try{
+    var body={rule_id:id,input:input,traffic_context:ctx};
+    if(fv)body.force_variant=fv;
+    var result=await api('POST','admin/v1/transform/preview',body);
+    document.getElementById('preview-out').textContent=JSON.stringify(result.output||result,null,2);
+    if(result.selected_variant)document.getElementById('variant-info').textContent='[变体: '+result.selected_variant+']';
+  }catch(e){
+    document.getElementById('preview-out').innerHTML='<span class="error">变换失败: '+h(e.message)+'</span>';
+  }
+}
+
+init();
+</script>
+</body>
+</html>

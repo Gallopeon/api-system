@@ -1,0 +1,350 @@
+{
+  "name": "患者记录 API / Patient Record API",
+  "api_path": "/api/v1/patients",
+  "status": "published",
+  "change_kind": "breaking",
+  "config": {
+    "whitelist_fields": [
+      "patient_id",
+      "name",
+      "gender",
+      "age",
+      "phone",
+      "id_card",
+      "diagnosis",
+      "department",
+      "attending_doctor",
+      "admission_date",
+      "discharge_date",
+      "insurance_type",
+      "billing_amount",
+      "lab_results",
+      "drug_allergies",
+      "vip_level",
+      "created_at",
+      "updated_at"
+    ],
+    "renames": {
+      "drug_allergies": "allergies",
+      "discharge_date": "discharged_at",
+      "name": "full_name",
+      "patient_id": "id",
+      "attending_doctor": "physician",
+      "admission_date": "admitted_at",
+      "billing_amount": "total_cost"
+    },
+    "masked_fields": [
+      "phone",
+      "id_card"
+    ],
+    "computed_literals": {
+      "data_source": "EMR-System-HIS",
+      "compliance": "HIPAA-GDPR",
+      "api_version": "v2"
+    },
+    "remove_nulls": true,
+    "conditional_rules": [
+      {
+        "when": "role == doctor && department == cardiology",
+        "add_literals": {
+          "access_level": "full",
+          "cardiac_markers": true
+        },
+        "remove_fields": [],
+        "mask_fields": [],
+        "rename_fields": {
+          "diagnosis": "cardiac_diagnosis"
+        },
+        "stop_after_match": false
+      },
+      {
+        "when": "role == nurse",
+        "add_literals": {
+          "access_level": "limited"
+        },
+        "remove_fields": [
+          "billing_amount",
+          "insurance_type"
+        ],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": false
+      },
+      {
+        "when": "vip_level >= 3 && insurance_type == premium",
+        "add_literals": {
+          "priority_queue": true,
+          "vip_services": [
+            "private_room",
+            "executive_health_screening",
+            "24h_concierge"
+          ]
+        },
+        "remove_fields": [],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": false
+      },
+      {
+        "when": "contains(drug_allergies, penicillin)",
+        "add_literals": {
+          "alternative_antibiotics": [
+            "azithromycin",
+            "doxycycline",
+            "cephalexin"
+          ],
+          "penicillin_allergy_alert": true
+        },
+        "remove_fields": [],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": true
+      }
+    ],
+    "gray_release": {
+      "enabled": true,
+      "bucket_field": "patient_id",
+      "variants": [
+        {
+          "name": "stable-v1",
+          "weight": 80,
+          "overrides": {
+            "whitelist_fields": null,
+            "renames": null,
+            "masked_fields": null,
+            "computed_literals": {
+              "response_version": "v1-stable"
+            },
+            "remove_nulls": null,
+            "conditional_rules": null,
+            "pagination": null,
+            "request_validation": null,
+            "response_validation": null,
+            "cache_config": null
+          }
+        },
+        {
+          "name": "canary-v2",
+          "weight": 20,
+          "overrides": {
+            "whitelist_fields": [
+              "patient_id",
+              "name",
+              "gender",
+              "age",
+              "phone",
+              "id_card",
+              "diagnosis",
+              "department",
+              "attending_doctor",
+              "admission_date",
+              "discharge_date",
+              "insurance_type",
+              "billing_amount",
+              "lab_results",
+              "drug_allergies",
+              "vip_level",
+              "genetic_markers",
+              "family_history",
+              "created_at",
+              "updated_at"
+            ],
+            "renames": {
+              "family_history": "hereditary_conditions",
+              "genetic_markers": "genomic_risk_factors",
+              "attending_doctor": "physician",
+              "patient_id": "id",
+              "name": "full_name",
+              "discharge_date": "discharged_at",
+              "billing_amount": "total_cost",
+              "admission_date": "admitted_at",
+              "drug_allergies": "allergies"
+            },
+            "masked_fields": [
+              "phone",
+              "id_card",
+              "genetic_markers"
+            ],
+            "computed_literals": {
+              "compliance": "HIPAA-GDPR-CCPA",
+              "api_version": "v2",
+              "data_source": "EMR-System-HIS-NextGen",
+              "response_version": "v2-canary"
+            },
+            "remove_nulls": true,
+            "conditional_rules": null,
+            "pagination": null,
+            "request_validation": null,
+            "response_validation": null,
+            "cache_config": null
+          }
+        }
+      ]
+    },
+    "pagination": {
+      "data_key": "records",
+      "total_field": "total_count",
+      "page_field": "current_page",
+      "page_size_field": "per_page"
+    },
+    "request_validation": {
+      "enabled": true,
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "age": {
+            "description": "年龄",
+            "maximum": 150,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "department": {
+            "description": "就诊科室",
+            "enum": [
+              "cardiology",
+              "neurology",
+              "oncology",
+              "pediatrics",
+              "orthopedics",
+              "internal_medicine",
+              "surgery"
+            ],
+            "type": "string"
+          },
+          "gender": {
+            "description": "性别",
+            "enum": [
+              "male",
+              "female",
+              "other"
+            ],
+            "type": "string"
+          },
+          "insurance_type": {
+            "description": "医保类型",
+            "enum": [
+              "basic",
+              "premium",
+              "enterprise",
+              "government"
+            ],
+            "type": "string"
+          },
+          "name": {
+            "description": "患者姓名",
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "patient_id": {
+            "description": "患者唯一标识",
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Z0-9\\-]+$",
+            "type": "string"
+          },
+          "phone": {
+            "description": "联系电话",
+            "pattern": "^\\+?[0-9\\-\\s]{7,20}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "patient_id",
+          "name"
+        ],
+        "type": "object"
+      },
+      "strict": true,
+      "custom_error_message": "请求参数校验失败：patient_id 为必填项，age 需为 0-150 之间的整数",
+      "required_fields": [
+        "patient_id",
+        "name"
+      ]
+    },
+    "response_validation": {
+      "enabled": true,
+      "schema": {
+        "properties": {
+          "admitted_at": {
+            "type": "string"
+          },
+          "age": {
+            "type": "integer"
+          },
+          "allergies": {
+            "type": "array"
+          },
+          "api_version": {
+            "type": "string"
+          },
+          "compliance": {
+            "type": "string"
+          },
+          "department": {
+            "type": "string"
+          },
+          "diagnosis": {
+            "type": "string"
+          },
+          "discharged_at": {
+            "type": "string"
+          },
+          "full_name": {
+            "type": "string"
+          },
+          "gender": {
+            "type": "string"
+          },
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "id_card": {
+            "type": "string"
+          },
+          "insurance_type": {
+            "type": "string"
+          },
+          "phone": {
+            "type": "string"
+          },
+          "physician": {
+            "type": "string"
+          },
+          "total_cost": {
+            "type": "number"
+          },
+          "vip_level": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "full_name"
+        ],
+        "type": "object"
+      },
+      "strict": false,
+      "custom_error_message": "响应数据格式异常，缺少必要字段",
+      "required_fields": [
+        "id",
+        "full_name"
+      ]
+    },
+    "cache_config": {
+      "enabled": true,
+      "ttl_seconds": 120,
+      "max_size_mb": 64,
+      "cache_by_headers": [
+        "Accept-Language",
+        "X-User-Role"
+      ],
+      "cache_by_query": [
+        "department",
+        "page"
+      ],
+      "conditional_cache": null
+    }
+  }
+}

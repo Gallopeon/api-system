@@ -1,0 +1,400 @@
+{
+  "name": "用户画像 API / User Profile API",
+  "api_path": "/api/v1/social/users",
+  "status": "published",
+  "change_kind": "breaking",
+  "config": {
+    "whitelist_fields": [
+      "user_id",
+      "username",
+      "display_name",
+      "avatar_url",
+      "cover_image_url",
+      "bio",
+      "email",
+      "phone",
+      "birthdate",
+      "gender",
+      "location_city",
+      "location_country",
+      "website",
+      "verified_badge",
+      "follower_count",
+      "following_count",
+      "post_count",
+      "join_date",
+      "last_active_at",
+      "account_status",
+      "privacy_level",
+      "content_language",
+      "creator_tier",
+      "monetization_enabled",
+      "ip_address",
+      "last_login_device",
+      "two_factor_enabled",
+      "created_at",
+      "updated_at"
+    ],
+    "renames": {
+      "post_count": "posts",
+      "display_name": "nickname",
+      "user_id": "id",
+      "bio": "description",
+      "join_date": "member_since",
+      "two_factor_enabled": "has_2fa",
+      "follower_count": "followers",
+      "following_count": "following",
+      "last_active_at": "last_seen",
+      "verified_badge": "is_verified"
+    },
+    "masked_fields": [
+      "email",
+      "phone",
+      "ip_address"
+    ],
+    "computed_literals": {
+      "platform": "SocialNet-2026",
+      "profile_schema_version": "3.1",
+      "data_retention_policy": "GDPR-PIPL-Compliant"
+    },
+    "remove_nulls": true,
+    "conditional_rules": [
+      {
+        "when": "is_verified == true && followers >= 100000",
+        "add_literals": {
+          "influencer_tier": true,
+          "brand_partnership_program": "invited",
+          "creator_fund_eligible": true,
+          "verified_since": "automated"
+        },
+        "remove_fields": [],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": false
+      },
+      {
+        "when": "privacy_level == high || privacy_level == strict",
+        "add_literals": {
+          "direct_message": "mutual_follow_only",
+          "profile_visibility": "restricted",
+          "data_export_enabled": true,
+          "search_indexable": false
+        },
+        "remove_fields": [
+          "email",
+          "phone",
+          "location_city",
+          "birthdate",
+          "ip_address",
+          "last_login_device"
+        ],
+        "mask_fields": [
+          "nickname"
+        ],
+        "rename_fields": {
+          "nickname": "public_alias"
+        },
+        "stop_after_match": false
+      },
+      {
+        "when": "monetization_enabled == true && creator_tier >= 3",
+        "add_literals": {
+          "earnings_ytd_cny": "登录后可见 / Visible after login",
+          "revenue_dashboard": true,
+          "tax_form_required": true,
+          "payout_methods": [
+            "bank_transfer",
+            "paypal",
+            "crypto"
+          ]
+        },
+        "remove_fields": [],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": false
+      },
+      {
+        "when": "account_status == restricted || account_status == shadow_banned",
+        "add_literals": {
+          "appeal_available": true,
+          "account_restriction_notice": true,
+          "restriction_reason": "违反社区准则 / Community Guidelines Violation"
+        },
+        "remove_fields": [
+          "monetization_enabled",
+          "creator_tier",
+          "website"
+        ],
+        "mask_fields": [
+          "description",
+          "avatar_url"
+        ],
+        "rename_fields": {},
+        "stop_after_match": true
+      },
+      {
+        "when": "exists(birthdate) && age < 18",
+        "add_literals": {
+          "content_filter_level": "strict",
+          "minor_account": true,
+          "parental_controls_active": true,
+          "dm_restricted": "friends_only",
+          "ad_personalization_opted_out": true
+        },
+        "remove_fields": [
+          "email",
+          "phone",
+          "location_city",
+          "ip_address"
+        ],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": false
+      }
+    ],
+    "gray_release": {
+      "enabled": true,
+      "bucket_field": "id",
+      "variants": [
+        {
+          "name": "standard-profile",
+          "weight": 70,
+          "overrides": {
+            "whitelist_fields": null,
+            "renames": null,
+            "masked_fields": null,
+            "computed_literals": {
+              "profile_layout": "standard",
+              "response_version": "standard"
+            },
+            "remove_nulls": null,
+            "conditional_rules": null,
+            "pagination": null,
+            "request_validation": null,
+            "response_validation": null,
+            "cache_config": null
+          }
+        },
+        {
+          "name": "creator-showcase",
+          "weight": 30,
+          "overrides": {
+            "whitelist_fields": [
+              "user_id",
+              "username",
+              "display_name",
+              "avatar_url",
+              "cover_image_url",
+              "bio",
+              "email",
+              "phone",
+              "birthdate",
+              "gender",
+              "location_city",
+              "location_country",
+              "website",
+              "verified_badge",
+              "follower_count",
+              "following_count",
+              "post_count",
+              "join_date",
+              "last_active_at",
+              "account_status",
+              "privacy_level",
+              "content_language",
+              "creator_tier",
+              "monetization_enabled",
+              "ip_address",
+              "last_login_device",
+              "two_factor_enabled",
+              "creator_badges",
+              "top_fans_showcase",
+              "featured_content",
+              "collaboration_history",
+              "audience_insights",
+              "created_at",
+              "updated_at"
+            ],
+            "renames": {
+              "featured_content": "pinned_highlights",
+              "top_fans_showcase": "super_fans",
+              "creator_badges": "achievement_badges",
+              "collaboration_history": "brand_collaborations",
+              "audience_insights": "follower_demographics"
+            },
+            "masked_fields": null,
+            "computed_literals": {
+              "profile_layout": "creator_showcase",
+              "ai_enhanced_bio": true,
+              "portfolio_mode": true,
+              "response_version": "creator-showcase"
+            },
+            "remove_nulls": null,
+            "conditional_rules": null,
+            "pagination": null,
+            "request_validation": null,
+            "response_validation": null,
+            "cache_config": null
+          }
+        }
+      ]
+    },
+    "pagination": {
+      "data_key": "users",
+      "total_field": "total",
+      "page_field": "page",
+      "page_size_field": "page_size"
+    },
+    "request_validation": {
+      "enabled": true,
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "account_status": {
+            "description": "账户状态",
+            "enum": [
+              "active",
+              "restricted",
+              "suspended",
+              "shadow_banned",
+              "deactivated"
+            ],
+            "type": "string"
+          },
+          "birthdate": {
+            "description": "出生日期",
+            "format": "date",
+            "type": "string"
+          },
+          "creator_tier": {
+            "description": "创作者等级（0=普通用户, 5=顶级创作者）",
+            "maximum": 5,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "email": {
+            "description": "电子邮箱",
+            "format": "email",
+            "type": "string"
+          },
+          "gender": {
+            "description": "性别",
+            "enum": [
+              "male",
+              "female",
+              "non_binary",
+              "prefer_not_to_say"
+            ],
+            "type": "string"
+          },
+          "privacy_level": {
+            "description": "隐私级别",
+            "enum": [
+              "public",
+              "friends_only",
+              "high",
+              "strict"
+            ],
+            "type": "string"
+          },
+          "user_id": {
+            "description": "用户唯一标识",
+            "pattern": "^USR-[A-Z0-9]{8,24}$",
+            "type": "string"
+          },
+          "username": {
+            "description": "用户名",
+            "maxLength": 30,
+            "minLength": 3,
+            "pattern": "^[a-zA-Z0-9_\\.\\-]+$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "username"
+        ],
+        "type": "object"
+      },
+      "strict": true,
+      "custom_error_message": "请求校验失败：user_id 为必填项，gender 和 privacy_level 需为有效枚举值",
+      "required_fields": [
+        "user_id",
+        "username"
+      ]
+    },
+    "response_validation": {
+      "enabled": true,
+      "schema": {
+        "properties": {
+          "avatar_url": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "followers": {
+            "type": "integer"
+          },
+          "following": {
+            "type": "integer"
+          },
+          "has_2fa": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "is_verified": {
+            "type": "boolean"
+          },
+          "last_seen": {
+            "type": "string"
+          },
+          "member_since": {
+            "type": "string"
+          },
+          "nickname": {
+            "type": "string"
+          },
+          "posts": {
+            "type": "integer"
+          },
+          "privacy_level": {
+            "type": "string"
+          },
+          "username": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "username",
+          "nickname",
+          "member_since"
+        ],
+        "type": "object"
+      },
+      "strict": false,
+      "custom_error_message": null,
+      "required_fields": [
+        "id",
+        "nickname"
+      ]
+    },
+    "cache_config": {
+      "enabled": true,
+      "ttl_seconds": 180,
+      "max_size_mb": 96,
+      "cache_by_headers": [
+        "Accept-Language",
+        "X-Viewer-Id"
+      ],
+      "cache_by_query": [
+        "username",
+        "page"
+      ],
+      "conditional_cache": "privacy_level == public"
+    }
+  }
+}

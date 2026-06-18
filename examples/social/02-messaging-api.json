@@ -1,0 +1,362 @@
+{
+  "name": "即时消息 API / Instant Messaging API",
+  "api_path": "/api/v1/social/messages",
+  "status": "published",
+  "change_kind": "breaking",
+  "config": {
+    "whitelist_fields": [
+      "message_id",
+      "conversation_id",
+      "sender_id",
+      "sender_name",
+      "recipient_id",
+      "recipient_name",
+      "message_type",
+      "content_text",
+      "content_attachments",
+      "reply_to_message_id",
+      "is_encrypted",
+      "encryption_method",
+      "read_status",
+      "delivered_at",
+      "read_at",
+      "reactions",
+      "is_edited",
+      "expires_in_seconds",
+      "platform",
+      "client_version",
+      "created_at"
+    ],
+    "renames": {
+      "recipient_name": "to_display_name",
+      "reply_to_message_id": "in_reply_to",
+      "expires_in_seconds": "ttl_seconds",
+      "content_attachments": "media",
+      "read_at": "seen_at",
+      "recipient_id": "to_user_id",
+      "sender_id": "from_user_id",
+      "conversation_id": "thread_id",
+      "content_text": "body",
+      "sender_name": "from_display_name",
+      "message_id": "id"
+    },
+    "masked_fields": [
+      "from_user_id",
+      "to_user_id"
+    ],
+    "computed_literals": {
+      "rate_limit_tier": "standard",
+      "server_region": "ap-southeast-1",
+      "protocol": "XMPP-MQTT-Hybrid-v2"
+    },
+    "remove_nulls": true,
+    "conditional_rules": [
+      {
+        "when": "is_encrypted == true && encryption_method == e2ee_signal",
+        "add_literals": {
+          "security_badge": "🔒 端到端加密 / End-to-End Encrypted",
+          "forward_secrecy": true,
+          "key_exchange": "X3DH-DoubleRatchet",
+          "e2ee_verified": true
+        },
+        "remove_fields": [],
+        "mask_fields": [
+          "body"
+        ],
+        "rename_fields": {},
+        "stop_after_match": false
+      },
+      {
+        "when": "message_type == group_chat && exists(mentions)",
+        "add_literals": {
+          "group_notification": true,
+          "mentioned_users_notified": true
+        },
+        "remove_fields": [],
+        "mask_fields": [],
+        "rename_fields": {
+          "from_user_id": "group_announcer_id"
+        },
+        "stop_after_match": false
+      },
+      {
+        "when": "contains(body, spam) || contains(body, 广告) || contains(body, phishing)",
+        "add_literals": {
+          "spam_score": 0.95,
+          "appeal_instructions": "若误判请联系客服 / Contact support if false positive",
+          "auto_filtered": true,
+          "delivery_blocked": true
+        },
+        "remove_fields": [
+          "media"
+        ],
+        "mask_fields": [
+          "body",
+          "from_display_name"
+        ],
+        "rename_fields": {},
+        "stop_after_match": true
+      },
+      {
+        "when": "expires_in_seconds <= 30",
+        "add_literals": {
+          "screenshot_protection": true,
+          "ephemeral_message": true,
+          "forwarding_disabled": true
+        },
+        "remove_fields": [],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": false
+      },
+      {
+        "when": "exists(media) && contains(message_type, file)",
+        "add_literals": {
+          "attachment_scanned": true,
+          "file_size_limit_mb": 100,
+          "malware_scan": "clean"
+        },
+        "remove_fields": [],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": false
+      }
+    ],
+    "gray_release": {
+      "enabled": true,
+      "bucket_field": "sender_id",
+      "variants": [
+        {
+          "name": "legacy-message-format",
+          "weight": 65,
+          "overrides": {
+            "whitelist_fields": null,
+            "renames": null,
+            "masked_fields": null,
+            "computed_literals": {
+              "message_format": "v1-flat",
+              "protocol_version": "1.0"
+            },
+            "remove_nulls": null,
+            "conditional_rules": null,
+            "pagination": null,
+            "request_validation": null,
+            "response_validation": null,
+            "cache_config": null
+          }
+        },
+        {
+          "name": "rich-message-format",
+          "weight": 35,
+          "overrides": {
+            "whitelist_fields": [
+              "message_id",
+              "conversation_id",
+              "sender_id",
+              "sender_name",
+              "recipient_id",
+              "recipient_name",
+              "message_type",
+              "content_text",
+              "content_attachments",
+              "reply_to_message_id",
+              "is_encrypted",
+              "encryption_method",
+              "read_status",
+              "delivered_at",
+              "read_at",
+              "reactions",
+              "is_edited",
+              "expires_in_seconds",
+              "platform",
+              "client_version",
+              "rich_card_title",
+              "rich_card_description",
+              "rich_card_image_url",
+              "rich_card_cta",
+              "interactive_buttons",
+              "message_suggestions",
+              "created_at"
+            ],
+            "renames": {
+              "interactive_buttons": "quick_reply_actions",
+              "rich_card_title": "link_preview_title",
+              "message_suggestions": "smart_reply_suggestions",
+              "rich_card_image_url": "link_preview_image",
+              "rich_card_description": "link_preview_desc"
+            },
+            "masked_fields": null,
+            "computed_literals": {
+              "protocol_version": "2.0",
+              "message_format": "v2-rich-card",
+              "rich_media_support": true
+            },
+            "remove_nulls": null,
+            "conditional_rules": null,
+            "pagination": null,
+            "request_validation": null,
+            "response_validation": null,
+            "cache_config": null
+          }
+        }
+      ]
+    },
+    "pagination": {
+      "data_key": "messages",
+      "total_field": "total",
+      "page_field": "page",
+      "page_size_field": "page_size"
+    },
+    "request_validation": {
+      "enabled": true,
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "body": {
+            "description": "消息正文",
+            "maxLength": 10000,
+            "minLength": 1,
+            "type": "string"
+          },
+          "conversation_id": {
+            "description": "会话ID",
+            "maxLength": 64,
+            "minLength": 12,
+            "type": "string"
+          },
+          "encryption_method": {
+            "description": "加密方式",
+            "enum": [
+              "none",
+              "tls_transport",
+              "e2ee_signal",
+              "e2ee_matrix_olm"
+            ],
+            "type": "string"
+          },
+          "expires_in_seconds": {
+            "description": "阅后即焚时间（秒）",
+            "maximum": 86400,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "is_encrypted": {
+            "description": "是否加密",
+            "type": "boolean"
+          },
+          "message_type": {
+            "description": "消息类型",
+            "enum": [
+              "text",
+              "image",
+              "video",
+              "audio",
+              "file",
+              "location",
+              "sticker",
+              "group_chat",
+              "system_notification",
+              "reaction"
+            ],
+            "type": "string"
+          },
+          "platform": {
+            "description": "客户端平台",
+            "enum": [
+              "ios",
+              "android",
+              "web",
+              "desktop",
+              "wearable"
+            ],
+            "type": "string"
+          },
+          "sender_id": {
+            "description": "发送者用户ID",
+            "maxLength": 64,
+            "minLength": 8,
+            "type": "string"
+          }
+        },
+        "required": [
+          "sender_id",
+          "conversation_id",
+          "body"
+        ],
+        "type": "object"
+      },
+      "strict": true,
+      "custom_error_message": "消息发送失败：sender_id 与 recipient_id 不能相同，body 不能为空",
+      "required_fields": [
+        "sender_id",
+        "conversation_id",
+        "body"
+      ]
+    },
+    "response_validation": {
+      "enabled": true,
+      "schema": {
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "from_display_name": {
+            "type": "string"
+          },
+          "from_user_id": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "in_reply_to": {
+            "type": "string"
+          },
+          "is_encrypted": {
+            "type": "boolean"
+          },
+          "media": {
+            "type": "array"
+          },
+          "thread_id": {
+            "type": "string"
+          },
+          "ttl_seconds": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "thread_id",
+          "from_user_id",
+          "body",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "strict": false,
+      "custom_error_message": null,
+      "required_fields": [
+        "id",
+        "from_user_id",
+        "body"
+      ]
+    },
+    "cache_config": {
+      "enabled": true,
+      "ttl_seconds": 10,
+      "max_size_mb": 512,
+      "cache_by_headers": [
+        "Accept-Language"
+      ],
+      "cache_by_query": [
+        "thread_id",
+        "page"
+      ],
+      "conditional_cache": null
+    }
+  }
+}
