@@ -1,0 +1,364 @@
+{
+  "name": "远程会诊 API / Telemedicine Consult API",
+  "api_path": "/api/v1/telemedicine/consults",
+  "status": "published",
+  "change_kind": "breaking",
+  "config": {
+    "whitelist_fields": [
+      "consult_id",
+      "patient_id",
+      "patient_name",
+      "primary_doctor",
+      "specialist",
+      "department",
+      "urgency",
+      "consult_type",
+      "symptoms",
+      "attachments",
+      "vital_signs",
+      "diagnosis_notes",
+      "treatment_plan",
+      "prescribed_medications",
+      "follow_up_date",
+      "billing_code",
+      "insurance_approved",
+      "platform",
+      "created_at",
+      "updated_at"
+    ],
+    "renames": {
+      "specialist": "consulting_specialist",
+      "patient_id": "patient_ref",
+      "treatment_plan": "recommended_care_plan",
+      "follow_up_date": "next_review_date",
+      "consult_id": "id",
+      "patient_name": "patient_display_name",
+      "primary_doctor": "referring_physician",
+      "billing_code": "icd10_billing_code",
+      "diagnosis_notes": "clinical_impression"
+    },
+    "masked_fields": [
+      "patient_name",
+      "patient_ref"
+    ],
+    "computed_literals": {
+      "consult_format": "DICOM-HL7-FHIR",
+      "platform_version": "TeleHealth-2026",
+      "compliance_framework": [
+        "HIPAA",
+        "HITECH",
+        "GDPR",
+        "PIPL"
+      ]
+    },
+    "remove_nulls": true,
+    "conditional_rules": [
+      {
+        "when": "urgency >= 4 && urgency <= 5",
+        "add_literals": {
+          "trauma_team_required": true,
+          "response_sla_minutes": 15,
+          "emergency_escalation": true,
+          "on_call_specialist_notified": true
+        },
+        "remove_fields": [],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": false
+      },
+      {
+        "when": "department == oncology && contains(diagnosis_notes, metastasis)",
+        "add_literals": {
+          "genetic_profiling_recommended": true,
+          "clinical_trial_eligible": true,
+          "multidisciplinary_team": [
+            "oncologist",
+            "radiologist",
+            "pathologist",
+            "surgeon",
+            "palliative_care"
+          ],
+          "tumor_board_review": true
+        },
+        "remove_fields": [],
+        "mask_fields": [
+          "patient_name"
+        ],
+        "rename_fields": {
+          "treatment_plan": "oncology_care_pathway"
+        },
+        "stop_after_match": false
+      },
+      {
+        "when": "consult_type == surgical && urgency >= 3",
+        "add_literals": {
+          "pre_op_assessment_required": true,
+          "or_scheduling_priority": "elevated",
+          "anesthesia_consult_required": true
+        },
+        "remove_fields": [],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": false
+      },
+      {
+        "when": "insurance_approved == false && billing_code != null",
+        "add_literals": {
+          "insurance_pending": true,
+          "estimated_out_of_pocket_cny": "待核算",
+          "financial_counselor_referral": true
+        },
+        "remove_fields": [
+          "prescribed_medications"
+        ],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": false
+      },
+      {
+        "when": "exists(vital_signs) && contains(department, pediatrics)",
+        "add_literals": {
+          "pediatric_protocol": true,
+          "parental_consent_verified": false,
+          "growth_percentile_tracking": true
+        },
+        "remove_fields": [],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": true
+      }
+    ],
+    "gray_release": {
+      "enabled": true,
+      "bucket_field": "consult_id",
+      "variants": [
+        {
+          "name": "baseline",
+          "weight": 75,
+          "overrides": {
+            "whitelist_fields": null,
+            "renames": null,
+            "masked_fields": null,
+            "computed_literals": {
+              "ui_layout": "classic",
+              "response_version": "baseline"
+            },
+            "remove_nulls": null,
+            "conditional_rules": null,
+            "pagination": null,
+            "request_validation": null,
+            "response_validation": null,
+            "cache_config": null
+          }
+        },
+        {
+          "name": "enhanced",
+          "weight": 25,
+          "overrides": {
+            "whitelist_fields": [
+              "consult_id",
+              "patient_id",
+              "patient_name",
+              "primary_doctor",
+              "specialist",
+              "department",
+              "urgency",
+              "consult_type",
+              "symptoms",
+              "attachments",
+              "vital_signs",
+              "diagnosis_notes",
+              "treatment_plan",
+              "prescribed_medications",
+              "follow_up_date",
+              "billing_code",
+              "insurance_approved",
+              "platform",
+              "ai_triage_score",
+              "similar_case_references",
+              "evidence_based_guidelines",
+              "patient_satisfaction_prediction",
+              "created_at",
+              "updated_at"
+            ],
+            "renames": {
+              "ai_triage_score": "ml_urgency_score",
+              "similar_case_references": "related_clinical_cases",
+              "evidence_based_guidelines": "ebm_recommendations"
+            },
+            "masked_fields": null,
+            "computed_literals": {
+              "ui_layout": "next-gen",
+              "response_version": "enhanced",
+              "ml_model_version": "MedBERT-v4.2",
+              "ai_assisted": true
+            },
+            "remove_nulls": null,
+            "conditional_rules": null,
+            "pagination": null,
+            "request_validation": null,
+            "response_validation": null,
+            "cache_config": null
+          }
+        }
+      ]
+    },
+    "pagination": {
+      "data_key": "consults",
+      "total_field": "total_consults",
+      "page_field": "current_page",
+      "page_size_field": "page_size"
+    },
+    "request_validation": {
+      "enabled": true,
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "consult_id": {
+            "description": "会诊编号",
+            "pattern": "^CONS-[A-Z0-9]{8,16}$",
+            "type": "string"
+          },
+          "consult_type": {
+            "description": "会诊类型",
+            "enum": [
+              "initial",
+              "follow_up",
+              "emergency",
+              "surgical",
+              "second_opinion",
+              "multidisciplinary"
+            ],
+            "type": "string"
+          },
+          "department": {
+            "description": "科室",
+            "enum": [
+              "cardiology",
+              "neurology",
+              "oncology",
+              "pediatrics",
+              "orthopedics",
+              "internal_medicine",
+              "surgery",
+              "radiology",
+              "psychiatry",
+              "emergency"
+            ],
+            "type": "string"
+          },
+          "insurance_approved": {
+            "description": "医保是否已审批",
+            "type": "boolean"
+          },
+          "patient_id": {
+            "description": "患者ID",
+            "minLength": 1,
+            "type": "string"
+          },
+          "platform": {
+            "description": "访问平台",
+            "enum": [
+              "web",
+              "ios",
+              "android",
+              "wechat_mini_program",
+              "hospital_terminal"
+            ],
+            "type": "string"
+          },
+          "urgency": {
+            "description": "紧急程度（1=常规, 5=危急）",
+            "maximum": 5,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "consult_id",
+          "patient_id",
+          "department",
+          "consult_type"
+        ],
+        "type": "object"
+      },
+      "strict": true,
+      "custom_error_message": "请求校验失败：consult_type 和 urgency 为必填项，urgency 取值范围 1-5",
+      "required_fields": [
+        "consult_id",
+        "patient_id",
+        "department",
+        "consult_type"
+      ]
+    },
+    "response_validation": {
+      "enabled": true,
+      "schema": {
+        "properties": {
+          "clinical_impression": {
+            "type": "string"
+          },
+          "consult_type": {
+            "type": "string"
+          },
+          "consulting_specialist": {
+            "type": "string"
+          },
+          "department": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "next_review_date": {
+            "type": "string"
+          },
+          "patient_display_name": {
+            "type": "string"
+          },
+          "patient_ref": {
+            "type": "string"
+          },
+          "recommended_care_plan": {
+            "type": "string"
+          },
+          "referring_physician": {
+            "type": "string"
+          },
+          "urgency": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "referring_physician",
+          "consulting_specialist",
+          "department"
+        ],
+        "type": "object"
+      },
+      "strict": false,
+      "custom_error_message": null,
+      "required_fields": [
+        "id",
+        "referring_physician",
+        "consulting_specialist"
+      ]
+    },
+    "cache_config": {
+      "enabled": true,
+      "ttl_seconds": 60,
+      "max_size_mb": 32,
+      "cache_by_headers": [
+        "Accept-Language",
+        "X-Department"
+      ],
+      "cache_by_query": [
+        "department",
+        "urgency",
+        "page"
+      ],
+      "conditional_cache": "urgency <= 3"
+    }
+  }
+}

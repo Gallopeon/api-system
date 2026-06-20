@@ -1,0 +1,359 @@
+{
+  "name": "药品库存 API / Drug Inventory API",
+  "api_path": "/api/v1/pharmacy/inventory",
+  "status": "published",
+  "change_kind": "breaking",
+  "config": {
+    "whitelist_fields": [
+      "drug_id",
+      "drug_name",
+      "generic_name",
+      "category",
+      "manufacturer",
+      "batch_number",
+      "expiry_date",
+      "stock_quantity",
+      "unit_price",
+      "wholesale_price",
+      "controlled_substance",
+      "requires_prescription",
+      "storage_condition",
+      "supplier_name",
+      "supplier_contact",
+      "last_restock_date",
+      "warehouse_location",
+      "created_at",
+      "updated_at"
+    ],
+    "renames": {
+      "wholesale_price": "wholesale_price_cny",
+      "drug_name": "brand_name",
+      "stock_quantity": "units_in_stock",
+      "drug_id": "id",
+      "warehouse_location": "location",
+      "generic_name": "active_ingredient",
+      "unit_price": "retail_price_cny"
+    },
+    "masked_fields": [
+      "supplier_contact",
+      "supplier_name"
+    ],
+    "computed_literals": {
+      "price_valid_until": "2026-12-31T23:59:59Z",
+      "currency": "CNY",
+      "inventory_system": "PIS-v3"
+    },
+    "remove_nulls": true,
+    "conditional_rules": [
+      {
+        "when": "stock_quantity <= 50 && stock_quantity > 0",
+        "add_literals": {
+          "suggested_order_quantity": 200,
+          "reorder_recommendation": "urgent",
+          "low_stock_alert": true
+        },
+        "remove_fields": [],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": false
+      },
+      {
+        "when": "stock_quantity == 0",
+        "add_literals": {
+          "stockout_alert": true,
+          "emergency_contact": "pharmacy_director@hospital.com",
+          "alternative_drugs": []
+        },
+        "remove_fields": [
+          "unit_price",
+          "wholesale_price"
+        ],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": false
+      },
+      {
+        "when": "controlled_substance == true && requires_prescription == true",
+        "add_literals": {
+          "regulatory_class": "Schedule-II",
+          "controlled_access": true,
+          "dispense_requires": [
+            "doctor_prescription",
+            "pharmacist_verification",
+            "patient_id_check",
+            "quantity_log"
+          ]
+        },
+        "remove_fields": [],
+        "mask_fields": [
+          "supplier_name",
+          "supplier_contact"
+        ],
+        "rename_fields": {
+          "stock_quantity": "audited_stock_count"
+        },
+        "stop_after_match": false
+      },
+      {
+        "when": "contains(category, narcotic) || contains(category, psychotropic)",
+        "add_literals": {
+          "dea_schedule": "C-II",
+          "dispense_limit_days": 7,
+          "mandatory_reporting": true,
+          "audit_frequency": "daily"
+        },
+        "remove_fields": [
+          "supplier_name"
+        ],
+        "mask_fields": [
+          "batch_number",
+          "location"
+        ],
+        "rename_fields": {},
+        "stop_after_match": true
+      },
+      {
+        "when": "unit_price > 500 && stock_quantity <= 20",
+        "add_literals": {
+          "theft_risk_flag": true,
+          "high_value_low_stock": true
+        },
+        "remove_fields": [],
+        "mask_fields": [
+          "location"
+        ],
+        "rename_fields": {},
+        "stop_after_match": false
+      }
+    ],
+    "gray_release": {
+      "enabled": true,
+      "bucket_field": "drug_id",
+      "variants": [
+        {
+          "name": "price-model-a",
+          "weight": 70,
+          "overrides": {
+            "whitelist_fields": null,
+            "renames": {
+              "wholesale_price": "distributor_price_cny",
+              "unit_price": "msrp_cny"
+            },
+            "masked_fields": null,
+            "computed_literals": {
+              "response_version": "price-a-stable",
+              "price_model": "single_tier"
+            },
+            "remove_nulls": null,
+            "conditional_rules": null,
+            "pagination": null,
+            "request_validation": null,
+            "response_validation": null,
+            "cache_config": null
+          }
+        },
+        {
+          "name": "price-model-b",
+          "weight": 30,
+          "overrides": {
+            "whitelist_fields": null,
+            "renames": {
+              "wholesale_price": "distributor_price_cny",
+              "unit_price": "msrp_cny"
+            },
+            "masked_fields": null,
+            "computed_literals": {
+              "price_tiers": [
+                {
+                  "max_qty": 99,
+                  "min_qty": 1,
+                  "unit_price_cny": "dynamic"
+                },
+                {
+                  "max_qty": 999,
+                  "min_qty": 100,
+                  "unit_price_cny": "dynamic_0.85"
+                },
+                {
+                  "max_qty": 9999,
+                  "min_qty": 1000,
+                  "unit_price_cny": "dynamic_0.72"
+                }
+              ],
+              "response_version": "price-b-canary",
+              "price_model": "tiered_volume"
+            },
+            "remove_nulls": null,
+            "conditional_rules": null,
+            "pagination": null,
+            "request_validation": null,
+            "response_validation": null,
+            "cache_config": null
+          }
+        }
+      ]
+    },
+    "pagination": {
+      "data_key": "items",
+      "total_field": "total",
+      "page_field": "page",
+      "page_size_field": "page_size"
+    },
+    "request_validation": {
+      "enabled": true,
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "batch_number": {
+            "description": "批号",
+            "maxLength": 32,
+            "minLength": 4,
+            "type": "string"
+          },
+          "category": {
+            "description": "药品类别",
+            "enum": [
+              "antibiotic",
+              "analgesic",
+              "antiviral",
+              "cardiovascular",
+              "narcotic",
+              "psychotropic",
+              "vaccine",
+              "anesthetic",
+              "antidiabetic",
+              "antihypertensive"
+            ],
+            "type": "string"
+          },
+          "controlled_substance": {
+            "description": "是否为管制药品",
+            "type": "boolean"
+          },
+          "drug_id": {
+            "description": "药品编码",
+            "pattern": "^DRG-[A-Z0-9]{6,12}$",
+            "type": "string"
+          },
+          "drug_name": {
+            "description": "药品名称",
+            "maxLength": 200,
+            "minLength": 1,
+            "type": "string"
+          },
+          "expiry_date": {
+            "description": "有效期至",
+            "format": "date",
+            "type": "string"
+          },
+          "requires_prescription": {
+            "description": "是否需要处方",
+            "type": "boolean"
+          },
+          "stock_quantity": {
+            "description": "库存数量",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "storage_condition": {
+            "description": "存储条件",
+            "enum": [
+              "room_temp",
+              "refrigerated",
+              "frozen",
+              "controlled_substance_cabinet"
+            ],
+            "type": "string"
+          },
+          "unit_price": {
+            "description": "单价",
+            "minimum": 0,
+            "type": "number"
+          }
+        },
+        "required": [
+          "drug_id",
+          "drug_name",
+          "batch_number"
+        ],
+        "type": "object"
+      },
+      "strict": true,
+      "custom_error_message": "请求参数校验失败：category 必须为有效药品类别，expiry_date 需为未来日期",
+      "required_fields": [
+        "drug_id",
+        "drug_name",
+        "batch_number"
+      ]
+    },
+    "response_validation": {
+      "enabled": true,
+      "schema": {
+        "properties": {
+          "active_ingredient": {
+            "type": "string"
+          },
+          "batch_number": {
+            "type": "string"
+          },
+          "brand_name": {
+            "type": "string"
+          },
+          "category": {
+            "type": "string"
+          },
+          "controlled_substance": {
+            "type": "boolean"
+          },
+          "expiry_date": {
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "location": {
+            "type": "string"
+          },
+          "retail_price_cny": {
+            "type": "number"
+          },
+          "storage_condition": {
+            "type": "string"
+          },
+          "units_in_stock": {
+            "type": "integer"
+          },
+          "wholesale_price_cny": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "id",
+          "brand_name",
+          "units_in_stock"
+        ],
+        "type": "object"
+      },
+      "strict": false,
+      "custom_error_message": null,
+      "required_fields": [
+        "id",
+        "brand_name"
+      ]
+    },
+    "cache_config": {
+      "enabled": true,
+      "ttl_seconds": 300,
+      "max_size_mb": 128,
+      "cache_by_headers": [
+        "Accept-Language"
+      ],
+      "cache_by_query": [
+        "category",
+        "storage_condition",
+        "page"
+      ],
+      "conditional_cache": "category != narcotic && category != psychotropic"
+    }
+  }
+}

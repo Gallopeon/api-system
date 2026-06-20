@@ -1,0 +1,339 @@
+{
+  "name": "用户动态 Feed API / User Feed API",
+  "api_path": "/api/v1/social/feed",
+  "status": "published",
+  "change_kind": "breaking",
+  "config": {
+    "whitelist_fields": [
+      "post_id",
+      "author_id",
+      "author_name",
+      "author_avatar",
+      "author_verified",
+      "content_type",
+      "content_text",
+      "content_media",
+      "hashtags",
+      "mentions",
+      "location",
+      "likes_count",
+      "comments_count",
+      "shares_count",
+      "view_count",
+      "is_pinned",
+      "is_sponsored",
+      "sensitivity_level",
+      "language",
+      "created_at",
+      "edited_at"
+    ],
+    "renames": {
+      "likes_count": "reactions",
+      "post_id": "id",
+      "shares_count": "reposts",
+      "view_count": "impressions",
+      "author_name": "display_name",
+      "author_id": "user_id",
+      "content_text": "body",
+      "content_media": "media_attachments",
+      "author_avatar": "avatar_url"
+    },
+    "masked_fields": [
+      "location"
+    ],
+    "computed_literals": {
+      "ranking_algorithm": "EdgeRank-ML-v7",
+      "content_policy": "Community-Guidelines-2026",
+      "feed_version": "v4"
+    },
+    "remove_nulls": true,
+    "conditional_rules": [
+      {
+        "when": "author_verified == true && likes_count >= 1000",
+        "add_literals": {
+          "trending_badge": true,
+          "amplification_factor": 2.5,
+          "explore_eligible": true
+        },
+        "remove_fields": [],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": false
+      },
+      {
+        "when": "sensitivity_level >= 3",
+        "add_literals": {
+          "requires_age_verification": true,
+          "report_count_24h": "hidden_for_privacy",
+          "content_warning": true,
+          "blur_media_by_default": true
+        },
+        "remove_fields": [
+          "author_name",
+          "author_avatar"
+        ],
+        "mask_fields": [
+          "location"
+        ],
+        "rename_fields": {
+          "author_name": "anonymous_contributor"
+        },
+        "stop_after_match": false
+      },
+      {
+        "when": "is_sponsored == true",
+        "add_literals": {
+          "ad_disclosure": "此内容为广告推广 / This is promoted content",
+          "advertiser_category": "social_commerce",
+          "cpa_tracking_enabled": true,
+          "sponsored_label": true
+        },
+        "remove_fields": [],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": false
+      },
+      {
+        "when": "contains(hashtags, sensitive) || contains(content_text, 敏感)",
+        "add_literals": {
+          "human_review_required": true,
+          "moderation_status": "flagged"
+        },
+        "remove_fields": [],
+        "mask_fields": [
+          "content_text"
+        ],
+        "rename_fields": {},
+        "stop_after_match": true
+      },
+      {
+        "when": "content_type == video && impressions >= 50000",
+        "add_literals": {
+          "brand_collab_opportunity": true,
+          "viral_threshold_reached": true,
+          "creator_bonus_eligible": true
+        },
+        "remove_fields": [],
+        "mask_fields": [],
+        "rename_fields": {},
+        "stop_after_match": false
+      }
+    ],
+    "gray_release": {
+      "enabled": true,
+      "bucket_field": "user_id",
+      "variants": [
+        {
+          "name": "chronological-feed",
+          "weight": 60,
+          "overrides": {
+            "whitelist_fields": null,
+            "renames": null,
+            "masked_fields": null,
+            "computed_literals": {
+              "feed_variant": "control",
+              "ranking_algorithm": "chronological"
+            },
+            "remove_nulls": null,
+            "conditional_rules": null,
+            "pagination": null,
+            "request_validation": null,
+            "response_validation": null,
+            "cache_config": null
+          }
+        },
+        {
+          "name": "ml-personalized-feed",
+          "weight": 40,
+          "overrides": {
+            "whitelist_fields": [
+              "post_id",
+              "author_id",
+              "author_name",
+              "author_avatar",
+              "author_verified",
+              "content_type",
+              "content_text",
+              "content_media",
+              "hashtags",
+              "mentions",
+              "location",
+              "likes_count",
+              "comments_count",
+              "shares_count",
+              "view_count",
+              "is_pinned",
+              "is_sponsored",
+              "sensitivity_level",
+              "language",
+              "personalization_score",
+              "predicted_engagement",
+              "diversity_bucket",
+              "created_at",
+              "edited_at"
+            ],
+            "renames": {
+              "personalization_score": "relevance_score"
+            },
+            "masked_fields": null,
+            "computed_literals": {
+              "ab_test_group": "B",
+              "ranking_algorithm": "DeepCTR-Personalized-v3",
+              "feed_variant": "ml-treatment"
+            },
+            "remove_nulls": null,
+            "conditional_rules": null,
+            "pagination": null,
+            "request_validation": null,
+            "response_validation": null,
+            "cache_config": null
+          }
+        }
+      ]
+    },
+    "pagination": {
+      "data_key": "posts",
+      "total_field": "total_posts",
+      "page_field": "page",
+      "page_size_field": "per_page"
+    },
+    "request_validation": {
+      "enabled": true,
+      "schema": {
+        "additionalProperties": false,
+        "properties": {
+          "author_id": {
+            "description": "作者用户ID",
+            "maxLength": 64,
+            "minLength": 8,
+            "type": "string"
+          },
+          "content_type": {
+            "description": "内容类型",
+            "enum": [
+              "text",
+              "image",
+              "video",
+              "audio",
+              "poll",
+              "article",
+              "live_stream",
+              "story"
+            ],
+            "type": "string"
+          },
+          "hashtags": {
+            "description": "话题标签",
+            "items": {
+              "maxLength": 100,
+              "type": "string"
+            },
+            "maxItems": 30,
+            "type": "array"
+          },
+          "is_sponsored": {
+            "description": "是否为广告推广",
+            "type": "boolean"
+          },
+          "language": {
+            "description": "内容语言",
+            "enum": [
+              "zh-CN",
+              "zh-TW",
+              "en",
+              "ja",
+              "ko",
+              "es",
+              "ar",
+              "fr",
+              "de",
+              "pt"
+            ],
+            "type": "string"
+          },
+          "sensitivity_level": {
+            "description": "内容敏感度（0=通用, 5=严格限制）",
+            "maximum": 5,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "author_id"
+        ],
+        "type": "object"
+      },
+      "strict": true,
+      "custom_error_message": "请求校验失败：content_type 需为有效类型，language 需为支持的语言代码",
+      "required_fields": [
+        "author_id"
+      ]
+    },
+    "response_validation": {
+      "enabled": true,
+      "schema": {
+        "properties": {
+          "avatar_url": {
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "comments_count": {
+            "type": "integer"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "hashtags": {
+            "type": "array"
+          },
+          "id": {
+            "type": "string"
+          },
+          "media_attachments": {
+            "type": "array"
+          },
+          "reactions": {
+            "type": "integer"
+          },
+          "reposts": {
+            "type": "integer"
+          },
+          "user_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "body",
+          "created_at"
+        ],
+        "type": "object"
+      },
+      "strict": false,
+      "custom_error_message": null,
+      "required_fields": [
+        "id",
+        "body"
+      ]
+    },
+    "cache_config": {
+      "enabled": true,
+      "ttl_seconds": 30,
+      "max_size_mb": 256,
+      "cache_by_headers": [
+        "Accept-Language",
+        "X-User-Id"
+      ],
+      "cache_by_query": [
+        "page"
+      ],
+      "conditional_cache": "is_sponsored == false"
+    }
+  }
+}
