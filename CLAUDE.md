@@ -13,7 +13,7 @@ Gateway (OpenResty :80) ──► Frontend (Next.js :3000)
 ```
 
 - **Backend** (`backend/`): Rust `axum` server. Source split across `main.rs` (entry), `lib.rs` (router/setup), `handlers/` (25+ files), `types/` (domain-specific structs), `auth.rs` (middleware/RBAC). MySQL tables auto-created on startup. Redis caches rule detail reads (prefix `rule:`, TTL 300s by default). Notification system dispatches events via `spawn_audit_log` → `notify_pref_users` → `notifications` table.
-- **Frontend** (`frontend/`): Next.js 14 App Router SPA. Auth via NextAuth credentials provider. Uses Tailwind CSS 4, `lucide-react` icons, and a custom `i18n.tsx` context (zh/en).
+- **Frontend** (`frontend/`): Next.js 16 App Router SPA. Auth via NextAuth credentials provider. Uses Tailwind CSS 4, `lucide-react` icons, and a custom `i18n.tsx` context (zh/en).
 - **Gateway** (`infra/openresty/`): OpenResty reverse proxy. Routes `/api/*` to backend, `/api/auth/*` to frontend, and `/` to frontend. Per-IP rate limiting at 120 r/s with burst 240 on `/api/` paths.
 - **Infra**: MySQL init script at `infra/mysql/init/`.
 
@@ -124,23 +124,17 @@ Every feature addition or structural change MUST update the relevant documentati
 
 ## Git Workflow (Production Grade)
 
-This project follows a **trunk-based development with short-lived feature branches** model, optimized for a single-developer or small-team CI/CD pipeline.
+This project follows a **single-branch trunk-based development** model, recently consolidated from a `main ← dev ← feature/*` structure.
 
 ### Branch strategy
 
 ```
-main          ← Production-ready. Always deployable. Protected.
-  └── dev     ← Integration branch. All feature work merges here first.
-       └── feature/<slug>  ← One feature per branch. Short-lived (hours, not days).
-       └── fix/<slug>      ← Bug fixes not urgent enough for hotfix.
-       └── hotfix/<slug>   ← Critical production fixes. Branch off main, merge to both.
+master          ← Single source of truth. All development happens here.
 ```
 
 **Rules**:
-- `main` is always green. Before merging to main, the full test suite + build must pass.
-- `dev` is the default working branch. Start all feature work from `dev`.
-- Feature branches are **short-lived** — merge back within the same coding session if possible.
-- Never commit directly to `main`. Only merge from `dev` or `hotfix/*`.
+- `master` is always green. Before pushing, the full test suite + build must pass.
+- Commit directly to `master` — no PR overhead for a solo-developer project.
 - Branch naming: `feature/`, `fix/`, `hotfix/` prefix, lowercase, hyphens for spaces. Example: `feature/advanced-crud-panels`.
 
 ### Commit conventions
@@ -221,7 +215,7 @@ npm run lint                           # MUST pass (warnings OK, errors NOT)
 
 ### Release tags
 
-Production releases are tagged on `main`:
+Production releases are tagged on `master`:
 
 ```bash
 git tag -a v0.2.0 -m "Release v0.2.0: user center, TOTP, advanced CRUD"
@@ -337,7 +331,7 @@ frontend/
 │   ├── usePlugins.ts               ← Plugins CRUD (87 lines)
 │   ├── useLlmGateway.ts            ← LLM Gateway: providers, templates, routing (178 lines)
 │   ├── usePortal.ts                ← Portal data: catalog, my keys, subscriptions, usage (207 lines)
-│   ├── useUserProfile.ts           ← User profile hook (253 lines)
+│   ├── useUserProfile.ts           ← User profile hook (255 lines)
 │   ├── usePermissionTemplates.ts   ← Permission templates CRUD (117 lines)
 │   ├── useUsers.ts                 ← User management CRUD hook (153 lines)
 │   ├── useSystemSettings.ts        ← System settings hook (54 lines)
@@ -417,7 +411,7 @@ frontend/
 ```
 backend/src/
 ├── main.rs              ← 4 lines. #[tokio::main] entry point.
-├── lib.rs               ← 248 lines. Module declarations, pub use, run(), router assembly, health checks.
+├── lib.rs               ← 250 lines. Module declarations, pub use, run(), router assembly, health checks.
 ├── config.rs            ← 88 lines. AppState, Settings, AuthSettings, env parsing, CORS, tracing.
 ├── db/                  ← Database bootstrap modules
 │   ├── mod.rs           ← Entry point, bootstrap_schema()
