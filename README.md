@@ -5,7 +5,6 @@
   <img src="https://img.shields.io/badge/MySQL-8.4-4479a1" alt="mysql">
   <img src="https://img.shields.io/badge/Redis-7.4-red" alt="redis">
   <img src="https://img.shields.io/badge/OpenResty-1.27-green" alt="openresty">
-  <img src="https://img.shields.io/badge/license-MIT-blue" alt="license">
 </p>
 
 <h1 align="center">API Control Plane</h1>
@@ -286,4 +285,4 @@ NEXT_PUBLIC_API_BASE_URL=http://localhost:8080
 
 ## License
 
-MIT
+*This project does not currently include an open-source license.*
